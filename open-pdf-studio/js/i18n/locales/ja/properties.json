@@ -1,0 +1,117 @@
+{
+  "title": "プロパティ",
+  "general": {
+    "title": "全般",
+    "type": "種類",
+    "subject": "件名",
+    "subjectPlaceholder": "件名を入力...",
+    "author": "著者",
+    "created": "作成日時",
+    "modified": "更新日時",
+    "locked": "ロック",
+    "printable": "印刷可能",
+    "readOnly": "読み取り専用",
+    "marked": "マーク済み",
+    "altText": "代替テキスト",
+    "altTextPlaceholder": "アクセシビリティのための説明...",
+    "status": "状態",
+    "accepted": "承認",
+    "rejected": "却下",
+    "cancelled": "取消",
+    "completed": "完了",
+    "reviewed": "レビュー済み"
+  },
+  "appearance": {
+    "title": "外観",
+    "icon": "アイコン",
+    "iconComment": "コメント",
+    "iconNote": "ノート",
+    "iconHelp": "ヘルプ",
+    "iconInsert": "挿入",
+    "iconKey": "キー",
+    "iconNewParagraph": "新しい段落",
+    "iconParagraph": "段落",
+    "iconCheck": "チェック",
+    "iconCircle": "円",
+    "iconCross": "バツ",
+    "iconStar": "星",
+    "fillColor": "塗りつぶしの色",
+    "strokeColor": "線の色",
+    "color": "色",
+    "opacity": "不透明度",
+    "borderStyle": "枠線スタイル"
+  },
+  "content": {
+    "title": "コンテンツ",
+    "text": "テキスト",
+    "fontSize": "フォントサイズ"
+  },
+  "dimensions": {
+    "title": "サイズと寸法",
+    "length": "長さ"
+  },
+  "lineEndings": {
+    "title": "線の端点",
+    "start": "始点",
+    "end": "終点",
+    "openArrow": "開いた矢印",
+    "closedArrow": "閉じた矢印",
+    "diamond": "ダイヤモンド",
+    "circle": "円",
+    "square": "正方形",
+    "slash": "スラッシュ",
+    "headSize": "端点のサイズ"
+  },
+  "textFormat": {
+    "title": "文字",
+    "textColor": "文字色",
+    "font": "フォント",
+    "fontSize": "フォントサイズ",
+    "style": "スタイル",
+    "bold": "太字",
+    "italic": "斜体",
+    "underline": "下線",
+    "strikethrough": "取り消し線"
+  },
+  "paragraph": {
+    "title": "段落",
+    "textAlignment": "テキストの配置",
+    "alignLeft": "左揃え",
+    "alignCenter": "中央揃え",
+    "alignRight": "右揃え",
+    "lineSpacing": "行間",
+    "rotation": "回転"
+  },
+  "replies": {
+    "title": "返信",
+    "noReplies": "返信はまだありません。",
+    "user": "ユーザー",
+    "addReply": "返信を追加...",
+    "addButton": "追加"
+  },
+  "docInfo": {
+    "document": "ドキュメント",
+    "file": "ファイル",
+    "path": "パス",
+    "pages": "ページ",
+    "pageSize": "ページサイズ",
+    "metadata": "メタデータ",
+    "title": "タイトル",
+    "author": "著者",
+    "subject": "件名",
+    "creator": "作成者",
+    "producer": "制作者",
+    "pdfVersion": "PDF バージョン",
+    "annotations": "注釈",
+    "total": "合計",
+    "onPage": "ページ上",
+    "selectHint": "注釈を選択してプロパティを編集できます"
+  },
+  "image": {
+    "title": "画像",
+    "width": "幅",
+    "height": "高さ",
+    "rotation": "回転",
+    "resetToOriginal": "元のサイズに戻す"
+  }
+}

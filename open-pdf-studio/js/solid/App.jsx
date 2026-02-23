@@ -1,3 +1,5 @@
+import { isMobile } from '../core/platform.js';
+import MobileApp from './MobileApp.jsx';
 import TitleBar from './components/TitleBar.jsx';
 import Ribbon from './components/ribbon/Ribbon.jsx';
 import DocumentTabs from './components/DocumentTabs.jsx';
@@ -11,8 +13,11 @@ import Backstage from './components/backstage/Backstage.jsx';
 import DialogHost from './components/DialogHost.jsx';
 import ContextMenu from './components/ContextMenu.jsx';
 import LoadingOverlay from './components/LoadingOverlay.jsx';
+import { useTranslation } from '../i18n/useTranslation.js';
 
-export default function App() {
+function DesktopApp() {
+  const { t } = useTranslation('common');
+
   return (
     <>
       <TitleBar />
@@ -33,8 +38,8 @@ export default function App() {
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
             </svg>
-            <h2>No PDF Selected</h2>
-            <p>Click "Open PDF" to browse and annotate a PDF</p>
+            <h2>{t('noDocuments')}</h2>
+            <p>{t('noDocumentsHint')}</p>
           </div>
 
           <FormFieldsBar />
@@ -63,4 +68,11 @@ export default function App() {
       <LoadingOverlay />
     </>
   );
+}
+
+export default function App() {
+  if (isMobile()) {
+    return <MobileApp />;
+  }
+  return <DesktopApp />;
 }

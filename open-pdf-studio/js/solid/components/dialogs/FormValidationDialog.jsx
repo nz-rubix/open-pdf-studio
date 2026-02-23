@@ -1,7 +1,11 @@
 import Dialog from '../Dialog.jsx';
 import { closeDialog } from '../../stores/dialogStore.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function FormValidationDialog(props) {
+  const { t } = useTranslation('dialogs');
+  const { t: tCommon } = useTranslation('common');
+
   const message = () => props.data?.message || '';
 
   function handleClose() {
@@ -13,13 +17,13 @@ export default function FormValidationDialog(props) {
 
   const footer = (
     <div class="form-validation-footer">
-      <button class="form-validation-ok-btn" onClick={handleClose}>OK</button>
+      <button class="form-validation-ok-btn" onClick={handleClose}>{tCommon('ok')}</button>
     </div>
   );
 
   return (
     <Dialog
-      title="Validation Error"
+      title={t('formValidation.title')}
       overlayClass="form-validation-overlay"
       dialogClass="form-validation-dialog"
       headerClass="form-validation-header"

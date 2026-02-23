@@ -1,0 +1,117 @@
+{
+  "title": "Properties",
+  "general": {
+    "title": "General",
+    "type": "Type",
+    "subject": "Subject",
+    "subjectPlaceholder": "Enter subject...",
+    "author": "Author",
+    "created": "Created",
+    "modified": "Modified",
+    "locked": "Locked",
+    "printable": "Printable",
+    "readOnly": "Read Only",
+    "marked": "Marked",
+    "altText": "Alt Text",
+    "altTextPlaceholder": "Description for accessibility...",
+    "status": "Status",
+    "accepted": "Accepted",
+    "rejected": "Rejected",
+    "cancelled": "Cancelled",
+    "completed": "Completed",
+    "reviewed": "Reviewed"
+  },
+  "appearance": {
+    "title": "Appearance",
+    "icon": "Icon",
+    "iconComment": "Comment",
+    "iconNote": "Note",
+    "iconHelp": "Help",
+    "iconInsert": "Insert",
+    "iconKey": "Key",
+    "iconNewParagraph": "New Paragraph",
+    "iconParagraph": "Paragraph",
+    "iconCheck": "Check",
+    "iconCircle": "Circle",
+    "iconCross": "Cross",
+    "iconStar": "Star",
+    "fillColor": "Fill Color",
+    "strokeColor": "Stroke Color",
+    "color": "Color",
+    "opacity": "Opacity",
+    "borderStyle": "Border Style"
+  },
+  "content": {
+    "title": "Content",
+    "text": "Text",
+    "fontSize": "Font Size"
+  },
+  "dimensions": {
+    "title": "Size & Dimensions",
+    "length": "Length"
+  },
+  "lineEndings": {
+    "title": "Line Endings",
+    "start": "Start",
+    "end": "End",
+    "openArrow": "Open Arrow",
+    "closedArrow": "Closed Arrow",
+    "diamond": "Diamond",
+    "circle": "Circle",
+    "square": "Square",
+    "slash": "Slash",
+    "headSize": "Head Size"
+  },
+  "textFormat": {
+    "title": "Character",
+    "textColor": "Text Color",
+    "font": "Font",
+    "fontSize": "Font Size",
+    "style": "Style",
+    "bold": "Bold",
+    "italic": "Italic",
+    "underline": "Underline",
+    "strikethrough": "Strikethrough"
+  },
+  "paragraph": {
+    "title": "Paragraph",
+    "textAlignment": "Text Alignment",
+    "alignLeft": "Align Left",
+    "alignCenter": "Align Center",
+    "alignRight": "Align Right",
+    "lineSpacing": "Line Spacing",
+    "rotation": "Rotation"
+  },
+  "replies": {
+    "title": "Replies",
+    "noReplies": "No replies yet.",
+    "user": "User",
+    "addReply": "Add a reply...",
+    "addButton": "Add"
+  },
+  "docInfo": {
+    "document": "Document",
+    "file": "File",
+    "path": "Path",
+    "pages": "Pages",
+    "pageSize": "Page Size",
+    "metadata": "Metadata",
+    "title": "Title",
+    "author": "Author",
+    "subject": "Subject",
+    "creator": "Creator",
+    "producer": "Producer",
+    "pdfVersion": "PDF Version",
+    "annotations": "Annotations",
+    "total": "Total",
+    "onPage": "On Page",
+    "selectHint": "Select an annotation to edit its properties"
+  },
+  "image": {
+    "title": "Image",
+    "width": "Width",
+    "height": "Height",
+    "rotation": "Rotation",
+    "resetToOriginal": "Reset to Original Size"
+  }
+}

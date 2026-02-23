@@ -5,12 +5,16 @@ import { state, getPageRotation } from '../../../core/state.js';
 import { invoke } from '../../../core/platform.js';
 import { parsePageRange, renderPageOffscreen, canvasToBytes } from '../../../pdf/exporter.js';
 import { PDFDocument } from 'pdf-lib';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function PrintDialog(props) {
+  const { t } = useTranslation('dialogs');
+  const { t: tCommon } = useTranslation('common');
+
   const [printerList, setPrinterList] = createSignal([]);
   const [selectedPrinter, setSelectedPrinter] = createSignal('');
-  const [printerStatus, setPrinterStatus] = createSignal('Status:');
-  const [printerType, setPrinterType] = createSignal('Type:');
+  const [printerStatus, setPrinterStatus] = createSignal(`${t('print.status')} `);
+  const [printerType, setPrinterType] = createSignal(`${t('print.type')} `);
   const [copies, setCopies] = createSignal(1);
   const [collate, setCollate] = createSignal(false);
   const [activeRange, setActiveRange] = createSignal('all');
@@ -37,11 +41,11 @@ export default function PrintDialog(props) {
   function updatePrinterInfo(name) {
     const printer = printerList().find(p => p.Name === name);
     if (printer) {
-      setPrinterStatus(`Status: ${printer.Status || 'Ready'}`);
-      setPrinterType(`Type: ${printer.DriverName || printer.Name || ''}`);
+      setPrinterStatus(`${t('print.status')} ${printer.Status || 'Ready'}`);
+      setPrinterType(`${t('print.type')} ${printer.DriverName || printer.Name || ''}`);
     } else {
-      setPrinterStatus('Status:');
-      setPrinterType('Type:');
+      setPrinterStatus(`${t('print.status')} `);
+      setPrinterType(`${t('print.type')} `);
     }
   }
 
@@ -74,7 +78,7 @@ export default function PrintDialog(props) {
 
   const pageInfo = createMemo(() => {
     const pages = getPrintPages();
-    return `${pages.length} page(s) to print`;
+    return `${pages.length} ${t('print.pagesToPrint')}`;
   });
 
   function updatePreviewPages() {
@@ -206,20 +210,20 @@ export default function PrintDialog(props) {
 
   async function executePrint() {
     if (!selectedPrinter()) {
-      setStatusMessage('No printer selected.');
+      setStatusMessage(t('print.noPrinterSelected'));
       setStatusType('error');
       return;
     }
 
     const pages = getPrintPages();
     if (pages.length === 0) {
-      setStatusMessage('No pages to print.');
+      setStatusMessage(t('print.noPagesToPrint'));
       setStatusType('error');
       return;
     }
 
     setPrintDisabled(true);
-    setStatusMessage('Preparing print job...');
+    setStatusMessage(t('print.preparingPrintJob'));
     setStatusType('');
 
     try {
@@ -228,7 +232,7 @@ export default function PrintDialog(props) {
 
       for (let i = 0; i < pages.length; i++) {
         const pageNum = pages[i];
-        setStatusMessage(`Rendering page ${pageNum}...`);
+        setStatusMessage(`${t('print.renderingPage')} ${pageNum}...`);
 
         const canvas = await renderPageOffscreen(pageNum, exportScale);
         const jpegBytes = await canvasToBytes(canvas, 'jpeg', 0.92);
@@ -251,12 +255,12 @@ export default function PrintDialog(props) {
         });
       }
 
-      setStatusMessage('Saving print data...');
+      setStatusMessage(t('print.savingPrintData'));
       const pdfBytes = await newPdf.save();
       const tempPath = await invoke('write_temp_pdf', { data: Array.from(pdfBytes) });
 
       if (!tempPath) {
-        setStatusMessage('Failed to create temporary print file.');
+        setStatusMessage(t('print.failedToCreateTempFile'));
         setStatusType('error');
         setPrintDisabled(false);
         return;
@@ -265,15 +269,15 @@ export default function PrintDialog(props) {
       const numCopies = Math.max(1, copies());
       for (let c = 0; c < numCopies; c++) {
         setStatusMessage(numCopies > 1
-          ? `Printing copy ${c + 1} of ${numCopies}...`
-          : 'Sending to printer...');
+          ? `${t('print.printingCopy')} ${c + 1} of ${numCopies}...`
+          : t('print.sendingToPrinter'));
         await invoke('print_pdf', {
           printerName: selectedPrinter(),
           filePath: tempPath,
         });
       }
 
-      setStatusMessage('Print job sent successfully.');
+      setStatusMessage(t('print.printJobSent'));
       setStatusType('success');
 
       setTimeout(() => {
@@ -287,7 +291,7 @@ export default function PrintDialog(props) {
       }, 30000);
     } catch (e) {
       console.error('Print error:', e);
-      setStatusMessage(`Print failed: ${e.message || e}`);
+      setStatusMessage(`${t('print.printFailed')} ${e.message || e}`);
       setStatusType('error');
       setPrintDisabled(false);
     }
@@ -329,15 +333,15 @@ export default function PrintDialog(props) {
           class="pref-btn pref-btn-primary"
           disabled={printDisabled()}
           onClick={executePrint}
-        >Print</button>
-        <button class="pref-btn pref-btn-secondary" onClick={close}>Cancel</button>
+        >{tCommon('print')}</button>
+        <button class="pref-btn pref-btn-secondary" onClick={close}>{tCommon('cancel')}</button>
       </div>
     </>
   );
 
   return (
     <Dialog
-      title="Print"
+      title={t('print.title')}
       overlayClass="print-overlay"
       dialogClass="print-dialog"
       headerClass="print-header"
@@ -349,11 +353,11 @@ export default function PrintDialog(props) {
       <div class="print-settings">
         {/* Printer */}
         <fieldset class="print-group">
-          <legend>Printer</legend>
+          <legend>{t('print.printer')}</legend>
           <div class="print-printer-layout">
             <div class="print-printer-left">
               <div class="print-row">
-                <label class="print-label">Name:</label>
+                <label class="print-label">{t('print.name')}</label>
                 <select
                   class="print-select"
                   value={selectedPrinter()}
@@ -377,15 +381,15 @@ export default function PrintDialog(props) {
             </div>
             <div class="print-printer-right">
               <button class="print-printer-action-btn" onClick={openPrinterProperties}>
-                Properties...
+                {t('print.propertiesBtn')}
               </button>
               <button class="print-printer-action-btn" onClick={openPageSetup}>
-                Page Setup...
+                {t('print.pageSetupBtn')}
               </button>
             </div>
           </div>
           <div class="print-row">
-            <label class="print-label">Copies:</label>
+            <label class="print-label">{t('print.copies')}</label>
             <input
               type="number"
               class="print-input"
@@ -399,91 +403,91 @@ export default function PrintDialog(props) {
                 type="checkbox"
                 checked={collate()}
                 onChange={(e) => setCollate(e.target.checked)}
-              /> Collate
+              /> {t('print.collate')}
             </label>
           </div>
         </fieldset>
 
         {/* Page Range */}
         <fieldset class="print-group">
-          <legend>Page Range</legend>
+          <legend>{t('print.pageRange')}</legend>
           <div class="print-row print-pages-row">
             <div class="print-page-btns">
               <button
                 class="print-page-btn"
                 classList={{ active: activeRange() === 'all' }}
                 onClick={() => onRangeChange('all')}
-              >All</button>
+              >{t('print.all')}</button>
               <button
                 class="print-page-btn"
                 classList={{ active: activeRange() === 'current' }}
                 onClick={() => onRangeChange('current')}
-              >{`Current: ${currentPageNum}`}</button>
+              >{`${t('print.current')} ${currentPageNum}`}</button>
               <button
                 class="print-page-btn"
                 classList={{ active: activeRange() === 'custom' }}
                 onClick={() => onRangeChange('custom')}
-              >Custom</button>
+              >{t('print.custom')}</button>
             </div>
           </div>
           <div class="print-row print-custom-row">
-            <label class="print-label">Pages:</label>
+            <label class="print-label">{t('print.pagesLabel')}</label>
             <input
               type="text"
               class="print-custom-input"
-              placeholder="e.g. 1-3, 5, 8-10"
+              placeholder={t('print.pagesPlaceholder')}
               disabled={activeRange() !== 'custom'}
               value={customPages()}
               onInput={(e) => onCustomPagesChange(e.target.value)}
             />
           </div>
           <div class="print-row">
-            <label class="print-label">Subset:</label>
+            <label class="print-label">{t('print.subset')}</label>
             <div class="print-subset-btns">
               <button
                 class="print-subset-btn"
                 classList={{ active: activeSubset() === 'all' }}
                 onClick={() => onSubsetChange('all')}
-              >All</button>
+              >{t('print.all')}</button>
               <button
                 class="print-subset-btn"
                 classList={{ active: activeSubset() === 'odd' }}
                 onClick={() => onSubsetChange('odd')}
-              >Odd</button>
+              >{t('print.odd')}</button>
               <button
                 class="print-subset-btn"
                 classList={{ active: activeSubset() === 'even' }}
                 onClick={() => onSubsetChange('even')}
-              >Even</button>
+              >{t('print.even')}</button>
             </div>
             <label class="print-checkbox-label">
               <input
                 type="checkbox"
                 checked={reverseOrder()}
                 onChange={(e) => onReverseChange(e.target.checked)}
-              /> Reverse Order
+              /> {t('print.reverseOrder')}
             </label>
           </div>
         </fieldset>
 
         {/* Page Placement and Scaling */}
         <fieldset class="print-group">
-          <legend>Page Placement and Scaling</legend>
+          <legend>{t('print.pagePlacement')}</legend>
           <div class="print-row">
-            <label class="print-label">Type:</label>
+            <label class="print-label">{t('print.typeLabel')}</label>
             <select
               class="print-select"
               value={scaling()}
               onChange={(e) => setScaling(e.target.value)}
             >
-              <option value="fit">Fit</option>
-              <option value="actual">Actual Size</option>
-              <option value="shrink">Shrink to Printable Area</option>
-              <option value="custom-scale">Custom Scale</option>
+              <option value="fit">{t('print.fit')}</option>
+              <option value="actual">{t('print.actualSize')}</option>
+              <option value="shrink">{t('print.shrinkToPrintable')}</option>
+              <option value="custom-scale">{t('print.customScale')}</option>
             </select>
           </div>
           <div class="print-row print-zoom-row">
-            <label class="print-label">Page Zoom:</label>
+            <label class="print-label">{t('print.pageZoom')}</label>
             <input
               type="number"
               class="print-input"
@@ -501,7 +505,7 @@ export default function PrintDialog(props) {
                 type="checkbox"
                 checked={autoRotate()}
                 onChange={(e) => setAutoRotate(e.target.checked)}
-              /> Auto-Rotate
+              /> {t('print.autoRotate')}
             </label>
           </div>
           <div class="print-row print-checkbox-row">
@@ -510,23 +514,23 @@ export default function PrintDialog(props) {
                 type="checkbox"
                 checked={autoCenter()}
                 onChange={(e) => setAutoCenter(e.target.checked)}
-              /> Auto-Center
+              /> {t('print.autoCenter')}
             </label>
           </div>
         </fieldset>
 
         {/* Advanced Print Options */}
         <fieldset class="print-group">
-          <legend>Advanced Print Options</legend>
+          <legend>{t('print.advancedOptions')}</legend>
           <div class="print-row">
-            <label class="print-label">Print:</label>
+            <label class="print-label">{t('print.printLabel')}</label>
             <select
               class="print-select"
               value={printContent()}
               onChange={(e) => onPrintContentChange(e.target.value)}
             >
-              <option value="doc-and-markups">Document and Markups</option>
-              <option value="doc-only">Document</option>
+              <option value="doc-and-markups">{t('print.documentAndMarkups')}</option>
+              <option value="doc-only">{t('print.document')}</option>
             </select>
           </div>
           <div class="print-row print-checkbox-row">
@@ -535,7 +539,7 @@ export default function PrintDialog(props) {
                 type="checkbox"
                 checked={printAsImage()}
                 onChange={(e) => setPrintAsImage(e.target.checked)}
-              /> Print as Image
+              /> {t('print.printAsImage')}
             </label>
           </div>
         </fieldset>
@@ -557,8 +561,8 @@ export default function PrintDialog(props) {
         <div class="print-preview-footer">
           <span>
             {previewPages().length > 0
-              ? `Page ${previewIndex() + 1} of ${previewPages().length}`
-              : 'No pages'}
+              ? t('print.pageOf', { current: previewIndex() + 1, total: previewPages().length })
+              : t('print.noPages')}
           </span>
           <div class="print-preview-nav">
             <button

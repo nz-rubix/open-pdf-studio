@@ -10,37 +10,40 @@ import FormatTab from './FormatTab.jsx';
 import ArrangeTab from './ArrangeTab.jsx';
 import { activeTab, setActiveTab, contextualTabsVisible } from '../../stores/ribbonStore.js';
 import { openBackstage } from '../../../ui/chrome/menus.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function Ribbon() {
+  const { t } = useTranslation('ribbon');
+
   return (
     <>
       <div class="ribbon-tabs">
-        <RibbonTab label="File" isFileTab={true} id="file-tab"
+        <RibbonTab label={t('tabs.file')} isFileTab={true} id="file-tab"
           onClick={() => openBackstage()} />
-        <RibbonTab label="Home" dataTab="home"
+        <RibbonTab label={t('tabs.home')} dataTab="home"
           isActive={activeTab() === 'home'}
           onClick={() => setActiveTab('home')} />
-        <RibbonTab label="Comment" dataTab="comment"
+        <RibbonTab label={t('tabs.comment')} dataTab="comment"
           isActive={activeTab() === 'comment'}
           onClick={() => setActiveTab('comment')} />
-        <RibbonTab label="View" dataTab="view"
+        <RibbonTab label={t('tabs.view')} dataTab="view"
           isActive={activeTab() === 'view'}
           onClick={() => setActiveTab('view')} />
-        <RibbonTab label="Forms" dataTab="forms"
+        <RibbonTab label={t('tabs.forms')} dataTab="forms"
           isActive={activeTab() === 'forms'}
           onClick={() => setActiveTab('forms')} />
-        <RibbonTab label="Organize" dataTab="organize"
+        <RibbonTab label={t('tabs.organize')} dataTab="organize"
           isActive={activeTab() === 'organize'}
           onClick={() => setActiveTab('organize')} />
-        <RibbonTab label="Help" dataTab="help"
+        <RibbonTab label={t('tabs.help')} dataTab="help"
           isActive={activeTab() === 'help'}
           onClick={() => setActiveTab('help')} />
         <Show when={contextualTabsVisible()}>
           <span class="ribbon-tab-separator contextual-tabs visible" id="contextual-tabs-separator"></span>
-          <RibbonTab label="Format" dataTab="format" isContextual={true} id="tab-format-btn"
+          <RibbonTab label={t('tabs.format')} dataTab="format" isContextual={true} id="tab-format-btn"
             isActive={activeTab() === 'format'}
             onClick={() => setActiveTab('format')} />
-          <RibbonTab label="Arrange" dataTab="arrange" isContextual={true} id="tab-arrange-btn"
+          <RibbonTab label={t('tabs.arrange')} dataTab="arrange" isContextual={true} id="tab-arrange-btn"
             isActive={activeTab() === 'arrange'}
             onClick={() => setActiveTab('arrange')} />
         </Show>

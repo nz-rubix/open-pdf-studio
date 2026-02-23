@@ -40,12 +40,15 @@ import { initFontDropdowns } from './utils/fonts.js';
 // Auto-update
 import { checkForUpdates } from './ui/chrome/updater.js';
 
+// i18n
+import './i18n/config.js';
+
 // Solid.js
 import { render } from 'solid-js/web';
 import App from './solid/App.jsx';
 
 // Tauri API
-import { isTauri, isDevMode, getOpenedFile, loadSession, saveSession, fileExists, isDefaultPdfApp, openDefaultAppsSettings } from './core/platform.js';
+import { isTauri, isMobile, isDevMode, getOpenedFile, loadSession, saveSession, fileExists, isDefaultPdfApp, openDefaultAppsSettings } from './core/platform.js';
 
 // Disable default browser context menu
 function disableDefaultContextMenu() {
@@ -59,7 +62,12 @@ function disableDefaultContextMenu() {
 
 // Initialize application
 async function init() {
-  disableDefaultContextMenu();
+  const mobile = isMobile();
+
+  // Disable context menu on desktop only (long-press is expected on mobile)
+  if (!mobile) {
+    disableDefaultContextMenu();
+  }
 
   // Load user preferences (before render so theme is applied)
   loadPreferences();
@@ -71,14 +79,18 @@ async function init() {
   // Now that Solid has rendered, grab canvas and container refs
   initDomElements();
 
-  // Initialize UI components
-  initMenus();
-  initContextMenus();
-  initAnnotationsList();
-  initAttachments();
-  initLinks();
-  initBookmarks();
-  initLeftPanel();
+  // Initialize UI components (desktop-only UI modules)
+  if (!mobile) {
+    initMenus();
+    initContextMenus();
+    initAnnotationsList();
+    initAttachments();
+    initLinks();
+    initBookmarks();
+    initLeftPanel();
+    initFindBar();
+    initFontDropdowns();
+  }
 
   // Initialize text selection
   initTextSelection();
@@ -86,17 +98,13 @@ async function init() {
   // Initialize tab management
   initTabs();
 
-  // Initialize find bar
-  initFindBar();
-
-  // Populate font dropdowns with system fonts
-  initFontDropdowns();
-
   // Setup all event listeners
   setupEventListeners();
 
-  // Setup session save on window close
-  setupSessionSaveOnClose();
+  // Setup session save on window close (desktop only — Android lifecycle handles this)
+  if (!mobile) {
+    setupSessionSaveOnClose();
+  }
 
   // Check for file passed as command line argument
   const hasCommandLineFile = await checkCommandLineArgs();
@@ -106,11 +114,11 @@ async function init() {
     await restoreLastSession();
   }
 
-  // Check if this app is the default PDF handler
-  await checkDefaultPdfApp();
-
-  // Check for updates silently on startup
-  checkForUpdates(true);
+  // Desktop-only: check default PDF app and auto-update
+  if (!mobile) {
+    await checkDefaultPdfApp();
+    checkForUpdates(true);
+  }
 }
 
 // Check for PDF file passed as command line argument

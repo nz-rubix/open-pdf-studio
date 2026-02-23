@@ -9,6 +9,23 @@ export const isTauri = () => {
   return typeof window !== 'undefined' && window.__TAURI__ !== undefined;
 };
 
+// Detect mobile platform (Android/iOS) — cached at first call
+let _isMobile = null;
+export function isMobile() {
+  if (_isMobile !== null) return _isMobile;
+  try {
+    if (isTauri() && window.__TAURI__.os) {
+      const osType = window.__TAURI__.os.type();
+      _isMobile = (osType === 'android' || osType === 'ios');
+    } else {
+      _isMobile = false;
+    }
+  } catch {
+    _isMobile = false;
+  }
+  return _isMobile;
+}
+
 // Get Tauri APIs from global object
 function getTauriWindow() {
   if (!isTauri()) return null;

@@ -1,6 +1,7 @@
 import { createSignal, createEffect, onMount } from 'solid-js';
 import Dialog from '../Dialog.jsx';
 import { closeDialog } from '../../stores/dialogStore.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 const PAGE_SETUP_SIZES = {
   a3:      { width: 297, height: 420, label: 'A3' },
@@ -26,6 +27,9 @@ export function getPageSetupSettings() {
 }
 
 export default function PageSetupDialog() {
+  const { t } = useTranslation('dialogs');
+  const { t: tCommon } = useTranslation('common');
+
   const [size, setSize] = createSignal(pageSetupSettings.size);
   const [source, setSource] = createSignal(pageSetupSettings.source);
   const [orientation, setOrientation] = createSignal(pageSetupSettings.orientation);
@@ -129,15 +133,15 @@ export default function PageSetupDialog() {
     <div>
       <div></div>
       <div class="page-setup-footer-right">
-        <button class="pref-btn pref-btn-primary" onClick={applyPageSetup}>OK</button>
-        <button class="pref-btn pref-btn-secondary" onClick={close}>Cancel</button>
+        <button class="pref-btn pref-btn-primary" onClick={applyPageSetup}>{tCommon('ok')}</button>
+        <button class="pref-btn pref-btn-secondary" onClick={close}>{tCommon('cancel')}</button>
       </div>
     </div>
   );
 
   return (
     <Dialog
-      title="Page Setup"
+      title={t('pageSetup.title')}
       overlayClass="page-setup-overlay"
       dialogClass="page-setup-dialog"
       headerClass="page-setup-header"
@@ -150,9 +154,9 @@ export default function PageSetupDialog() {
         <canvas ref={canvasRef} width="160" height="200"></canvas>
       </div>
       <fieldset class="page-setup-group">
-        <legend>Paper</legend>
+        <legend>{t('pageSetup.paper')}</legend>
         <div class="page-setup-row">
-          <label class="page-setup-label">Size:</label>
+          <label class="page-setup-label">{t('pageSetup.size')}</label>
           <select
             class="page-setup-select"
             value={size()}
@@ -167,22 +171,22 @@ export default function PageSetupDialog() {
           </select>
         </div>
         <div class="page-setup-row">
-          <label class="page-setup-label">Source:</label>
+          <label class="page-setup-label">{t('pageSetup.source')}</label>
           <select
             class="page-setup-select"
             value={source()}
             onChange={(e) => setSource(e.target.value)}
           >
-            <option value="auto">Automatically Select</option>
-            <option value="tray1">Tray 1</option>
-            <option value="tray2">Tray 2</option>
-            <option value="manual">Manual Feed</option>
+            <option value="auto">{t('pageSetup.autoSelect')}</option>
+            <option value="tray1">{t('pageSetup.tray1')}</option>
+            <option value="tray2">{t('pageSetup.tray2')}</option>
+            <option value="manual">{t('pageSetup.manualFeed')}</option>
           </select>
         </div>
       </fieldset>
       <div class="page-setup-bottom">
         <fieldset class="page-setup-group page-setup-orientation-group">
-          <legend>Orientation</legend>
+          <legend>{t('pageSetup.orientation')}</legend>
           <label class="page-setup-radio-label">
             <input
               type="radio"
@@ -190,7 +194,7 @@ export default function PageSetupDialog() {
               value="portrait"
               checked={orientation() === 'portrait'}
               onChange={() => setOrientation('portrait')}
-            /> Portrait
+            /> {tCommon('portrait')}
           </label>
           <label class="page-setup-radio-label">
             <input
@@ -199,13 +203,13 @@ export default function PageSetupDialog() {
               value="landscape"
               checked={orientation() === 'landscape'}
               onChange={() => setOrientation('landscape')}
-            /> Landscape
+            /> {tCommon('landscape')}
           </label>
         </fieldset>
         <fieldset class="page-setup-group page-setup-margins-group">
-          <legend>Margins (millimeters)</legend>
+          <legend>{t('pageSetup.margins')}</legend>
           <div class="page-setup-margins-grid">
-            <label class="page-setup-margin-label">Left:</label>
+            <label class="page-setup-margin-label">{t('pageSetup.left')}</label>
             <input
               type="number"
               class="page-setup-margin-input"
@@ -214,7 +218,7 @@ export default function PageSetupDialog() {
               max="200"
               onInput={(e) => setMarginLeft(e.target.value)}
             />
-            <label class="page-setup-margin-label">Right:</label>
+            <label class="page-setup-margin-label">{t('pageSetup.right')}</label>
             <input
               type="number"
               class="page-setup-margin-input"
@@ -223,7 +227,7 @@ export default function PageSetupDialog() {
               max="200"
               onInput={(e) => setMarginRight(e.target.value)}
             />
-            <label class="page-setup-margin-label">Top:</label>
+            <label class="page-setup-margin-label">{t('pageSetup.top')}</label>
             <input
               type="number"
               class="page-setup-margin-input"
@@ -232,7 +236,7 @@ export default function PageSetupDialog() {
               max="200"
               onInput={(e) => setMarginTop(e.target.value)}
             />
-            <label class="page-setup-margin-label">Bottom:</label>
+            <label class="page-setup-margin-label">{t('pageSetup.bottom')}</label>
             <input
               type="number"
               class="page-setup-margin-input"

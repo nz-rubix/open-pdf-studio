@@ -1,17 +1,19 @@
 import { createSignal, onMount } from 'solid-js';
 import { getAppVersion, openExternal } from '../../../core/platform.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function AboutPanel() {
-  const [version, setVersion] = createSignal('Version');
+  const { t } = useTranslation('backstage');
+  const [version, setVersion] = createSignal(t('aboutPanel.version'));
 
   onMount(async () => {
     const v = await getAppVersion();
-    if (v) setVersion(`Version ${v}`);
+    if (v) setVersion(`${t('aboutPanel.version')} ${v}`);
   });
 
   return (
     <div class="bs-about-panel">
-      <h2 class="bs-about-title">About</h2>
+      <h2 class="bs-about-title">{t('aboutPanel.title')}</h2>
       <div class="bs-about-app">
         <div class="bs-about-logo">
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -23,20 +25,18 @@ export default function AboutPanel() {
           </svg>
         </div>
         <div class="bs-about-app-info">
-          <h1 class="bs-about-app-name">Open PDF Studio</h1>
+          <h1 class="bs-about-app-name">{t('aboutPanel.appName')}</h1>
           <p class="bs-about-version">{version()}</p>
         </div>
       </div>
-      <p class="bs-about-tagline">IT Without Chains</p>
+      <p class="bs-about-tagline">{t('aboutPanel.tagline')}</p>
       <p class="bs-about-description">
-        A professional PDF editor for viewing, annotating, and editing PDF documents.
-        Built with open source technologies.
+        {t('aboutPanel.description')}
       </p>
       <div class="bs-about-company">
-        <h3 class="bs-about-company-name">OpenAEC Foundation</h3>
+        <h3 class="bs-about-company-name">{t('aboutPanel.companyName')}</h3>
         <p class="bs-about-company-desc">
-          From the Latin "to share and distribute" - we liberate businesses from vendor lock-in
-          through professional open source solutions. Transparent pricing, transparent code.
+          {t('aboutPanel.companyDescription')}
         </p>
       </div>
       <div class="bs-about-links">
@@ -45,18 +45,18 @@ export default function AboutPanel() {
             <circle cx="12" cy="12" r="10"/>
             <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
           </svg>
-          Website
+          {t('aboutPanel.website')}
         </a>
         <a href="#" class="bs-about-link" onClick={(e) => { e.preventDefault(); openExternal('mailto:maarten@impertio.nl'); }}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
             <polyline points="22,6 12,13 2,6"/>
           </svg>
-          Contact
+          {t('aboutPanel.contact')}
         </a>
       </div>
       <div class="bs-about-footer">
-        <p class="bs-about-copyright">&copy; 2025 OpenAEC Foundation. Licensed under MIT.</p>
+        <p class="bs-about-copyright">{t('aboutPanel.copyright')}</p>
       </div>
     </div>
   );

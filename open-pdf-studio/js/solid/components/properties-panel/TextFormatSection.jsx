@@ -4,10 +4,12 @@ import CollapsibleSection from './CollapsibleSection.jsx';
 import ColorPalettePicker from './ColorPalettePicker.jsx';
 import { systemFontList } from '../../stores/fontStore.js';
 import { ensureFontInStore } from '../../../utils/fonts.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 const FONT_SIZE_OPTIONS = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 72];
 
 export default function TextFormatSection() {
+  const { t } = useTranslation('properties');
   const isLocked = () => annotProps.locked;
 
   const fonts = createMemo(() => {
@@ -30,9 +32,9 @@ export default function TextFormatSection() {
 
   return (
     <Show when={sectionVis.textFormat}>
-      <CollapsibleSection title="Character" name="textFormat" id="prop-text-format-section">
+      <CollapsibleSection title={t('textFormat.title')} name="textFormat" id="prop-text-format-section">
         <ColorPalettePicker
-          label="Text Color"
+          label={t('textFormat.textColor')}
           color={() => annotProps.textColor}
           showNone={false}
           disabled={isLocked()}
@@ -40,7 +42,7 @@ export default function TextFormatSection() {
         />
 
         <div class="property-group">
-          <label>Font</label>
+          <label>{t('textFormat.font')}</label>
           <select value={annotProps.fontFamily} disabled={isLocked()}
             onChange={(e) => updateAnnotProp('fontFamily', e.target.value)}>
             <For each={fonts()}>
@@ -50,7 +52,7 @@ export default function TextFormatSection() {
         </div>
 
         <div class="property-group">
-          <label>Font Size</label>
+          <label>{t('textFormat.fontSize')}</label>
           <select value={annotProps.textFontSize} disabled={isLocked()}
             onChange={(e) => updateAnnotProp('textFontSize', e.target.value)}>
             <For each={fontSizeOptions()}>
@@ -60,25 +62,25 @@ export default function TextFormatSection() {
         </div>
 
         <div class="property-group">
-          <label>Style</label>
+          <label>{t('textFormat.style')}</label>
           <div class="text-style-buttons">
             <button type="button" class={`text-style-btn${annotProps.fontBold ? ' active' : ''}`}
-              title="Bold" disabled={isLocked()}
+              title={t('textFormat.bold')} disabled={isLocked()}
               onClick={() => updateAnnotProp('fontBold', !annotProps.fontBold)}>
               <strong>B</strong>
             </button>
             <button type="button" class={`text-style-btn${annotProps.fontItalic ? ' active' : ''}`}
-              title="Italic" disabled={isLocked()}
+              title={t('textFormat.italic')} disabled={isLocked()}
               onClick={() => updateAnnotProp('fontItalic', !annotProps.fontItalic)}>
               <em>I</em>
             </button>
             <button type="button" class={`text-style-btn${annotProps.fontUnderline ? ' active' : ''}`}
-              title="Underline" disabled={isLocked()}
+              title={t('textFormat.underline')} disabled={isLocked()}
               onClick={() => updateAnnotProp('fontUnderline', !annotProps.fontUnderline)}>
               <u>U</u>
             </button>
             <button type="button" class={`text-style-btn${annotProps.fontStrikethrough ? ' active' : ''}`}
-              title="Strikethrough" disabled={isLocked()}
+              title={t('textFormat.strikethrough')} disabled={isLocked()}
               onClick={() => updateAnnotProp('fontStrikethrough', !annotProps.fontStrikethrough)}>
               <s>S</s>
             </button>

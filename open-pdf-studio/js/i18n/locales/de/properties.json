@@ -1,0 +1,117 @@
+{
+  "title": "Eigenschaften",
+  "general": {
+    "title": "Allgemein",
+    "type": "Typ",
+    "subject": "Betreff",
+    "subjectPlaceholder": "Betreff eingeben...",
+    "author": "Autor",
+    "created": "Erstellt",
+    "modified": "Geändert",
+    "locked": "Gesperrt",
+    "printable": "Druckbar",
+    "readOnly": "Schreibgeschützt",
+    "marked": "Markiert",
+    "altText": "Alternativtext",
+    "altTextPlaceholder": "Beschreibung für Barrierefreiheit...",
+    "status": "Status",
+    "accepted": "Akzeptiert",
+    "rejected": "Abgelehnt",
+    "cancelled": "Abgebrochen",
+    "completed": "Abgeschlossen",
+    "reviewed": "Überprüft"
+  },
+  "appearance": {
+    "title": "Darstellung",
+    "icon": "Symbol",
+    "iconComment": "Kommentar",
+    "iconNote": "Notiz",
+    "iconHelp": "Hilfe",
+    "iconInsert": "Einfügen",
+    "iconKey": "Schlüssel",
+    "iconNewParagraph": "Neuer Absatz",
+    "iconParagraph": "Absatz",
+    "iconCheck": "Häkchen",
+    "iconCircle": "Kreis",
+    "iconCross": "Kreuz",
+    "iconStar": "Stern",
+    "fillColor": "Füllfarbe",
+    "strokeColor": "Konturfarbe",
+    "color": "Farbe",
+    "opacity": "Deckkraft",
+    "borderStyle": "Rahmenstil"
+  },
+  "content": {
+    "title": "Inhalt",
+    "text": "Text",
+    "fontSize": "Schriftgröße"
+  },
+  "dimensions": {
+    "title": "Größe und Abmessungen",
+    "length": "Länge"
+  },
+  "lineEndings": {
+    "title": "Linienenden",
+    "start": "Anfang",
+    "end": "Ende",
+    "openArrow": "Offener Pfeil",
+    "closedArrow": "Geschlossener Pfeil",
+    "diamond": "Raute",
+    "circle": "Kreis",
+    "square": "Quadrat",
+    "slash": "Schrägstrich",
+    "headSize": "Spitzengröße"
+  },
+  "textFormat": {
+    "title": "Zeichen",
+    "textColor": "Textfarbe",
+    "font": "Schriftart",
+    "fontSize": "Schriftgröße",
+    "style": "Stil",
+    "bold": "Fett",
+    "italic": "Kursiv",
+    "underline": "Unterstrichen",
+    "strikethrough": "Durchgestrichen"
+  },
+  "paragraph": {
+    "title": "Absatz",
+    "textAlignment": "Textausrichtung",
+    "alignLeft": "Links ausrichten",
+    "alignCenter": "Zentrieren",
+    "alignRight": "Rechts ausrichten",
+    "lineSpacing": "Zeilenabstand",
+    "rotation": "Drehung"
+  },
+  "replies": {
+    "title": "Antworten",
+    "noReplies": "Noch keine Antworten.",
+    "user": "Benutzer",
+    "addReply": "Antwort hinzufügen...",
+    "addButton": "Hinzufügen"
+  },
+  "docInfo": {
+    "document": "Dokument",
+    "file": "Datei",
+    "path": "Pfad",
+    "pages": "Seiten",
+    "pageSize": "Seitengröße",
+    "metadata": "Metadaten",
+    "title": "Titel",
+    "author": "Autor",
+    "subject": "Betreff",
+    "creator": "Ersteller",
+    "producer": "Produzent",
+    "pdfVersion": "PDF-Version",
+    "annotations": "Anmerkungen",
+    "total": "Gesamt",
+    "onPage": "Auf Seite",
+    "selectHint": "Wählen Sie eine Anmerkung aus, um deren Eigenschaften zu bearbeiten"
+  },
+  "image": {
+    "title": "Bild",
+    "width": "Breite",
+    "height": "Höhe",
+    "rotation": "Drehung",
+    "resetToOriginal": "Auf Originalgröße zurücksetzen"
+  }
+}

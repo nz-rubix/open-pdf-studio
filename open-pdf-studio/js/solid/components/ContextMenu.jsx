@@ -28,6 +28,7 @@ import { setAsDefaultStyle } from '../../core/preferences.js';
 import { setTool } from '../../tools/manager.js';
 import { alignAnnotations } from '../../annotations/smart-guides.js';
 import { getSelectedText, clearTextSelection } from '../../text/text-selection.js';
+import { useTranslation } from '../../i18n/useTranslation.js';
 
 function redraw() {
   if (state.viewMode === 'continuous') {
@@ -97,21 +98,31 @@ function ArrangeButton(props) {
 }
 
 function AnnotationMenuContent() {
+  const { t } = useTranslation('context');
+  const { t: tCommon } = useTranslation('common');
   const ann = () => targetAnnotation();
   const isLocked = () => ann()?.locked || false;
   const isLineType = () => ['line', 'arrow'].includes(ann()?.type);
 
+  const statusItems = [
+    { key: 'None', label: () => t('annotation.statusNone') },
+    { key: 'Accepted', label: () => t('annotation.statusAccepted') },
+    { key: 'Cancelled', label: () => t('annotation.statusCancelled') },
+    { key: 'Completed', label: () => t('annotation.statusCompleted') },
+    { key: 'Rejected', label: () => t('annotation.statusRejected') },
+  ];
+
   return (
     <>
-      <MenuItem icon={openPopupIcon} label="Open Pop-Up Note" onClick={() => {
+      <MenuItem icon={openPopupIcon} label={t('annotation.openPopUpNote')} onClick={() => {
         const a = ann();
         if (a) { a.popupOpen = true; redraw(); }
       }} />
-      <MenuItem icon={hidePopupIcon} label="Hide Pop-Up Note" onClick={() => {
+      <MenuItem icon={hidePopupIcon} label={t('annotation.hidePopUpNote')} onClick={() => {
         const a = ann();
         if (a) { a.popupOpen = false; redraw(); }
       }} />
-      <MenuItem icon={resetPopupIcon} label="Reset Pop-Up Note Location" onClick={() => {
+      <MenuItem icon={resetPopupIcon} label={t('annotation.resetPopUpLocation')} onClick={() => {
         const a = ann();
         if (a) { a.popupX = undefined; a.popupY = undefined; redraw(); }
       }} />
@@ -119,11 +130,11 @@ function AnnotationMenuContent() {
       <Separator />
 
       <Show when={['textbox', 'callout'].includes(ann()?.type)}>
-        <MenuItem label="Edit Text..." disabled={isLocked()} onClick={() => startTextEditing(ann())} />
+        <MenuItem label={t('annotation.editText')} disabled={isLocked()} onClick={() => startTextEditing(ann())} />
         <Separator />
       </Show>
 
-      <MenuItem icon={cutIcon} label="Cut" shortcut="Ctrl+X" disabled={isLocked()} onClick={() => {
+      <MenuItem icon={cutIcon} label={tCommon('cut')} shortcut="Ctrl+X" disabled={isLocked()} onClick={() => {
         const a = ann();
         copyAnnotation(a);
         const idx = state.annotations.indexOf(a);
@@ -132,18 +143,18 @@ function AnnotationMenuContent() {
         hideProperties();
         redraw();
       }} />
-      <MenuItem icon={copyIcon} label="Copy" shortcut="Ctrl+C" onClick={() => copyAnnotation(ann())} />
-      <MenuItem icon={pasteIcon} label="Paste" shortcut="Ctrl+V" onClick={() => pasteFromClipboard()} />
+      <MenuItem icon={copyIcon} label={tCommon('copy')} shortcut="Ctrl+C" onClick={() => copyAnnotation(ann())} />
+      <MenuItem icon={pasteIcon} label={tCommon('paste')} shortcut="Ctrl+V" onClick={() => pasteFromClipboard()} />
 
       <Separator />
 
-      <MenuItem icon={deleteIcon} label="Delete" shortcut="Delete" disabled={isLocked()} onClick={async () => {
+      <MenuItem icon={deleteIcon} label={tCommon('delete')} shortcut="Delete" disabled={isLocked()} onClick={async () => {
         const a = ann();
         let confirmed = false;
         if (window.__TAURI__?.dialog?.ask) {
-          confirmed = await window.__TAURI__.dialog.ask('Delete this annotation?', { title: 'Delete Annotation', kind: 'warning' });
+          confirmed = await window.__TAURI__.dialog.ask(t('deleteAnnotation.confirmSingle'), { title: t('deleteAnnotation.title'), kind: 'warning' });
         } else {
-          confirmed = confirm('Delete this annotation?');
+          confirmed = confirm(t('deleteAnnotation.confirmSingle'));
         }
         if (confirmed) {
           const idx = state.annotations.indexOf(a);
@@ -153,14 +164,14 @@ function AnnotationMenuContent() {
           redraw();
         }
       }} />
-      <MenuItem icon={flattenIcon} label="Flatten" disabled={isLocked()} onClick={() => {
+      <MenuItem icon={flattenIcon} label={tCommon('flatten')} disabled={isLocked()} onClick={() => {
         const a = ann();
         if (a) { a.flattened = true; redraw(); }
       }} />
 
       <Separator />
 
-      <MenuItem icon={addReplyIcon} label="Add Reply" onClick={() => {
+      <MenuItem icon={addReplyIcon} label={t('annotation.addReply')} onClick={() => {
         const a = ann();
         if (a) {
           if (!a.replies) a.replies = [];
@@ -172,7 +183,7 @@ function AnnotationMenuContent() {
 
       <Separator />
 
-      <MenuItem icon={lockedIcon} label="Locked" checkbox={true} checked={isLocked()} onClick={() => {
+      <MenuItem icon={lockedIcon} label={t('annotation.locked')} checkbox={true} checked={isLocked()} onClick={() => {
         const a = ann();
         if (a) {
           a.locked = !a.locked;
@@ -180,54 +191,54 @@ function AnnotationMenuContent() {
           if (state.selectedAnnotation === a) showProperties(a);
         }
       }} />
-      <MenuItem icon={markedIcon} label="Marked" checkbox={true} checked={ann()?.marked || false} onClick={() => {
+      <MenuItem icon={markedIcon} label={t('annotation.marked')} checkbox={true} checked={ann()?.marked || false} onClick={() => {
         const a = ann();
         if (a) { a.marked = !a.marked; a.modifiedAt = new Date().toISOString(); }
       }} />
-      <MenuItem icon={printableIcon} label="Printable" checkbox={true} checked={ann()?.printable !== false} onClick={() => {
+      <MenuItem icon={printableIcon} label={t('annotation.printable')} checkbox={true} checked={ann()?.printable !== false} onClick={() => {
         const a = ann();
         if (a) { a.printable = a.printable === false; a.modifiedAt = new Date().toISOString(); }
       }} />
 
       <Separator />
 
-      <Submenu icon={statusIcon} label="Status">
-        <For each={['None', 'Accepted', 'Cancelled', 'Completed', 'Rejected']}>
+      <Submenu icon={statusIcon} label={t('annotation.status')}>
+        <For each={statusItems}>
           {(s) => (
-            <MenuItem label={s} checkbox={true} checked={ann()?.status === s || (!ann()?.status && s === 'None')} onClick={() => {
+            <MenuItem label={s.label()} checkbox={true} checked={ann()?.status === s.key || (!ann()?.status && s.key === 'None')} onClick={() => {
               const a = ann();
-              if (a) { a.status = s === 'None' ? undefined : s; a.modifiedAt = new Date().toISOString(); }
+              if (a) { a.status = s.key === 'None' ? undefined : s.key; a.modifiedAt = new Date().toISOString(); }
             }} />
           )}
         </For>
       </Submenu>
-      <MenuItem icon={reviewHistoryIcon} label="Review History..." onClick={() => {
+      <MenuItem icon={reviewHistoryIcon} label={t('annotation.reviewHistory')} onClick={() => {
         const a = ann();
         if (a) showProperties(a);
       }} />
 
       <Separator />
 
-      <Submenu icon={layerIcon} label={<>Layer: <span class="context-menu-value">None</span></>}>
-        <MenuItem label="No layers available" disabled={true} />
+      <Submenu icon={layerIcon} label={<>{t('annotation.layer')} <span class="context-menu-value">{tCommon('none')}</span></>}>
+        <MenuItem label={t('annotation.noLayersAvailable')} disabled={true} />
       </Submenu>
 
-      <Submenu icon={arrangeIcon} label="Arrange">
+      <Submenu icon={arrangeIcon} label={t('annotation.arrange')}>
         <div class="arrange-icon-grid">
-          <ArrangeButton svg={bringToFrontSvg} title="Bring to Front" onClick={() => bringToFront(ann())} />
-          <ArrangeButton svg={sendToBackSvg} title="Send to Back" onClick={() => sendToBack(ann())} />
-          <ArrangeButton svg={bringForwardSvg} title="Bring Forward" onClick={() => bringForward(ann())} />
-          <ArrangeButton svg={sendBackwardSvg} title="Send Backward" onClick={() => sendBackward(ann())} />
+          <ArrangeButton svg={bringToFrontSvg} title={t('annotation.bringToFront')} onClick={() => bringToFront(ann())} />
+          <ArrangeButton svg={sendToBackSvg} title={t('annotation.sendToBack')} onClick={() => sendToBack(ann())} />
+          <ArrangeButton svg={bringForwardSvg} title={t('annotation.bringForward')} onClick={() => bringForward(ann())} />
+          <ArrangeButton svg={sendBackwardSvg} title={t('annotation.sendBackward')} onClick={() => sendBackward(ann())} />
         </div>
         <div class="arrange-icon-grid">
-          <ArrangeButton svg={rotateLeftSvg} title="Rotate Left 90\u00B0" onClick={() => rotateAnnotation(ann(), -90)} />
-          <ArrangeButton svg={rotateRightSvg} title="Rotate Right 90\u00B0" onClick={() => rotateAnnotation(ann(), 90)} />
-          <ArrangeButton svg={flipHorizontalSvg} title="Flip Horizontal" onClick={() => flipHorizontal(ann())} />
-          <ArrangeButton svg={flipVerticalSvg} title="Flip Vertical" onClick={() => flipVertical(ann())} />
+          <ArrangeButton svg={rotateLeftSvg} title={t('annotation.rotateLeft90')} onClick={() => rotateAnnotation(ann(), -90)} />
+          <ArrangeButton svg={rotateRightSvg} title={t('annotation.rotateRight90')} onClick={() => rotateAnnotation(ann(), 90)} />
+          <ArrangeButton svg={flipHorizontalSvg} title={t('annotation.flipHorizontal')} onClick={() => flipHorizontal(ann())} />
+          <ArrangeButton svg={flipVerticalSvg} title={t('annotation.flipVertical')} onClick={() => flipVertical(ann())} />
         </div>
         <Separator />
-        <MenuItem icon={transformIcon} label="Transform..." onClick={() => showProperties(ann())} />
-        <MenuItem icon={duplicateIcon} label="Duplicate" onClick={() => {
+        <MenuItem icon={transformIcon} label={t('annotation.transform')} onClick={() => showProperties(ann())} />
+        <MenuItem icon={duplicateIcon} label={tCommon('duplicate')} onClick={() => {
           state.selectedAnnotation = ann();
           duplicateAnnotation();
         }} />
@@ -236,7 +247,7 @@ function AnnotationMenuContent() {
       <Separator />
 
       <Show when={isLineType()}>
-        <MenuItem icon={flipLineIcon} label="Flip Line" onClick={() => {
+        <MenuItem icon={flipLineIcon} label={t('annotation.flipLine')} onClick={() => {
           const a = ann();
           if (a) {
             const tmp = { x1: a.x1, y1: a.y1 };
@@ -246,11 +257,11 @@ function AnnotationMenuContent() {
           }
         }} />
         <Separator />
-        <MenuItem icon={convertMeasurementIcon} label="Convert to Measurement" onClick={() => {
+        <MenuItem icon={convertMeasurementIcon} label={t('annotation.convertToMeasurement')} onClick={() => {
           const a = ann();
           if (a) { a.type = 'measureDistance'; a.modifiedAt = new Date().toISOString(); redraw(); }
         }} />
-        <MenuItem icon={convertPolylineIcon} label="Convert to Polyline" onClick={() => {
+        <MenuItem icon={convertPolylineIcon} label={t('annotation.convertToPolyline')} onClick={() => {
           const a = ann();
           if (a) {
             a.type = 'polyline';
@@ -259,7 +270,7 @@ function AnnotationMenuContent() {
             redraw();
           }
         }} />
-        <MenuItem icon={convertPolygonIcon} label="Convert to Polygon" onClick={() => {
+        <MenuItem icon={convertPolygonIcon} label={t('annotation.convertToPolygon')} onClick={() => {
           const a = ann();
           if (a) {
             a.type = 'polygon';
@@ -271,9 +282,9 @@ function AnnotationMenuContent() {
         <Separator />
       </Show>
 
-      <Submenu icon={styleToolsIcon} label="Style Tools">
-        <MenuItem label="Set as Default Style" onClick={() => setAsDefaultStyle(ann())} />
-        <MenuItem label="Apply Default Style" onClick={() => {
+      <Submenu icon={styleToolsIcon} label={t('annotation.styleTools')}>
+        <MenuItem label={t('annotation.setAsDefaultStyle')} onClick={() => setAsDefaultStyle(ann())} />
+        <MenuItem label={t('annotation.applyDefaultStyle')} onClick={() => {
           const a = ann();
           if (a) {
             const prefs = state.preferences;
@@ -288,8 +299,8 @@ function AnnotationMenuContent() {
         }} />
       </Submenu>
 
-      <Submenu icon={exportIcon} label="Export">
-        <MenuItem label="Export as Image..." onClick={() => {
+      <Submenu icon={exportIcon} label={t('annotation.exportSubmenu')}>
+        <MenuItem label={t('annotation.exportAsImage')} onClick={() => {
           const a = ann();
           if (a) showProperties(a);
         }} />
@@ -297,20 +308,21 @@ function AnnotationMenuContent() {
 
       <Separator />
 
-      <MenuItem icon={propertiesIcon} label="Properties..." onClick={() => showProperties(ann())} />
+      <MenuItem icon={propertiesIcon} label={t('annotation.properties')} onClick={() => showProperties(ann())} />
     </>
   );
 }
 
 function MultiAnnotationMenuContent() {
+  const { t } = useTranslation('context');
   const count = () => multiSelectCount();
 
   return (
     <>
-      <MenuItem icon={copyIcon} label={`Copy ${count()} Annotations`} onClick={() => {
+      <MenuItem icon={copyIcon} label={t('multiSelect.copyAnnotations', { count: count() })} onClick={() => {
         copyAnnotations(state.selectedAnnotations);
       }} />
-      <MenuItem icon={cutIcon} label={`Cut ${count()} Annotations`} onClick={() => {
+      <MenuItem icon={cutIcon} label={t('multiSelect.cutAnnotations', { count: count() })} onClick={() => {
         copyAnnotations(state.selectedAnnotations);
         recordBulkDelete(state.selectedAnnotations);
         const toDelete = new Set(state.selectedAnnotations);
@@ -322,35 +334,35 @@ function MultiAnnotationMenuContent() {
 
       <Separator />
 
-      <MenuItem label="Bring All to Front" onClick={() => {
+      <MenuItem label={t('multiSelect.bringAllToFront')} onClick={() => {
         for (const a of state.selectedAnnotations) bringToFront(a);
       }} />
-      <MenuItem label="Send All to Back" onClick={() => {
+      <MenuItem label={t('multiSelect.sendAllToBack')} onClick={() => {
         for (const a of [...state.selectedAnnotations].reverse()) sendToBack(a);
       }} />
 
       <Separator />
 
-      <MenuItem label="Align Left" onClick={() => { alignAnnotations('left'); redraw(); }} />
-      <MenuItem label="Align Right" onClick={() => { alignAnnotations('right'); redraw(); }} />
-      <MenuItem label="Align Top" onClick={() => { alignAnnotations('top'); redraw(); }} />
-      <MenuItem label="Align Bottom" onClick={() => { alignAnnotations('bottom'); redraw(); }} />
-      <MenuItem label="Center Horizontally" onClick={() => { alignAnnotations('center'); redraw(); }} />
-      <MenuItem label="Center Vertically" onClick={() => { alignAnnotations('middle'); redraw(); }} />
+      <MenuItem label={t('multiSelect.alignLeft')} onClick={() => { alignAnnotations('left'); redraw(); }} />
+      <MenuItem label={t('multiSelect.alignRight')} onClick={() => { alignAnnotations('right'); redraw(); }} />
+      <MenuItem label={t('multiSelect.alignTop')} onClick={() => { alignAnnotations('top'); redraw(); }} />
+      <MenuItem label={t('multiSelect.alignBottom')} onClick={() => { alignAnnotations('bottom'); redraw(); }} />
+      <MenuItem label={t('multiSelect.centerHorizontally')} onClick={() => { alignAnnotations('center'); redraw(); }} />
+      <MenuItem label={t('multiSelect.centerVertically')} onClick={() => { alignAnnotations('middle'); redraw(); }} />
 
       <Show when={count() >= 3}>
-        <MenuItem label="Distribute Horizontally" onClick={() => { alignAnnotations('distribute-h'); redraw(); }} />
-        <MenuItem label="Distribute Vertically" onClick={() => { alignAnnotations('distribute-v'); redraw(); }} />
+        <MenuItem label={t('multiSelect.distributeHorizontally')} onClick={() => { alignAnnotations('distribute-h'); redraw(); }} />
+        <MenuItem label={t('multiSelect.distributeVertically')} onClick={() => { alignAnnotations('distribute-v'); redraw(); }} />
       </Show>
 
       <Separator />
 
-      <MenuItem icon={deleteIcon} label={`Delete ${count()} Annotations`} onClick={async () => {
+      <MenuItem icon={deleteIcon} label={t('multiSelect.deleteAnnotations', { count: count() })} onClick={async () => {
         let confirmed = false;
         if (window.__TAURI__?.dialog?.ask) {
-          confirmed = await window.__TAURI__.dialog.ask(`Delete ${count()} annotations?`, { title: 'Delete Annotations', kind: 'warning' });
+          confirmed = await window.__TAURI__.dialog.ask(t('multiSelect.deleteConfirm', { count: count() }), { title: t('multiSelect.deleteTitle'), kind: 'warning' });
         } else {
-          confirmed = confirm(`Delete ${count()} annotations?`);
+          confirmed = confirm(t('multiSelect.deleteConfirm', { count: count() }));
         }
         if (confirmed) {
           recordBulkDelete(state.selectedAnnotations);
@@ -366,61 +378,63 @@ function MultiAnnotationMenuContent() {
 }
 
 function PageMenuContent() {
+  const { t } = useTranslation('context');
+  const { t: tCommon } = useTranslation('common');
   const isCurrentTool = (tool) => state.currentTool === tool;
 
   return (
     <>
-      <MenuItem icon={bookmarkIcon} label="Add Bookmark" shortcut="Ctrl+Shift+B" onClick={() => {
+      <MenuItem icon={bookmarkIcon} label={t('page.addBookmark')} shortcut="Ctrl+Shift+B" onClick={() => {
         import('../../ui/panels/bookmarks.js').then(m => {
           if (m.addBookmarkAtCurrentPage) m.addBookmarkAtCurrentPage();
         });
       }} />
-      <MenuItem icon={stickyNoteIcon} label="Add Sticky Note" onClick={() => setTool('stickyNote')} />
+      <MenuItem icon={stickyNoteIcon} label={t('page.addStickyNote')} onClick={() => setTool('stickyNote')} />
 
       <Separator />
 
-      <MenuItem icon={imageIcon} label="Add Image..." onClick={() => setTool('image')} />
-      <MenuItem icon={qrCodeIcon} label="Add QR Code..." onClick={() => setTool('qrCode')} />
+      <MenuItem icon={imageIcon} label={t('page.addImage')} onClick={() => setTool('image')} />
+      <MenuItem icon={qrCodeIcon} label={t('page.addQrCode')} onClick={() => setTool('qrCode')} />
 
       <Separator />
 
-      <MenuItem icon={handToolIcon} label="Hand Tool" checkbox={true} checked={isCurrentTool('hand')} onClick={() => setTool('hand')} />
-      <MenuItem icon={snapshotIcon} label="Snapshot Tool" checkbox={true} checked={isCurrentTool('snapshot')} onClick={() => setTool('snapshot')} />
-      <MenuItem icon={selectTextPageIcon} label="Select Text" checkbox={true} checked={isCurrentTool('selectText')} onClick={() => setTool('selectText')} />
-      <MenuItem icon={zoomIcon} label="Zoom In/Out Tool" checkbox={true} checked={isCurrentTool('zoom')} onClick={() => setTool('zoom')} />
+      <MenuItem icon={handToolIcon} label={t('page.handTool')} checkbox={true} checked={isCurrentTool('hand')} onClick={() => setTool('hand')} />
+      <MenuItem icon={snapshotIcon} label={t('page.snapshotTool')} checkbox={true} checked={isCurrentTool('snapshot')} onClick={() => setTool('snapshot')} />
+      <MenuItem icon={selectTextPageIcon} label={t('page.selectText')} checkbox={true} checked={isCurrentTool('selectText')} onClick={() => setTool('selectText')} />
+      <MenuItem icon={zoomIcon} label={t('page.zoomInOutTool')} checkbox={true} checked={isCurrentTool('zoom')} onClick={() => setTool('zoom')} />
 
       <Separator />
 
-      <MenuItem icon={pageCutIcon} label="Cut" shortcut="Ctrl+X" disabled={true} />
-      <MenuItem icon={pageCopyIcon} label="Copy" shortcut="Ctrl+C" disabled={true} />
-      <MenuItem icon={pagePasteIcon} label="Paste" shortcut="Ctrl+V" onClick={() => pasteFromClipboard()} disabled={!state.clipboardAnnotation && !navigator.clipboard} />
+      <MenuItem icon={pageCutIcon} label={tCommon('cut')} shortcut="Ctrl+X" disabled={true} />
+      <MenuItem icon={pageCopyIcon} label={tCommon('copy')} shortcut="Ctrl+C" disabled={true} />
+      <MenuItem icon={pagePasteIcon} label={tCommon('paste')} shortcut="Ctrl+V" onClick={() => pasteFromClipboard()} disabled={!state.clipboardAnnotation && !navigator.clipboard} />
 
       <Separator />
 
-      <MenuItem icon={pageDeleteIcon} label="Delete" shortcut="Delete" disabled={true} />
+      <MenuItem icon={pageDeleteIcon} label={tCommon('delete')} shortcut="Delete" disabled={true} />
 
       <Separator />
 
-      <MenuItem icon={selectAllIcon} label="Select" onClick={() => setTool('select')} />
-      <MenuItem icon={deselectIcon} label="Deselect" onClick={() => clearSelection()} />
+      <MenuItem icon={selectAllIcon} label={tCommon('select')} onClick={() => setTool('select')} />
+      <MenuItem icon={deselectIcon} label={tCommon('deselect')} onClick={() => clearSelection()} />
 
       <Separator />
 
-      <Submenu icon={goToIcon} label="Go To">
-        <MenuItem label="First Page" onClick={() => {
+      <Submenu icon={goToIcon} label={t('page.goTo')}>
+        <MenuItem label={t('page.firstPage')} onClick={() => {
           import('../../pdf/renderer.js').then(m => m.renderPage && m.renderPage(1));
         }} />
-        <MenuItem label="Last Page" onClick={() => {
+        <MenuItem label={t('page.lastPage')} onClick={() => {
           import('../../pdf/renderer.js').then(m => {
             if (state.pdfDoc && m.renderPage) m.renderPage(state.pdfDoc.numPages);
           });
         }} />
-        <MenuItem label="Previous Page" onClick={() => {
+        <MenuItem label={t('page.previousPage')} onClick={() => {
           import('../../pdf/renderer.js').then(m => {
             if (state.currentPage > 1 && m.renderPage) m.renderPage(state.currentPage - 1);
           });
         }} />
-        <MenuItem label="Next Page" onClick={() => {
+        <MenuItem label={t('page.nextPage')} onClick={() => {
           import('../../pdf/renderer.js').then(m => {
             if (state.pdfDoc && state.currentPage < state.pdfDoc.numPages && m.renderPage) m.renderPage(state.currentPage + 1);
           });
@@ -429,15 +443,15 @@ function PageMenuContent() {
 
       <Separator />
 
-      <MenuItem icon={printIcon} label="Print..." shortcut="Ctrl+P" onClick={() => {
+      <MenuItem icon={printIcon} label={t('page.printMenu')} shortcut="Ctrl+P" onClick={() => {
         import('../stores/dialogStore.js').then(m => m.openDialog('print'));
       }} />
-      <MenuItem icon={findIcon} label="Find..." shortcut="Ctrl+F" onClick={() => {
+      <MenuItem icon={findIcon} label={t('page.findMenu')} shortcut="Ctrl+F" onClick={() => {
         const findBar = document.getElementById('find-bar');
         const findInput = document.getElementById('find-input');
         if (findBar) { findBar.style.display = 'flex'; if (findInput) findInput.focus(); }
       }} />
-      <MenuItem icon={searchIcon} label="Search..." shortcut="Ctrl+Shift+F" onClick={() => {
+      <MenuItem icon={searchIcon} label={t('page.searchMenu')} shortcut="Ctrl+Shift+F" onClick={() => {
         const findBar = document.getElementById('find-bar');
         const findInput = document.getElementById('find-input');
         if (findBar) { findBar.style.display = 'flex'; if (findInput) findInput.focus(); }
@@ -445,7 +459,7 @@ function PageMenuContent() {
 
       <Separator />
 
-      <MenuItem icon={propertiesIcon} label="Properties..." onClick={() => {
+      <MenuItem icon={propertiesIcon} label={t('page.propertiesMenu')} onClick={() => {
         import('../stores/dialogStore.js').then(m => m.openDialog('doc-properties'));
       }} />
     </>
@@ -453,26 +467,28 @@ function PageMenuContent() {
 }
 
 function BookmarkMenuContent() {
+  const { t } = useTranslation('context');
+
   return (
     <>
-      <MenuItem label="Add Bookmark" onClick={() => {
+      <MenuItem label={t('bookmark.addBookmark')} onClick={() => {
         import('../../ui/panels/bookmarks.js').then(m => m.addBookmark());
       }} />
-      <MenuItem label="Add Child Bookmark" onClick={() => {
+      <MenuItem label={t('bookmark.addChildBookmark')} onClick={() => {
         import('../../ui/panels/bookmarks.js').then(m => m.addChildBookmark());
       }} />
       <Separator />
-      <MenuItem label="Edit Bookmark" onClick={() => {
+      <MenuItem label={t('bookmark.editBookmark')} onClick={() => {
         import('../../ui/panels/bookmarks.js').then(m => m.editBookmark());
       }} />
-      <MenuItem label="Delete Bookmark" onClick={() => {
+      <MenuItem label={t('bookmark.deleteBookmark')} onClick={() => {
         import('../../ui/panels/bookmarks.js').then(m => m.deleteBookmark());
       }} />
       <Separator />
-      <MenuItem label="Expand All" onClick={() => {
+      <MenuItem label={t('bookmark.expandAll')} onClick={() => {
         import('../../ui/panels/bookmarks.js').then(m => m.expandAll());
       }} />
-      <MenuItem label="Collapse All" onClick={() => {
+      <MenuItem label={t('bookmark.collapseAll')} onClick={() => {
         import('../../ui/panels/bookmarks.js').then(m => m.collapseAll());
       }} />
     </>
@@ -480,6 +496,8 @@ function BookmarkMenuContent() {
 }
 
 function ThumbnailMenuContent() {
+  const { t } = useTranslation('context');
+  const { t: tCommon } = useTranslation('common');
   const pageNum = () => targetPage();
 
   const thumbnailCutIcon = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5a2.5 2.5 0 1 1 3.164 2.414L8.5 7.25l1.336-2.336a2.5 2.5 0 1 1 1.414 0L9.914 7.25 13 12.5V14H3v-1.5L6.086 7.25 4.75 4.914A2.5 2.5 0 0 1 4 2.5zm2.5 1a1 1 0 1 0-2 0 1 1 0 0 0 2 0zm5 0a1 1 0 1 0-2 0 1 1 0 0 0 2 0z"/></svg>';
@@ -495,44 +513,44 @@ function ThumbnailMenuContent() {
 
   return (
     <>
-      <MenuItem icon={thumbnailCutIcon} label="Cut" onClick={async () => {
+      <MenuItem icon={thumbnailCutIcon} label={tCommon('cut')} onClick={async () => {
         const { cutPage } = await import('../../pdf/page-manager.js');
         await cutPage(pageNum());
       }} disabled={state.pdfDoc?.numPages <= 1} />
-      <MenuItem icon={thumbnailCopyIcon} label="Copy" onClick={async () => {
+      <MenuItem icon={thumbnailCopyIcon} label={tCommon('copy')} onClick={async () => {
         const { copyPage } = await import('../../pdf/page-manager.js');
         await copyPage(pageNum());
       }} />
-      <MenuItem icon={thumbnailPasteIcon} label="Paste" onClick={async () => {
+      <MenuItem icon={thumbnailPasteIcon} label={tCommon('paste')} onClick={async () => {
         const { pastePage } = await import('../../pdf/page-manager.js');
         await pastePage(pageNum());
       }} />
 
       <Separator />
 
-      <MenuItem icon={thumbnailRotateLeftIcon} label="Rotate Left" onClick={async () => {
+      <MenuItem icon={thumbnailRotateLeftIcon} label={t('thumbnail.rotateLeft')} onClick={async () => {
         const { rotatePage } = await import('../../pdf/renderer.js');
         await rotatePage(-90, pageNum());
       }} />
-      <MenuItem icon={thumbnailRotateRightIcon} label="Rotate Right" onClick={async () => {
+      <MenuItem icon={thumbnailRotateRightIcon} label={t('thumbnail.rotateRight')} onClick={async () => {
         const { rotatePage } = await import('../../pdf/renderer.js');
         await rotatePage(90, pageNum());
       }} />
 
       <Separator />
 
-      <MenuItem icon={thumbnailInsertIcon} label="Insert Pages..." onClick={() => {
+      <MenuItem icon={thumbnailInsertIcon} label={t('thumbnail.insertPages')} onClick={() => {
         import('../../ui/chrome/dialogs.js').then(m => m.showInsertPageDialog());
       }} />
-      <MenuItem icon={thumbnailExtractIcon} label="Extract Pages..." onClick={() => {
+      <MenuItem icon={thumbnailExtractIcon} label={t('thumbnail.extractPages')} onClick={() => {
         import('../../ui/chrome/dialogs.js').then(m => m.showExtractPagesDialog());
       }} />
-      <MenuItem icon={thumbnailReplaceIcon} label="Replace Pages..." onClick={async () => {
+      <MenuItem icon={thumbnailReplaceIcon} label={t('thumbnail.replacePages')} onClick={async () => {
         const { replacePages } = await import('../../pdf/page-manager.js');
         replacePages(pageNum());
       }} />
-      <MenuItem icon={thumbnailDeleteIcon} label="Delete Pages" disabled={state.pdfDoc?.numPages <= 1} onClick={async () => {
-        const confirmed = await window.__TAURI__?.dialog?.ask(`Delete page ${pageNum()}?`, { title: 'Delete Page', kind: 'warning' });
+      <MenuItem icon={thumbnailDeleteIcon} label={t('thumbnail.deletePages')} disabled={state.pdfDoc?.numPages <= 1} onClick={async () => {
+        const confirmed = await window.__TAURI__?.dialog?.ask(t('thumbnail.deletePageConfirm', { page: pageNum() }), { title: t('thumbnail.deletePageTitle'), kind: 'warning' });
         if (confirmed) {
           const { deletePages } = await import('../../pdf/page-manager.js');
           await deletePages([pageNum()]);
@@ -541,7 +559,7 @@ function ThumbnailMenuContent() {
 
       <Separator />
 
-      <MenuItem icon={thumbnailPropertiesIcon} label="Properties" onClick={async () => {
+      <MenuItem icon={thumbnailPropertiesIcon} label={t('thumbnail.properties')} onClick={async () => {
         const { showPageProperties } = await import('../../ui/panels/left-panel.js');
         await showPageProperties(pageNum());
       }} />
@@ -550,9 +568,12 @@ function ThumbnailMenuContent() {
 }
 
 function TextSelectionMenuContent() {
+  const { t } = useTranslation('context');
+  const { t: tCommon } = useTranslation('common');
+
   return (
     <>
-      <MenuItem icon={copyIcon} label="Copy" onClick={async () => {
+      <MenuItem icon={copyIcon} label={tCommon('copy')} onClick={async () => {
         const selectedText = getSelectedText();
         if (!selectedText) return;
         try {
@@ -571,15 +592,15 @@ function TextSelectionMenuContent() {
 
       <Separator />
 
-      <MenuItem label="Highlight Selection" onClick={() => {
+      <MenuItem label={t('textSelection.highlightSelection')} onClick={() => {
         createTextMarkupAnnotation('textHighlight', '#FFFF00', 0.3);
         clearTextSelection();
       }} />
-      <MenuItem label="Strikethrough Selection" onClick={() => {
+      <MenuItem label={t('textSelection.strikethroughSelection')} onClick={() => {
         createTextMarkupAnnotation('textStrikethrough', '#FF0000', 1.0);
         clearTextSelection();
       }} />
-      <MenuItem label="Underline Selection" onClick={() => {
+      <MenuItem label={t('textSelection.underlineSelection')} onClick={() => {
         createTextMarkupAnnotation('textUnderline', '#0000FF', 1.0);
         clearTextSelection();
       }} />

@@ -5,6 +5,7 @@ import { state } from '../../../core/state.js';
 import { recordAddWatermark, recordModifyWatermark } from '../../../core/undo-manager.js';
 import { markDocumentModified } from '../../../ui/chrome/tabs.js';
 import { redrawAnnotations, redrawContinuous } from '../../../annotations/rendering.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 function generateId() {
   return 'wm-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
@@ -19,6 +20,9 @@ function refresh() {
 }
 
 export default function HeaderFooterDialog(props) {
+  const { t } = useTranslation('dialogs');
+  const { t: tCommon } = useTranslation('common');
+
   const editWm = props.data?.editWm || null;
   const isEditing = !!editWm;
 
@@ -142,16 +146,16 @@ export default function HeaderFooterDialog(props) {
       <div class="watermark-footer-left"></div>
       <div class="watermark-footer-right">
         <button class="pref-btn pref-btn-primary" onClick={handleAdd}>
-          {isEditing ? 'Update' : 'Add'}
+          {isEditing ? tCommon('update') : tCommon('add')}
         </button>
-        <button class="pref-btn pref-btn-secondary" onClick={close}>Cancel</button>
+        <button class="pref-btn pref-btn-secondary" onClick={close}>{tCommon('cancel')}</button>
       </div>
     </>
   );
 
   return (
     <Dialog
-      title={isEditing ? 'Edit Header/Footer' : 'Add Header/Footer'}
+      title={isEditing ? t('headerFooter.editTitle') : t('headerFooter.addTitle')}
       overlayClass="header-footer-overlay"
       dialogClass="header-footer-dialog"
       headerClass="header-footer-header"
@@ -161,36 +165,36 @@ export default function HeaderFooterDialog(props) {
       footer={footer}
     >
       <div class="watermark-form">
-        <div class="hf-section-label">Header</div>
+        <div class="hf-section-label">{t('headerFooter.header')}</div>
         <div class="hf-row-triple">
           <div class="hf-field">
-            <label>Left</label>
+            <label>{t('headerFooter.left')}</label>
             <input
               type="text"
               class="hf-input"
-              placeholder="Left header"
+              placeholder={t('headerFooter.leftHeader')}
               value={headerLeft()}
               onInput={(e) => setHeaderLeft(e.target.value)}
               onFocus={(e) => handleFocus('headerLeft', e)}
             />
           </div>
           <div class="hf-field">
-            <label>Center</label>
+            <label>{t('headerFooter.center')}</label>
             <input
               type="text"
               class="hf-input"
-              placeholder="Center header"
+              placeholder={t('headerFooter.centerHeader')}
               value={headerCenter()}
               onInput={(e) => setHeaderCenter(e.target.value)}
               onFocus={(e) => handleFocus('headerCenter', e)}
             />
           </div>
           <div class="hf-field">
-            <label>Right</label>
+            <label>{t('headerFooter.right')}</label>
             <input
               type="text"
               class="hf-input"
-              placeholder="Right header"
+              placeholder={t('headerFooter.rightHeader')}
               value={headerRight()}
               onInput={(e) => setHeaderRight(e.target.value)}
               onFocus={(e) => handleFocus('headerRight', e)}
@@ -198,36 +202,36 @@ export default function HeaderFooterDialog(props) {
           </div>
         </div>
 
-        <div class="hf-section-label">Footer</div>
+        <div class="hf-section-label">{t('headerFooter.footer')}</div>
         <div class="hf-row-triple">
           <div class="hf-field">
-            <label>Left</label>
+            <label>{t('headerFooter.left')}</label>
             <input
               type="text"
               class="hf-input"
-              placeholder="Left footer"
+              placeholder={t('headerFooter.leftFooter')}
               value={footerLeft()}
               onInput={(e) => setFooterLeft(e.target.value)}
               onFocus={(e) => handleFocus('footerLeft', e)}
             />
           </div>
           <div class="hf-field">
-            <label>Center</label>
+            <label>{t('headerFooter.center')}</label>
             <input
               type="text"
               class="hf-input"
-              placeholder="Center footer"
+              placeholder={t('headerFooter.centerFooter')}
               value={footerCenter()}
               onInput={(e) => setFooterCenter(e.target.value)}
               onFocus={(e) => handleFocus('footerCenter', e)}
             />
           </div>
           <div class="hf-field">
-            <label>Right</label>
+            <label>{t('headerFooter.right')}</label>
             <input
               type="text"
               class="hf-input"
-              placeholder="Right footer"
+              placeholder={t('headerFooter.rightFooter')}
               value={footerRight()}
               onInput={(e) => setFooterRight(e.target.value)}
               onFocus={(e) => handleFocus('footerRight', e)}
@@ -236,7 +240,7 @@ export default function HeaderFooterDialog(props) {
         </div>
 
         <div class="hf-variables">
-          <label>Insert Variable:</label>
+          <label>{t('headerFooter.insertVariable')}</label>
           <button class="hf-var-btn" onClick={() => insertVariable('{page}')}>{'{page}'}</button>
           <button class="hf-var-btn" onClick={() => insertVariable('{pages}')}>{'{pages}'}</button>
           <button class="hf-var-btn" onClick={() => insertVariable('{date}')}>{'{date}'}</button>
@@ -245,7 +249,7 @@ export default function HeaderFooterDialog(props) {
         </div>
 
         <div class="watermark-row">
-          <label class="watermark-label">Font:</label>
+          <label class="watermark-label">{t('headerFooter.font')}</label>
           <select
             class="watermark-select"
             value={font()}
@@ -258,7 +262,7 @@ export default function HeaderFooterDialog(props) {
           </select>
         </div>
         <div class="watermark-row">
-          <label class="watermark-label">Font Size:</label>
+          <label class="watermark-label">{t('headerFooter.fontSize')}</label>
           <input
             type="number"
             class="watermark-input watermark-input-sm"
@@ -269,7 +273,7 @@ export default function HeaderFooterDialog(props) {
           />
         </div>
         <div class="watermark-row">
-          <label class="watermark-label">Color:</label>
+          <label class="watermark-label">{t('headerFooter.color')}</label>
           <input
             type="color"
             class="watermark-color"
@@ -279,30 +283,30 @@ export default function HeaderFooterDialog(props) {
         </div>
 
         <div class="hf-margins">
-          <label class="watermark-label">Margins:</label>
+          <label class="watermark-label">{t('headerFooter.margins')}</label>
           <div class="hf-margin-fields">
-            <label>Top <input
+            <label>{t('headerFooter.top')} <input
               type="number"
               class="watermark-input watermark-input-sm"
               value={marginTop()}
               min="0"
               onInput={(e) => setMarginTop(e.target.value)}
             /></label>
-            <label>Bottom <input
+            <label>{t('headerFooter.bottom')} <input
               type="number"
               class="watermark-input watermark-input-sm"
               value={marginBottom()}
               min="0"
               onInput={(e) => setMarginBottom(e.target.value)}
             /></label>
-            <label>Left <input
+            <label>{t('headerFooter.left')} <input
               type="number"
               class="watermark-input watermark-input-sm"
               value={marginLeft()}
               min="0"
               onInput={(e) => setMarginLeft(e.target.value)}
             /></label>
-            <label>Right <input
+            <label>{t('headerFooter.right')} <input
               type="number"
               class="watermark-input watermark-input-sm"
               value={marginRight()}
@@ -313,25 +317,25 @@ export default function HeaderFooterDialog(props) {
         </div>
 
         <div class="watermark-row">
-          <label class="watermark-label">Pages:</label>
+          <label class="watermark-label">{t('headerFooter.pagesLabel')}</label>
           <select
             class="watermark-select"
             value={pageRange()}
             onChange={(e) => setPageRange(e.target.value)}
           >
-            <option value="all">All pages</option>
-            <option value="first">First page only</option>
-            <option value="custom">Custom</option>
+            <option value="all">{t('headerFooter.allPages')}</option>
+            <option value="first">{t('headerFooter.firstPageOnly')}</option>
+            <option value="custom">{tCommon('custom')}</option>
           </select>
         </div>
         <Show when={pageRange() === 'custom'}>
           <div class="watermark-row hf-custom-pages">
-            <label class="watermark-label">Range:</label>
+            <label class="watermark-label">{t('headerFooter.range')}</label>
             <input
               type="text"
               class="watermark-input"
               value={customPages()}
-              placeholder="e.g. 1-5, 8"
+              placeholder={t('headerFooter.rangePlaceholder')}
               onInput={(e) => setCustomPages(e.target.value)}
             />
           </div>

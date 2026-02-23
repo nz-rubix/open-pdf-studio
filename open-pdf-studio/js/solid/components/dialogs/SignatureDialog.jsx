@@ -8,6 +8,7 @@ import { showProperties } from '../../../ui/panels/properties-panel.js';
 import { redrawAnnotations, redrawContinuous } from '../../../annotations/rendering.js';
 import { updateStatusMessage } from '../../../ui/chrome/status-bar.js';
 import { generateImageId } from '../../../utils/helpers.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 const STORAGE_KEY = 'pdfEditorSignatures';
 const MAX_SAVED = 5;
@@ -77,7 +78,7 @@ function getCroppedDataUrl(canvas) {
   return cropCanvas.toDataURL('image/png');
 }
 
-async function placeSignatureFromDataUrl(dataUrl, x, y, color) {
+async function placeSignatureFromDataUrl(dataUrl, x, y, color, t) {
   const img = new Image();
   img.src = dataUrl;
   await new Promise((resolve) => { img.onload = resolve; });
@@ -124,10 +125,13 @@ async function placeSignatureFromDataUrl(dataUrl, x, y, color) {
     redrawAnnotations();
   }
 
-  updateStatusMessage('Signature placed');
+  updateStatusMessage(t('signature.signaturePlaced'));
 }
 
 export default function SignatureDialog(props) {
+  const { t } = useTranslation('dialogs');
+  const { t: tCommon } = useTranslation('common');
+
   const placeX = props.data?.x || 0;
   const placeY = props.data?.y || 0;
 
@@ -215,27 +219,27 @@ export default function SignatureDialog(props) {
 
   function handlePlace() {
     if (strokes.length === 0) {
-      alert('Please draw a signature first.');
+      alert(t('signature.drawFirst'));
       return;
     }
     const dataUrl = getCroppedDataUrl(canvasRef);
-    placeSignatureFromDataUrl(dataUrl, placeX, placeY, strokeColor());
+    placeSignatureFromDataUrl(dataUrl, placeX, placeY, strokeColor(), t);
     close();
   }
 
   function handleSaveAndPlace() {
     if (strokes.length === 0) {
-      alert('Please draw a signature first.');
+      alert(t('signature.drawFirst'));
       return;
     }
     const dataUrl = getCroppedDataUrl(canvasRef);
     saveSignatureToStorage(dataUrl);
-    placeSignatureFromDataUrl(dataUrl, placeX, placeY, strokeColor());
+    placeSignatureFromDataUrl(dataUrl, placeX, placeY, strokeColor(), t);
     close();
   }
 
   function handleSavedClick(sig) {
-    placeSignatureFromDataUrl(sig.dataUrl, placeX, placeY, '#000000');
+    placeSignatureFromDataUrl(sig.dataUrl, placeX, placeY, '#000000', t);
     close();
   }
 
@@ -292,20 +296,20 @@ export default function SignatureDialog(props) {
         />
       </div>
       <div class="sig-footer-right">
-        <button class="pref-btn pref-btn-secondary" onClick={clearCanvas}>Clear</button>
+        <button class="pref-btn pref-btn-secondary" onClick={clearCanvas}>{tCommon('clear')}</button>
         <button
           class="pref-btn pref-btn-secondary"
           style="color:#0078d4; border-color:#0078d4;"
           onClick={handlePlace}
-        >Place</button>
-        <button class="pref-btn pref-btn-primary" onClick={handleSaveAndPlace}>Save &amp; Place</button>
+        >{tCommon('place')}</button>
+        <button class="pref-btn pref-btn-primary" onClick={handleSaveAndPlace}>{t('signature.saveAndPlace')}</button>
       </div>
     </div>
   );
 
   return (
     <Dialog
-      title="Signature"
+      title={t('signature.title')}
       overlayClass="sig-overlay"
       dialogClass="sig-dialog"
       headerClass="sig-header"
@@ -318,11 +322,11 @@ export default function SignatureDialog(props) {
         <button
           class={`sig-tab${activeTab() === 'draw' ? ' active' : ''}`}
           onClick={switchToDrawTab}
-        >Draw</button>
+        >{t('signature.drawTab')}</button>
         <button
           class={`sig-tab${activeTab() === 'saved' ? ' active' : ''}`}
           onClick={switchToSavedTab}
-        >Saved</button>
+        >{t('signature.savedTab')}</button>
       </div>
 
       <Show when={activeTab() === 'draw'}>
@@ -342,7 +346,7 @@ export default function SignatureDialog(props) {
       <Show when={activeTab() === 'saved'}>
         <div class="sig-saved-panel">
           <Show when={savedSigs().length === 0}>
-            <div class="sig-saved-empty">No saved signatures.</div>
+            <div class="sig-saved-empty">{t('signature.noSavedSignatures')}</div>
           </Show>
           <Show when={savedSigs().length > 0}>
             <div class="sig-saved-grid">

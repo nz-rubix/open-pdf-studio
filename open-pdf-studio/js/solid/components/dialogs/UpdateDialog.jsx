@@ -2,12 +2,16 @@ import { createSignal, Show } from 'solid-js';
 import Dialog from '../Dialog.jsx';
 import { closeDialog } from '../../stores/dialogStore.js';
 import { relaunch } from '@tauri-apps/plugin-process';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function UpdateDialog(props) {
+  const { t } = useTranslation('dialogs');
+  const { t: tCommon } = useTranslation('common');
+
   const [downloading, setDownloading] = createSignal(false);
   const [progressPct, setProgressPct] = createSignal(0);
-  const [progressText, setProgressText] = createSignal('Downloading... 0%');
-  const [installBtnText, setInstallBtnText] = createSignal('Download & Install');
+  const [progressText, setProgressText] = createSignal(`${t('update.downloading')} 0%`);
+  const [installBtnText, setInstallBtnText] = createSignal(t('update.downloadInstall'));
   const [installDisabled, setInstallDisabled] = createSignal(false);
   const [showSkip, setShowSkip] = createSignal(true);
   const [showLater, setShowLater] = createSignal(true);
@@ -15,7 +19,7 @@ export default function UpdateDialog(props) {
   const update = () => props.data?.update;
   const currentVersion = () => update()?.currentVersion || '-';
   const newVersion = () => update()?.version || 'Unknown';
-  const releaseNotes = () => update()?.body || 'No release notes available.';
+  const releaseNotes = () => update()?.body || t('update.noReleaseNotes');
 
   const close = () => closeDialog('update');
 
@@ -37,11 +41,11 @@ export default function UpdateDialog(props) {
 
     setDownloading(true);
     setInstallDisabled(true);
-    setInstallBtnText('Downloading...');
+    setInstallBtnText(t('update.downloading'));
     setShowSkip(false);
     setShowLater(false);
     setProgressPct(0);
-    setProgressText('Downloading... 0%');
+    setProgressText(`${t('update.downloading')} 0%`);
 
     let totalBytes = 0;
     let downloadedBytes = 0;
@@ -53,7 +57,7 @@ export default function UpdateDialog(props) {
           downloadedBytes = 0;
           if (totalBytes > 0) {
             const totalMB = (totalBytes / 1024 / 1024).toFixed(1);
-            setProgressText(`Downloading... 0% of ${totalMB} MB`);
+            setProgressText(`${t('update.downloading')} 0% of ${totalMB} MB`);
           }
         } else if (event.event === 'Progress') {
           downloadedBytes += event.data?.chunkLength || 0;
@@ -62,22 +66,22 @@ export default function UpdateDialog(props) {
             setProgressPct(pct);
             const dlMB = (downloadedBytes / 1024 / 1024).toFixed(1);
             const totalMB = (totalBytes / 1024 / 1024).toFixed(1);
-            setProgressText(`Downloading... ${pct}% (${dlMB} / ${totalMB} MB)`);
+            setProgressText(t('update.downloadingProgress', { percent: pct, current: dlMB, total: totalMB }));
           }
         } else if (event.event === 'Finished') {
           setProgressPct(100);
-          setProgressText('Download complete. Installing...');
-          setInstallBtnText('Installing...');
+          setProgressText(t('update.downloadComplete'));
+          setInstallBtnText(t('update.installing'));
         }
       });
 
-      setProgressText('Restarting application...');
+      setProgressText(t('update.restarting'));
       await relaunch();
     } catch (e) {
       console.error('Update install failed:', e);
-      setProgressText('Update failed: ' + (e.message || e));
+      setProgressText(`${t('update.updateFailed')} ${e.message || e}`);
       setInstallDisabled(false);
-      setInstallBtnText('Retry');
+      setInstallBtnText(tCommon('retry'));
       setShowLater(true);
     }
   }
@@ -86,13 +90,13 @@ export default function UpdateDialog(props) {
     <div class="update-footer">
       <Show when={showSkip()}>
         <button class="update-btn update-btn-secondary" onClick={handleSkip}>
-          Skip This Version
+          {t('update.skipThisVersion')}
         </button>
       </Show>
       <div class="update-footer-right">
         <Show when={showLater()}>
           <button class="update-btn update-btn-secondary" onClick={handleLater}>
-            Remind Me Later
+            {t('update.remindMeLater')}
           </button>
         </Show>
         <button
@@ -108,7 +112,7 @@ export default function UpdateDialog(props) {
 
   return (
     <Dialog
-      title="Software Update"
+      title={t('update.title')}
       overlayClass="update-overlay"
       dialogClass="update-dialog"
       headerClass="update-header"
@@ -127,19 +131,19 @@ export default function UpdateDialog(props) {
         </svg>
       </div>
       <div class="update-info">
-        <p class="update-message">A new version of Open PDF Studio is available.</p>
+        <p class="update-message">{t('update.newVersionAvailable')}</p>
         <div class="update-versions">
           <div class="update-version-row">
-            <span class="update-version-label">Current version:</span>
+            <span class="update-version-label">{t('update.currentVersion')}</span>
             <span class="update-version-value">{currentVersion()}</span>
           </div>
           <div class="update-version-row">
-            <span class="update-version-label">New version:</span>
+            <span class="update-version-label">{t('update.newVersion')}</span>
             <span class="update-version-value update-version-new">{newVersion()}</span>
           </div>
         </div>
         <div class="update-notes-section">
-          <label class="update-notes-label">Release Notes:</label>
+          <label class="update-notes-label">{t('update.releaseNotes')}</label>
           <div class="update-notes">{releaseNotes()}</div>
         </div>
       </div>

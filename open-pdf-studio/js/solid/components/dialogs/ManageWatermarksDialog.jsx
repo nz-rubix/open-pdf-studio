@@ -5,6 +5,7 @@ import { state } from '../../../core/state.js';
 import { recordRemoveWatermark, recordModifyWatermark } from '../../../core/undo-manager.js';
 import { markDocumentModified } from '../../../ui/chrome/tabs.js';
 import { redrawAnnotations, redrawContinuous } from '../../../annotations/rendering.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 function refresh() {
   if (state.viewMode === 'continuous') {
@@ -40,16 +41,19 @@ function getWmIcon(wm) {
   }
 }
 
-function getWmTypeLabel(wm) {
-  switch (wm.type) {
-    case 'textWatermark': return 'Text';
-    case 'imageWatermark': return 'Image';
-    case 'headerFooter': return 'Header/Footer';
-    default: return '';
-  }
-}
-
 export default function ManageWatermarksDialog() {
+  const { t } = useTranslation('dialogs');
+  const { t: tCommon } = useTranslation('common');
+
+  function getWmTypeLabel(wm) {
+    switch (wm.type) {
+      case 'textWatermark': return t('manageWatermarks.typeText');
+      case 'imageWatermark': return t('manageWatermarks.typeImage');
+      case 'headerFooter': return t('manageWatermarks.typeHeaderFooter');
+      default: return '';
+    }
+  }
+
   const close = () => closeDialog('manage-watermarks');
 
   function handleToggle(wm, checked) {
@@ -83,14 +87,14 @@ export default function ManageWatermarksDialog() {
     <>
       <div class="watermark-footer-left"></div>
       <div class="watermark-footer-right">
-        <button class="pref-btn pref-btn-secondary" onClick={close}>Close</button>
+        <button class="pref-btn pref-btn-secondary" onClick={close}>{tCommon('close')}</button>
       </div>
     </>
   );
 
   return (
     <Dialog
-      title="Manage Watermarks"
+      title={t('manageWatermarks.title')}
       overlayClass="manage-wm-overlay"
       dialogClass="manage-wm-dialog"
       headerClass="manage-wm-header"
@@ -102,7 +106,7 @@ export default function ManageWatermarksDialog() {
       <div class="manage-wm-list">
         <Show
           when={state.watermarks && state.watermarks.length > 0}
-          fallback={<div class="manage-wm-empty">No watermarks added yet.</div>}
+          fallback={<div class="manage-wm-empty">{t('manageWatermarks.noWatermarks')}</div>}
         >
           <For each={state.watermarks}>
             {(wm) => (
@@ -117,19 +121,19 @@ export default function ManageWatermarksDialog() {
                     type="checkbox"
                     class="manage-wm-toggle"
                     checked={wm.enabled}
-                    title="Enable/Disable"
+                    title={t('manageWatermarks.enableDisable')}
                     onChange={(e) => handleToggle(wm, e.target.checked)}
                   />
                   <button
                     class="manage-wm-btn edit"
-                    title="Edit"
+                    title={tCommon('edit')}
                     onClick={() => handleEdit(wm)}
-                  >Edit</button>
+                  >{tCommon('edit')}</button>
                   <button
                     class="manage-wm-btn delete"
-                    title="Delete"
+                    title={tCommon('delete')}
                     onClick={() => handleDelete(wm)}
-                  >Delete</button>
+                  >{tCommon('delete')}</button>
                 </div>
               </div>
             )}

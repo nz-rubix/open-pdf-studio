@@ -1,0 +1,117 @@
+{
+  "title": "الخصائص",
+  "general": {
+    "title": "عام",
+    "type": "النوع",
+    "subject": "الموضوع",
+    "subjectPlaceholder": "أدخل الموضوع...",
+    "author": "المؤلف",
+    "created": "تاريخ الإنشاء",
+    "modified": "تاريخ التعديل",
+    "locked": "مقفل",
+    "printable": "قابل للطباعة",
+    "readOnly": "للقراءة فقط",
+    "marked": "مُعلَّم",
+    "altText": "نص بديل",
+    "altTextPlaceholder": "وصف لإمكانية الوصول...",
+    "status": "الحالة",
+    "accepted": "مقبول",
+    "rejected": "مرفوض",
+    "cancelled": "ملغي",
+    "completed": "مكتمل",
+    "reviewed": "تمت المراجعة"
+  },
+  "appearance": {
+    "title": "المظهر",
+    "icon": "الرمز",
+    "iconComment": "تعليق",
+    "iconNote": "ملاحظة",
+    "iconHelp": "مساعدة",
+    "iconInsert": "إدراج",
+    "iconKey": "مفتاح",
+    "iconNewParagraph": "فقرة جديدة",
+    "iconParagraph": "فقرة",
+    "iconCheck": "علامة صح",
+    "iconCircle": "دائرة",
+    "iconCross": "علامة خطأ",
+    "iconStar": "نجمة",
+    "fillColor": "لون التعبئة",
+    "strokeColor": "لون الحد",
+    "color": "اللون",
+    "opacity": "الشفافية",
+    "borderStyle": "نمط الحد"
+  },
+  "content": {
+    "title": "المحتوى",
+    "text": "النص",
+    "fontSize": "حجم الخط"
+  },
+  "dimensions": {
+    "title": "الحجم والأبعاد",
+    "length": "الطول"
+  },
+  "lineEndings": {
+    "title": "نهايات الخط",
+    "start": "البداية",
+    "end": "النهاية",
+    "openArrow": "سهم مفتوح",
+    "closedArrow": "سهم مغلق",
+    "diamond": "معين",
+    "circle": "دائرة",
+    "square": "مربع",
+    "slash": "شرطة مائلة",
+    "headSize": "حجم الرأس"
+  },
+  "textFormat": {
+    "title": "الحرف",
+    "textColor": "لون النص",
+    "font": "الخط",
+    "fontSize": "حجم الخط",
+    "style": "النمط",
+    "bold": "غامق",
+    "italic": "مائل",
+    "underline": "تسطير",
+    "strikethrough": "يتوسطه خط"
+  },
+  "paragraph": {
+    "title": "الفقرة",
+    "textAlignment": "محاذاة النص",
+    "alignLeft": "محاذاة لليسار",
+    "alignCenter": "محاذاة للوسط",
+    "alignRight": "محاذاة لليمين",
+    "lineSpacing": "تباعد الأسطر",
+    "rotation": "التدوير"
+  },
+  "replies": {
+    "title": "الردود",
+    "noReplies": "لا توجد ردود بعد.",
+    "user": "المستخدم",
+    "addReply": "أضف ردًا...",
+    "addButton": "إضافة"
+  },
+  "docInfo": {
+    "document": "المستند",
+    "file": "الملف",
+    "path": "المسار",
+    "pages": "الصفحات",
+    "pageSize": "حجم الصفحة",
+    "metadata": "البيانات الوصفية",
+    "title": "العنوان",
+    "author": "المؤلف",
+    "subject": "الموضوع",
+    "creator": "المنشئ",
+    "producer": "المنتج",
+    "pdfVersion": "إصدار PDF",
+    "annotations": "التعليقات",
+    "total": "الإجمالي",
+    "onPage": "في الصفحة",
+    "selectHint": "حدد تعليقًا لتعديل خصائصه"
+  },
+  "image": {
+    "title": "الصورة",
+    "width": "العرض",
+    "height": "الارتفاع",
+    "rotation": "التدوير",
+    "resetToOriginal": "إعادة التعيين إلى الحجم الأصلي"
+  }
+}

@@ -3,8 +3,12 @@ import Dialog from '../Dialog.jsx';
 import { closeDialog } from '../../stores/dialogStore.js';
 import { state } from '../../../core/state.js';
 import { savePreferences } from '../../../core/preferences.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function CalibrationDialog(props) {
+  const { t } = useTranslation('dialogs');
+  const { t: tCommon } = useTranslation('common');
+
   const [distance, setDistance] = createSignal(1);
   const [unit, setUnit] = createSignal('px');
   const [pixels, setPixels] = createSignal(72);
@@ -47,7 +51,7 @@ export default function CalibrationDialog(props) {
         }}
         onClick={handleReset}
       >
-        Reset
+        {tCommon('reset')}
       </button>
       <button
         style={{
@@ -61,24 +65,24 @@ export default function CalibrationDialog(props) {
         }}
         onClick={handleApply}
       >
-        Apply
+        {tCommon('apply')}
       </button>
     </div>
   );
 
   return (
     <Dialog
-      title="Scale Calibration"
+      title={t('calibration.title')}
       overlayClass="calibration-overlay"
       dialogClass="calibration-dialog"
       onClose={cancel}
       footer={footer}
     >
       <p style={{ 'font-size': '12px', color: '#666', margin: '0 0 12px 0' }}>
-        Draw a measurement line of known length, then enter the real-world distance here.
+        {t('calibration.helpText')}
       </p>
       <div style={{ display: 'flex', gap: '8px', 'align-items': 'center', 'margin-bottom': '12px' }}>
-        <label style={{ 'font-size': '13px' }}>Known distance:</label>
+        <label style={{ 'font-size': '13px' }}>{t('calibration.knownDistance')}</label>
         <input
           type="number"
           style={{ width: '80px', padding: '4px', border: '1px solid #ccc', 'border-radius': '0' }}
@@ -92,15 +96,15 @@ export default function CalibrationDialog(props) {
           value={unit()}
           onChange={(e) => setUnit(e.target.value)}
         >
-          <option value="mm">mm</option>
-          <option value="cm">cm</option>
-          <option value="in">in</option>
-          <option value="pt">pt</option>
-          <option value="px">px</option>
+          <option value="mm">{tCommon('mm')}</option>
+          <option value="cm">{tCommon('cm')}</option>
+          <option value="in">{tCommon('in')}</option>
+          <option value="pt">{tCommon('pt')}</option>
+          <option value="px">{tCommon('px')}</option>
         </select>
       </div>
       <div style={{ display: 'flex', gap: '8px', 'align-items': 'center', 'margin-bottom': '12px' }}>
-        <label style={{ 'font-size': '13px' }}>Measured pixels:</label>
+        <label style={{ 'font-size': '13px' }}>{t('calibration.measuredPixels')}</label>
         <input
           type="number"
           style={{ width: '80px', padding: '4px', border: '1px solid #ccc', 'border-radius': '0' }}

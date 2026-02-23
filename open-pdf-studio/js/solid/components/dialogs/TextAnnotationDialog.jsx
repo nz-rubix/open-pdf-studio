@@ -2,10 +2,14 @@ import { createSignal, onMount, For } from 'solid-js';
 import Dialog from '../Dialog.jsx';
 import { closeDialog } from '../../stores/dialogStore.js';
 import { systemFontList } from '../../stores/fontStore.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 64, 72];
 
 export default function TextAnnotationDialog(props) {
+  const { t } = useTranslation('dialogs');
+  const { t: tCommon } = useTranslation('common');
+
   const onResult = props.data?.onResult;
 
   const [fontFamily, setFontFamily] = createSignal('Arial');
@@ -93,18 +97,18 @@ export default function TextAnnotationDialog(props) {
   const footer = (
     <div class="text-annot-footer" style="display:flex; justify-content:space-between; align-items:center; width:100%; padding:0;">
       <div class="text-annot-char-count">
-        <span>{() => text().length}</span> characters
+        <span>{() => text().length}</span> {t('textAnnotation.characters')}
       </div>
       <div class="text-annot-footer-right">
-        <button class="pref-btn pref-btn-secondary" onClick={close}>Cancel</button>
-        <button class="pref-btn pref-btn-primary" onClick={handleOk}>OK</button>
+        <button class="pref-btn pref-btn-secondary" onClick={close}>{tCommon('cancel')}</button>
+        <button class="pref-btn pref-btn-primary" onClick={handleOk}>{tCommon('ok')}</button>
       </div>
     </div>
   );
 
   return (
     <Dialog
-      title="Add Text"
+      title={t('textAnnotation.title')}
       overlayClass="text-annot-overlay"
       dialogClass="text-annot-dialog"
       headerClass="text-annot-header"
@@ -118,7 +122,7 @@ export default function TextAnnotationDialog(props) {
         <div class="text-annot-toolbar-group">
           <select
             id="text-annot-font-family"
-            title="Font Family"
+            title={t('textAnnotation.fontFamily')}
             value={fontFamily()}
             onChange={(e) => setFontFamily(e.target.value)}
           >
@@ -128,7 +132,7 @@ export default function TextAnnotationDialog(props) {
           </select>
           <select
             id="text-annot-font-size"
-            title="Font Size"
+            title={t('textAnnotation.fontSize')}
             value={fontSize()}
             onChange={(e) => setFontSize(parseInt(e.target.value, 10))}
           >
@@ -145,7 +149,7 @@ export default function TextAnnotationDialog(props) {
             type="button"
             class="text-annot-toolbar-btn"
             classList={{ active: bold() }}
-            title="Bold (Ctrl+B)"
+            title={t('textAnnotation.bold')}
             onClick={() => setBold(!bold())}
           >
             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
@@ -156,7 +160,7 @@ export default function TextAnnotationDialog(props) {
             type="button"
             class="text-annot-toolbar-btn"
             classList={{ active: italic() }}
-            title="Italic (Ctrl+I)"
+            title={t('textAnnotation.italic')}
             onClick={() => setItalic(!italic())}
           >
             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
@@ -167,7 +171,7 @@ export default function TextAnnotationDialog(props) {
             type="button"
             class="text-annot-toolbar-btn"
             classList={{ active: underline() }}
-            title="Underline (Ctrl+U)"
+            title={t('textAnnotation.underline')}
             onClick={() => setUnderline(!underline())}
           >
             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
@@ -183,7 +187,7 @@ export default function TextAnnotationDialog(props) {
             type="button"
             class="text-annot-toolbar-btn"
             classList={{ active: align() === 'left' }}
-            title="Align Left"
+            title={t('textAnnotation.alignLeft')}
             onClick={() => setAlignValue('left')}
           >
             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
@@ -194,7 +198,7 @@ export default function TextAnnotationDialog(props) {
             type="button"
             class="text-annot-toolbar-btn"
             classList={{ active: align() === 'center' }}
-            title="Align Center"
+            title={t('textAnnotation.alignCenter')}
             onClick={() => setAlignValue('center')}
           >
             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
@@ -205,7 +209,7 @@ export default function TextAnnotationDialog(props) {
             type="button"
             class="text-annot-toolbar-btn"
             classList={{ active: align() === 'right' }}
-            title="Align Right"
+            title={t('textAnnotation.alignRight')}
             onClick={() => setAlignValue('right')}
           >
             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
@@ -218,7 +222,7 @@ export default function TextAnnotationDialog(props) {
 
         <div class="text-annot-toolbar-group">
           <div class="text-annot-color-picker">
-            <label title="Text Color">
+            <label title={t('textAnnotation.textColor')}>
               <div
                 class="text-annot-color-swatch"
                 style={{ background: color() }}
@@ -237,7 +241,7 @@ export default function TextAnnotationDialog(props) {
       <textarea
         ref={textareaRef}
         id="text-annot-input"
-        placeholder="Type your text here..."
+        placeholder={t('textAnnotation.placeholder')}
         spellcheck={true}
         value={text()}
         style={textareaStyle()}
@@ -246,9 +250,9 @@ export default function TextAnnotationDialog(props) {
       />
 
       {/* Preview */}
-      <div class="text-annot-preview-label">Preview:</div>
+      <div class="text-annot-preview-label">{t('textAnnotation.preview')}</div>
       <div class="text-annot-preview" style={previewStyle()}>
-        {() => text() || 'Sample text'}
+        {() => text() || t('textAnnotation.sampleText')}
       </div>
     </Dialog>
   );

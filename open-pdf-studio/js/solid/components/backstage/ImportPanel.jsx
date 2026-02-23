@@ -1,6 +1,9 @@
 import { closeBackstage } from '../../stores/backstageStore.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function ImportPanel() {
+  const { t } = useTranslation('backstage');
+
   const handleImportXFDF = async () => {
     closeBackstage();
     const { importXFDFFromFile } = await import('../../../annotations/xfdf.js');
@@ -9,7 +12,7 @@ export default function ImportPanel() {
 
   return (
     <div class="bs-export-panel">
-      <h2 class="bs-export-title">Import</h2>
+      <h2 class="bs-export-title">{t('importPanel.title')}</h2>
       <div class="bs-export-cards">
         <div class="bs-export-card" onClick={handleImportXFDF}>
           <div class="bs-export-card-icon">
@@ -21,8 +24,8 @@ export default function ImportPanel() {
             </svg>
           </div>
           <div class="bs-export-card-info">
-            <h3>Import Annotations (XFDF)</h3>
-            <p>Import annotations from an XFDF file into the current document</p>
+            <h3>{t('importPanel.importXfdf')}</h3>
+            <p>{t('importPanel.importXfdfDesc')}</p>
           </div>
         </div>
       </div>

@@ -6,37 +6,40 @@ import { isPdfAReadOnly } from '../../../pdf/loader.js';
 import { goToPage } from '../../../pdf/renderer.js';
 import { showInsertPageDialog, showExtractPagesDialog, showMergePdfsDialog } from '../../../ui/chrome/dialogs.js';
 import { deletePages } from '../../../pdf/page-manager.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function OrganizeTab() {
+  const { t } = useTranslation('ribbon');
+
   return (
     <div class="ribbon-content active" id="tab-organize">
       <div class="ribbon-groups">
-        <RibbonGroup label="Pages">
-          <RibbonButton id="insert-page" title="Insert Page" icon={insertPageIcon} label="Insert"
+        <RibbonGroup label={t('organize.pages')}>
+          <RibbonButton id="insert-page" title={t('organize.insertPage')} icon={insertPageIcon} label={t('organize.insert')}
             disabled={isPdfAReadOnly()} onClick={() => showInsertPageDialog()} />
-          <RibbonButton id="delete-page" title="Delete Page" icon={deletePageIcon} label="Delete"
+          <RibbonButton id="delete-page" title={t('organize.deletePage')} icon={deletePageIcon} label={t('organize.deleteLabel')}
             disabled={isPdfAReadOnly()}
             onClick={async () => {
               if (!state.pdfDoc) return;
-              if (state.pdfDoc.numPages <= 1) { alert('Cannot delete the last remaining page.'); return; }
-              const confirmed = await window.__TAURI__?.dialog?.ask(`Delete page ${state.currentPage}?`, { title: 'Delete Page', kind: 'warning' });
+              if (state.pdfDoc.numPages <= 1) { alert(t('organize.cannotDeleteLast')); return; }
+              const confirmed = await window.__TAURI__?.dialog?.ask(t('organize.deletePageConfirm', { page: state.currentPage }), { title: t('organize.deletePage'), kind: 'warning' });
               if (confirmed) await deletePages([state.currentPage]);
             }} />
-          <RibbonButton id="extract-pages" title="Extract Pages" icon={extractPagesIcon} label="Extract"
+          <RibbonButton id="extract-pages" title={t('organize.extractPages')} icon={extractPagesIcon} label={t('organize.extractLabel')}
             disabled={isPdfAReadOnly()} onClick={() => showExtractPagesDialog()} />
         </RibbonGroup>
 
-        <RibbonGroup label="Combine">
-          <RibbonButton id="merge-pdfs" title="Merge PDFs" icon={mergePdfsIcon} label="Merge"
+        <RibbonGroup label={t('organize.combine')}>
+          <RibbonButton id="merge-pdfs" title={t('organize.mergePdfs')} icon={mergePdfsIcon} label={t('organize.mergeLabel')}
             disabled={isPdfAReadOnly()} onClick={() => showMergePdfsDialog()} />
         </RibbonGroup>
 
-        <RibbonGroup label="Watermark">
-          <RibbonButton id="add-watermark" title="Add Watermark" icon={watermarkIcon} label="Watermark"
+        <RibbonGroup label={t('organize.watermark')}>
+          <RibbonButton id="add-watermark" title={t('organize.addWatermark')} icon={watermarkIcon} label={t('organize.watermarkLabel')}
             disabled={isPdfAReadOnly()} onClick={async () => { const { showWatermarkDialog } = await import('../../../watermark/watermark-dialog.js'); showWatermarkDialog(); }} />
-          <RibbonButton id="add-header-footer" title="Add Header/Footer" icon={headerFooterIcon} label="Header/Footer"
+          <RibbonButton id="add-header-footer" title={t('organize.addHeaderFooter')} icon={headerFooterIcon} label={t('organize.headerFooter')}
             disabled={isPdfAReadOnly()} onClick={async () => { const { showHeaderFooterDialog } = await import('../../../watermark/watermark-dialog.js'); showHeaderFooterDialog(); }} />
-          <RibbonButton id="manage-watermarks" title="Manage Watermarks" icon={manageWatermarksIcon} label="Manage"
+          <RibbonButton id="manage-watermarks" title={t('organize.manageWatermarks')} icon={manageWatermarksIcon} label={t('organize.manage')}
             disabled={isPdfAReadOnly()} onClick={async () => { const { showManageWatermarksDialog } = await import('../../../watermark/watermark-dialog.js'); showManageWatermarksDialog(); }} />
         </RibbonGroup>
       </div>

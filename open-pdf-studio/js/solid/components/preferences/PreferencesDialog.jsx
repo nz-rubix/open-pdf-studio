@@ -4,6 +4,7 @@ import { closeDialog } from '../../stores/dialogStore.js';
 import { DEFAULT_PREFERENCES } from '../../../core/constants.js';
 import { state } from '../../../core/state.js';
 import { savePreferences, applyTheme } from '../../../core/preferences.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 import GeneralTab from './GeneralTab.jsx';
 import AnnotationsTab from './AnnotationsTab.jsx';
@@ -14,15 +15,15 @@ import BehaviorTab from './BehaviorTab.jsx';
 import FileAssocTab from './FileAssocTab.jsx';
 import VirtualPrinterTab from './VirtualPrinterTab.jsx';
 
-const TABS = [
-  { id: 'general', label: 'General' },
-  { id: 'annotations', label: 'Annotations' },
-  { id: 'drawing', label: 'Drawing' },
-  { id: 'shapes', label: 'Shapes' },
-  { id: 'markup', label: 'Markup' },
-  { id: 'behavior', label: 'Behavior' },
-  { id: 'fileassoc', label: 'File Association' },
-  { id: 'vprinter', label: 'Virtual Printer' },
+const TAB_IDS = [
+  { id: 'general', key: 'tabs.general' },
+  { id: 'annotations', key: 'tabs.annotations' },
+  { id: 'drawing', key: 'tabs.drawing' },
+  { id: 'shapes', key: 'tabs.shapes' },
+  { id: 'markup', key: 'tabs.markup' },
+  { id: 'behavior', key: 'tabs.behavior' },
+  { id: 'fileassoc', key: 'tabs.fileAssociation' },
+  { id: 'vprinter', key: 'tabs.virtualPrinter' },
 ];
 
 function createPrefSignals(source) {
@@ -35,6 +36,8 @@ function createPrefSignals(source) {
 }
 
 export default function PreferencesDialog(props) {
+  const { t } = useTranslation('preferences');
+  const { t: tCommon } = useTranslation('common');
   const initialTab = props.data?.tab || 'general';
   const [activeTab, setActiveTab] = createSignal(initialTab);
 
@@ -54,7 +57,7 @@ export default function PreferencesDialog(props) {
   }
 
   function handleReset() {
-    if (confirm('Reset all preferences to default values?')) {
+    if (confirm(t('resetConfirm'))) {
       for (const key of Object.keys(DEFAULT_PREFERENCES)) {
         prefs[key][1](DEFAULT_PREFERENCES[key]);
       }
@@ -63,17 +66,17 @@ export default function PreferencesDialog(props) {
 
   const footer = (
     <>
-      <button class="pref-btn pref-btn-secondary" onClick={handleReset}>Reset to Defaults</button>
+      <button class="pref-btn pref-btn-secondary" onClick={handleReset}>{t('resetToDefaults')}</button>
       <div class="pref-footer-right">
-        <button class="pref-btn pref-btn-secondary" onClick={close}>Cancel</button>
-        <button class="pref-btn pref-btn-primary" onClick={handleSave}>Save</button>
+        <button class="pref-btn pref-btn-secondary" onClick={close}>{tCommon('cancel')}</button>
+        <button class="pref-btn pref-btn-primary" onClick={handleSave}>{tCommon('save')}</button>
       </div>
     </>
   );
 
   return (
     <Dialog
-      title="Preferences"
+      title={t('title')}
       overlayClass="preferences-overlay"
       dialogClass="preferences-dialog"
       headerClass="preferences-header"
@@ -84,14 +87,14 @@ export default function PreferencesDialog(props) {
     >
       <div class="preferences-content">
         <div class="pref-tabs">
-          <For each={TABS}>
+          <For each={TAB_IDS}>
             {(tab) => (
               <button
                 class="pref-tab"
                 classList={{ active: activeTab() === tab.id }}
                 onClick={() => setActiveTab(tab.id)}
               >
-                {tab.label}
+                {t(tab.key)}
               </button>
             )}
           </For>

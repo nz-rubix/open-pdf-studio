@@ -12,18 +12,19 @@ import { setPanelVisible } from '../../stores/propertiesStore.js';
 import {
   styleToolsIcon, resetLocationIcon, openPropertiesIcon, hideAnnotationIcon
 } from '../../data/ribbonIcons.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 const STYLE_GALLERY = [
-  { name: 'red', label: 'Red', color: '#ff0000', cloudy: false },
-  { name: 'purple', label: 'Purple', color: '#800080', cloudy: false },
-  { name: 'indigo', label: 'Indigo', color: '#4b0082', cloudy: false },
-  { name: 'blue', label: 'Blue', color: '#0066cc', cloudy: false },
-  { name: 'green', label: 'Green', color: '#008000', cloudy: false },
-  { name: 'yellow', label: 'Yellow', color: '#e6a817', cloudy: false },
-  { name: 'black', label: 'Black', color: '#000000', cloudy: false },
-  { name: 'red-cloudy', label: 'Red Cloudy', color: '#ff0000', cloudy: true, bg: 'rgba(255,0,0,0.08)' },
-  { name: 'purple-cloudy', label: 'Purple Cloudy', color: '#800080', cloudy: true, bg: 'rgba(128,0,128,0.08)' },
-  { name: 'indigo-cloudy', label: 'Indigo Cloudy', color: '#7b68ee', cloudy: true, bg: 'rgba(123,104,238,0.15)' },
+  { name: 'red', labelKey: 'format.styleRed', color: '#ff0000', cloudy: false },
+  { name: 'purple', labelKey: 'format.stylePurple', color: '#800080', cloudy: false },
+  { name: 'indigo', labelKey: 'format.styleIndigo', color: '#4b0082', cloudy: false },
+  { name: 'blue', labelKey: 'format.styleBlue', color: '#0066cc', cloudy: false },
+  { name: 'green', labelKey: 'format.styleGreen', color: '#008000', cloudy: false },
+  { name: 'yellow', labelKey: 'format.styleYellow', color: '#e6a817', cloudy: false },
+  { name: 'black', labelKey: 'format.styleBlack', color: '#000000', cloudy: false },
+  { name: 'red-cloudy', labelKey: 'format.styleRedCloudy', color: '#ff0000', cloudy: true, bg: 'rgba(255,0,0,0.08)' },
+  { name: 'purple-cloudy', labelKey: 'format.stylePurpleCloudy', color: '#800080', cloudy: true, bg: 'rgba(128,0,128,0.08)' },
+  { name: 'indigo-cloudy', labelKey: 'format.styleIndigoCloudy', color: '#7b68ee', cloudy: true, bg: 'rgba(123,104,238,0.15)' },
 ];
 
 function applyStyle(styleName) {
@@ -49,6 +50,9 @@ function strokeIconSvg() {
 }
 
 export default function FormatTab() {
+  const { t } = useTranslation('ribbon');
+  const { t: tc } = useTranslation('common');
+
   return (
     <div class="ribbon-content active" id="tab-format">
       <div class="ribbon-groups">
@@ -59,7 +63,7 @@ export default function FormatTab() {
                 <div
                   class="ribbon-style-item"
                   data-style={item.name}
-                  title={item.label}
+                  title={t(item.labelKey)}
                   onClick={() => applyStyle(item.name)}
                 >
                   <div
@@ -72,12 +76,12 @@ export default function FormatTab() {
                   >
                     <span>T</span>
                   </div>
-                  <span class="ribbon-style-label">{item.label}</span>
+                  <span class="ribbon-style-label">{t(item.labelKey)}</span>
                 </div>
               )}
             </For>
           </div>
-          <button class="ribbon-gallery-more" id="fmt-style-more" title="More Styles">
+          <button class="ribbon-gallery-more" id="fmt-style-more" title={t('format.moreStyles')}>
             <svg viewBox="0 0 8 14"><path d="M1 1l5 6-5 6" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
           </button>
         </RibbonGroup>
@@ -86,8 +90,8 @@ export default function FormatTab() {
           <div class="ribbon-btn-stack">
             <ColorPickerButton
               id="fmt-fill-color"
-              title="Fill Color"
-              label="Fill Color"
+              title={t('format.fillColor')}
+              label={t('format.fillColor')}
               iconSvg={fillIconSvg()}
               dropdownId="fmt-fill-dropdown"
               paletteId="fmt-fill-palette"
@@ -108,8 +112,8 @@ export default function FormatTab() {
             />
             <ColorPickerButton
               id="fmt-stroke-color"
-              title="Stroke Color"
-              label="Stroke Color"
+              title={t('format.strokeColor')}
+              label={t('format.strokeColor')}
               iconSvg={strokeIconSvg()}
               dropdownId="fmt-stroke-dropdown"
               paletteId="fmt-stroke-palette"
@@ -130,8 +134,8 @@ export default function FormatTab() {
         <RibbonGroup label="">
           <div class="ribbon-form-grid">
             <div class="ribbon-form-row">
-              <label>Width:</label>
-              <select class="ribbon-form-select" id="fmt-line-width" title="Line Width"
+              <label>{t('format.widthLabel')}</label>
+              <select class="ribbon-form-select" id="fmt-line-width" title={t('format.lineWidth')}
                 value={fmtLineWidth()}
                 onChange={(e) => {
                   applyToSelected(ann => { ann.lineWidth = parseFloat(e.target.value); });
@@ -145,8 +149,8 @@ export default function FormatTab() {
                 <option value="6">6 pt</option>
                 <option value="8">8 pt</option>
               </select>
-              <label>Opacity:</label>
-              <select class="ribbon-form-select" id="fmt-opacity" title="Opacity"
+              <label>{t('format.opacityLabel')}</label>
+              <select class="ribbon-form-select" id="fmt-opacity" title={t('format.opacity')}
                 value={opacity()}
                 onChange={(e) => {
                   applyToSelected(ann => { ann.opacity = parseInt(e.target.value) / 100; });
@@ -161,26 +165,26 @@ export default function FormatTab() {
               </select>
             </div>
             <div class="ribbon-form-row">
-              <label>Border:</label>
-              <select class="ribbon-form-select" id="fmt-border-style" title="Border Style"
+              <label>{t('format.borderLabel')}</label>
+              <select class="ribbon-form-select" id="fmt-border-style" title={t('format.borderStyle')}
                 value={borderStyle()}
                 onChange={(e) => {
                   applyToSelected(ann => { ann.borderStyle = e.target.value; });
                   syncFormatStore(state.selectedAnnotations);
                 }}>
-                <option value="solid">Solid</option>
-                <option value="dashed">Dashed</option>
-                <option value="dotted">Dotted</option>
+                <option value="solid">{tc('solid')}</option>
+                <option value="dashed">{tc('dashed')}</option>
+                <option value="dotted">{tc('dotted')}</option>
               </select>
-              <label>Blend:</label>
-              <select class="ribbon-form-select" id="fmt-blend-mode" title="Blend Mode"
+              <label>{t('format.blendLabel')}</label>
+              <select class="ribbon-form-select" id="fmt-blend-mode" title={t('format.blendMode')}
                 value={blendMode()}
                 onChange={(e) => {
                   applyToSelected(ann => { ann.blendMode = e.target.value; });
                   syncFormatStore(state.selectedAnnotations);
                 }}>
-                <option value="normal">Normal</option>
-                <option value="multiply">Multiply</option>
+                <option value="normal">{t('format.normal')}</option>
+                <option value="multiply">{t('format.multiply')}</option>
               </select>
             </div>
           </div>
@@ -189,39 +193,39 @@ export default function FormatTab() {
         <RibbonGroup label="">
           <div class="ribbon-form-grid ribbon-form-grid-2col">
             <div class="ribbon-form-row">
-              <label>Start:</label>
-              <select class="ribbon-form-select" id="fmt-arrow-start" title="Start Arrow"
+              <label>{t('format.startLabel')}</label>
+              <select class="ribbon-form-select" id="fmt-arrow-start" title={t('format.startArrow')}
                 value={arrowStart()}
                 onChange={(e) => {
                   applyToSelected(ann => { if (ann.type === 'arrow') ann.startHead = e.target.value; });
                   syncFormatStore(state.selectedAnnotations);
                 }}>
-                <option value="none">None</option>
-                <option value="open">Open</option>
-                <option value="closed">Closed</option>
-                <option value="stealth">Stealth</option>
-                <option value="diamond">Diamond</option>
-                <option value="circle">Circle</option>
-                <option value="square">Square</option>
-                <option value="slash">Slash</option>
+                <option value="none">{tc('none')}</option>
+                <option value="open">{t('format.open')}</option>
+                <option value="closed">{t('format.closed')}</option>
+                <option value="stealth">{t('format.stealth')}</option>
+                <option value="diamond">{t('format.diamond')}</option>
+                <option value="circle">{t('format.circle')}</option>
+                <option value="square">{t('format.square')}</option>
+                <option value="slash">{t('format.slash')}</option>
               </select>
             </div>
             <div class="ribbon-form-row">
-              <label>End:</label>
-              <select class="ribbon-form-select" id="fmt-arrow-end" title="End Arrow"
+              <label>{t('format.endLabel')}</label>
+              <select class="ribbon-form-select" id="fmt-arrow-end" title={t('format.endArrow')}
                 value={arrowEnd()}
                 onChange={(e) => {
                   applyToSelected(ann => { if (ann.type === 'arrow') ann.endHead = e.target.value; });
                   syncFormatStore(state.selectedAnnotations);
                 }}>
-                <option value="none">None</option>
-                <option value="open">Open</option>
-                <option value="closed">Closed</option>
-                <option value="stealth">Stealth</option>
-                <option value="diamond">Diamond</option>
-                <option value="circle">Circle</option>
-                <option value="square">Square</option>
-                <option value="slash">Slash</option>
+                <option value="none">{tc('none')}</option>
+                <option value="open">{t('format.open')}</option>
+                <option value="closed">{t('format.closed')}</option>
+                <option value="stealth">{t('format.stealth')}</option>
+                <option value="diamond">{t('format.diamond')}</option>
+                <option value="circle">{t('format.circle')}</option>
+                <option value="square">{t('format.square')}</option>
+                <option value="slash">{t('format.slash')}</option>
               </select>
             </div>
           </div>
@@ -229,12 +233,12 @@ export default function FormatTab() {
 
         <RibbonGroup label="">
           <div class="ribbon-grid-col">
-            <button class="ribbon-row-btn ribbon-dropdown-btn" id="fmt-style-tools" title="Style Tools">
+            <button class="ribbon-row-btn ribbon-dropdown-btn" id="fmt-style-tools" title={t('format.styleTools')}>
               <span ref={el => { el.innerHTML = styleToolsIcon; }} />
-              <span>Style Tools</span>
+              <span>{t('format.styleTools')}</span>
               <svg class="dropdown-arrow" viewBox="0 0 8 5"><path d="M0 0l4 4 4-4z" fill="currentColor"/></svg>
             </button>
-            <button class="ribbon-row-btn" id="fmt-reset-location" title="Reset Location"
+            <button class="ribbon-row-btn" id="fmt-reset-location" title={t('format.resetLocation')}
               onClick={() => {
                 applyToSelected(ann => {
                   ann.rotation = 0;
@@ -252,14 +256,14 @@ export default function FormatTab() {
                 });
               }}>
               <span ref={el => { el.innerHTML = resetLocationIcon; }} />
-              <span>Reset Location</span>
+              <span>{t('format.resetLocation')}</span>
             </button>
           </div>
         </RibbonGroup>
 
-        <RibbonGroup label="Properties">
+        <RibbonGroup label={t('format.propertiesGroup')}>
           <div class="ribbon-grid-col">
-            <button class="ribbon-row-btn" id="fmt-open" title="Open Properties"
+            <button class="ribbon-row-btn" id="fmt-open" title={t('format.openProperties')}
               onClick={() => {
                 setPanelVisible(true);
                 if (state.selectedAnnotations.length === 1) {
@@ -269,21 +273,21 @@ export default function FormatTab() {
                 }
               }}>
               <span ref={el => { el.innerHTML = openPropertiesIcon; }} />
-              <span>Open</span>
+              <span>{t('format.openLabel')}</span>
             </button>
-            <button class="ribbon-row-btn" id="fmt-hide" title="Hide Annotation"
+            <button class="ribbon-row-btn" id="fmt-hide" title={t('format.hideAnnotation')}
               onClick={() => {
                 applyToSelected(ann => { ann.hidden = !ann.hidden; });
               }}>
               <span ref={el => { el.innerHTML = hideAnnotationIcon; }} />
-              <span>Hide</span>
+              <span>{t('format.hide')}</span>
             </button>
           </div>
           <div class="ribbon-grid-col" style={{ 'justify-content': 'center' }}>
             <div class="ribbon-form-row">
-              <label>Layer:</label>
-              <select class="ribbon-form-select" id="fmt-layer" title="Layer">
-                <option value="none">None</option>
+              <label>{t('format.layerLabel')}</label>
+              <select class="ribbon-form-select" id="fmt-layer" title={t('format.layer')}>
+                <option value="none">{tc('none')}</option>
               </select>
             </div>
           </div>

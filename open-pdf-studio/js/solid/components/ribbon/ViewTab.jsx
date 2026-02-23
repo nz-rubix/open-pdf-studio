@@ -8,24 +8,27 @@ import { toggleAnnotationsListPanel } from '../../../ui/panels/annotations-list.
 import { showProperties, hideProperties, closePropertiesPanel } from '../../../ui/panels/properties-panel.js';
 import { panelVisible, setPanelVisible } from '../../stores/propertiesStore.js';
 import { state } from '../../../core/state.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function ViewTab() {
+  const { t } = useTranslation('ribbon');
+
   return (
     <div class="ribbon-content active" id="tab-view">
       <div class="ribbon-groups">
-        <RibbonGroup label="Page Display">
-          <RibbonButton id="single-page" title="Single Page" icon={singlePageIcon} label="Single"
+        <RibbonGroup label={t('view.pageDisplay')}>
+          <RibbonButton id="single-page" title={t('view.singlePage')} icon={singlePageIcon} label={t('view.single')}
             active={state.viewMode === 'single'}
             onClick={() => setViewMode('single')} />
-          <RibbonButton id="continuous" title="Continuous (coming soon)" icon={continuousIcon} label="Continuous"
+          <RibbonButton id="continuous" title={t('view.continuousTitle')} icon={continuousIcon} label={t('view.continuous')}
             active={state.viewMode === 'continuous'}
             disabled={true} style={{ opacity: '0.4', cursor: 'default' }} />
         </RibbonGroup>
 
-        <RibbonGroup label="Panels">
-          <RibbonButton id="ribbon-nav-panel" title="Navigation Panel (F9)" icon={navigationIcon} label="Navigation"
+        <RibbonGroup label={t('view.panels')}>
+          <RibbonButton id="ribbon-nav-panel" title={t('view.navigationPanel')} icon={navigationIcon} label={t('view.navigation')}
             onClick={() => toggleLeftPanel()} />
-          <RibbonButton id="ribbon-properties-panel" title="Properties Panel (F12)" icon={propertiesIcon} label="Properties"
+          <RibbonButton id="ribbon-properties-panel" title={t('view.propertiesPanel')} icon={propertiesIcon} label={t('view.propertiesLabel')}
             active={panelVisible()}
             onClick={() => {
               if (panelVisible()) {
@@ -39,11 +42,11 @@ export default function ViewTab() {
                 }
               }
             }} />
-          <RibbonButton id="ribbon-annotations-list" title="Annotations List (F11)" icon={annotationsListIcon} label="Annotations"
+          <RibbonButton id="ribbon-annotations-list" title={t('view.annotationsList')} icon={annotationsListIcon} label={t('view.annotationsLabel')}
             onClick={() => toggleAnnotationsListPanel()} />
         </RibbonGroup>
 
-        <RibbonGroup label="Appearance">
+        <RibbonGroup label={t('view.appearance')}>
           <ThemePicker />
         </RibbonGroup>
       </div>

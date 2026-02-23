@@ -2,15 +2,18 @@ import RibbonGroup from './RibbonGroup.jsx';
 import RibbonButton from './RibbonButton.jsx';
 import { isPdfAReadOnly } from '../../../pdf/loader.js';
 import { textFieldIcon, checkboxIcon, radioIcon } from '../../data/ribbonIcons.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function FormsTab() {
+  const { t } = useTranslation('ribbon');
+
   return (
     <div class="ribbon-content active" id="tab-forms">
       <div class="ribbon-groups">
-        <RibbonGroup label="Form Fields">
-          <RibbonButton id="form-text-field" title="Text Field" icon={textFieldIcon} label="Text Field" disabled={isPdfAReadOnly()} />
-          <RibbonButton id="form-checkbox" title="Checkbox" icon={checkboxIcon} label="Checkbox" disabled={isPdfAReadOnly()} />
-          <RibbonButton id="form-radio" title="Radio Button" icon={radioIcon} label="Radio" disabled={isPdfAReadOnly()} />
+        <RibbonGroup label={t('forms.formFields')}>
+          <RibbonButton id="form-text-field" title={t('forms.textField')} icon={textFieldIcon} label={t('forms.textField')} disabled={isPdfAReadOnly()} />
+          <RibbonButton id="form-checkbox" title={t('forms.checkbox')} icon={checkboxIcon} label={t('forms.checkbox')} disabled={isPdfAReadOnly()} />
+          <RibbonButton id="form-radio" title={t('forms.radioButton')} icon={radioIcon} label={t('forms.radio')} disabled={isPdfAReadOnly()} />
         </RibbonGroup>
       </div>
     </div>

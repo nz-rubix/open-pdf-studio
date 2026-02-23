@@ -1,0 +1,117 @@
+{
+  "title": "Eigenschappen",
+  "general": {
+    "title": "Algemeen",
+    "type": "Type",
+    "subject": "Onderwerp",
+    "subjectPlaceholder": "Voer onderwerp in...",
+    "author": "Auteur",
+    "created": "Aangemaakt",
+    "modified": "Gewijzigd",
+    "locked": "Vergrendeld",
+    "printable": "Afdrukbaar",
+    "readOnly": "Alleen-lezen",
+    "marked": "Gemarkeerd",
+    "altText": "Alt-tekst",
+    "altTextPlaceholder": "Beschrijving voor toegankelijkheid...",
+    "status": "Status",
+    "accepted": "Geaccepteerd",
+    "rejected": "Afgewezen",
+    "cancelled": "Geannuleerd",
+    "completed": "Voltooid",
+    "reviewed": "Beoordeeld"
+  },
+  "appearance": {
+    "title": "Weergave",
+    "icon": "Pictogram",
+    "iconComment": "Opmerking",
+    "iconNote": "Notitie",
+    "iconHelp": "Help",
+    "iconInsert": "Invoegen",
+    "iconKey": "Sleutel",
+    "iconNewParagraph": "Nieuwe alinea",
+    "iconParagraph": "Alinea",
+    "iconCheck": "Vinkje",
+    "iconCircle": "Cirkel",
+    "iconCross": "Kruis",
+    "iconStar": "Ster",
+    "fillColor": "Vulkleur",
+    "strokeColor": "Lijnkleur",
+    "color": "Kleur",
+    "opacity": "Dekking",
+    "borderStyle": "Randstijl"
+  },
+  "content": {
+    "title": "Inhoud",
+    "text": "Tekst",
+    "fontSize": "Tekengrootte"
+  },
+  "dimensions": {
+    "title": "Grootte en afmetingen",
+    "length": "Lengte"
+  },
+  "lineEndings": {
+    "title": "Lijneinden",
+    "start": "Begin",
+    "end": "Einde",
+    "openArrow": "Open pijl",
+    "closedArrow": "Gesloten pijl",
+    "diamond": "Ruit",
+    "circle": "Cirkel",
+    "square": "Vierkant",
+    "slash": "Schuine streep",
+    "headSize": "Puntgrootte"
+  },
+  "textFormat": {
+    "title": "Teken",
+    "textColor": "Tekstkleur",
+    "font": "Lettertype",
+    "fontSize": "Tekengrootte",
+    "style": "Stijl",
+    "bold": "Vet",
+    "italic": "Cursief",
+    "underline": "Onderstrepen",
+    "strikethrough": "Doorhalen"
+  },
+  "paragraph": {
+    "title": "Alinea",
+    "textAlignment": "Tekstuitlijning",
+    "alignLeft": "Links uitlijnen",
+    "alignCenter": "Centreren",
+    "alignRight": "Rechts uitlijnen",
+    "lineSpacing": "Regelafstand",
+    "rotation": "Rotatie"
+  },
+  "replies": {
+    "title": "Reacties",
+    "noReplies": "Nog geen reacties.",
+    "user": "Gebruiker",
+    "addReply": "Reactie toevoegen...",
+    "addButton": "Toevoegen"
+  },
+  "docInfo": {
+    "document": "Document",
+    "file": "Bestand",
+    "path": "Pad",
+    "pages": "Pagina's",
+    "pageSize": "Paginaformaat",
+    "metadata": "Metagegevens",
+    "title": "Titel",
+    "author": "Auteur",
+    "subject": "Onderwerp",
+    "creator": "Maker",
+    "producer": "Producent",
+    "pdfVersion": "PDF-versie",
+    "annotations": "Annotaties",
+    "total": "Totaal",
+    "onPage": "Op pagina",
+    "selectHint": "Selecteer een annotatie om de eigenschappen te bewerken"
+  },
+  "image": {
+    "title": "Afbeelding",
+    "width": "Breedte",
+    "height": "Hoogte",
+    "rotation": "Rotatie",
+    "resetToOriginal": "Oorspronkelijke grootte herstellen"
+  }
+}

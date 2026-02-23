@@ -2,16 +2,18 @@ import { createSignal, onMount, onCleanup, For } from 'solid-js';
 import { state } from '../../../core/state.js';
 import { applyTheme, savePreferences } from '../../../core/preferences.js';
 import { currentTheme } from '../../stores/ribbonStore.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 const THEME_OPTIONS = [
-  { value: 'system', label: 'System', swatches: ['#1a1a2e', '#16213e', '#e94560', '#eaeaea'] },
-  { value: 'light', label: 'Light', swatches: ['#f5f5f5', '#ffffff', '#e94560', '#1f2937'] },
-  { value: 'dark', label: 'Dark', swatches: ['#1a1a2e', '#16213e', '#e94560', '#eaeaea'] },
-  { value: 'blue', label: 'Blue', swatches: ['#0d1b2a', '#1b263b', '#00b4d8', '#e0e1dd'] },
-  { value: 'highContrast', label: 'High Contrast', swatches: ['#000000', '#0a0a0a', '#ffff00', '#ffffff'] },
+  { value: 'system', labelKey: 'theme.system', swatches: ['#1a1a2e', '#16213e', '#e94560', '#eaeaea'] },
+  { value: 'light', labelKey: 'theme.light', swatches: ['#f5f5f5', '#ffffff', '#e94560', '#1f2937'] },
+  { value: 'dark', labelKey: 'theme.dark', swatches: ['#1a1a2e', '#16213e', '#e94560', '#eaeaea'] },
+  { value: 'blue', labelKey: 'theme.blue', swatches: ['#0d1b2a', '#1b263b', '#00b4d8', '#e0e1dd'] },
+  { value: 'highContrast', labelKey: 'theme.highContrast', swatches: ['#000000', '#0a0a0a', '#ffff00', '#ffffff'] },
 ];
 
 export default function ThemePicker() {
+  const { t } = useTranslation('ribbon');
   const [open, setOpen] = createSignal(false);
   let pickerRef;
 
@@ -27,7 +29,8 @@ export default function ThemePicker() {
 
   const getLabel = () => {
     const theme = currentTheme();
-    return THEME_OPTIONS.find(t => t.value === theme)?.label || 'Dark';
+    const option = THEME_OPTIONS.find(t => t.value === theme);
+    return option ? t(option.labelKey) : t('theme.dark');
   };
 
   const getSwatches = () => {
@@ -44,7 +47,7 @@ export default function ThemePicker() {
 
   return (
     <div class="ribbon-input-group" style={{ 'justify-content': 'center' }}>
-      <label class="ribbon-input-label">Theme</label>
+      <label class="ribbon-input-label">{t('theme.label')}</label>
       <div class="theme-picker" id="theme-picker" ref={pickerRef}>
         <button
           class="theme-picker-toggle"
@@ -75,7 +78,7 @@ export default function ThemePicker() {
                     {(color) => <span class="theme-swatch" style={{ background: color }}></span>}
                   </For>
                 </span>
-                <span class="theme-picker-option-label">{option.label}</span>
+                <span class="theme-picker-option-label">{t(option.labelKey)}</span>
               </div>
             )}
           </For>

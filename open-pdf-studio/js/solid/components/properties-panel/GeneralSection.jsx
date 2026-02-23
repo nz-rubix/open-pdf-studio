@@ -1,84 +1,87 @@
 import { Show } from 'solid-js';
 import { annotProps, sectionVis, updateAnnotProp } from '../../stores/propertiesStore.js';
 import CollapsibleSection from './CollapsibleSection.jsx';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function GeneralSection() {
+  const { t } = useTranslation('properties');
+  const { t: tCommon } = useTranslation('common');
   const isLocked = () => annotProps.locked;
 
   return (
     <Show when={sectionVis.general}>
-      <CollapsibleSection title="General" name="general" id="prop-general-section">
+      <CollapsibleSection title={t('general.title')} name="general" id="prop-general-section">
         <div class="property-group">
-          <label>Type</label>
+          <label>{t('general.type')}</label>
           <input type="text" value={annotProps.typeDisplay} readonly />
         </div>
 
         <div class="property-group">
-          <label>Subject</label>
-          <input type="text" value={annotProps.subject} placeholder="Enter subject..."
+          <label>{t('general.subject')}</label>
+          <input type="text" value={annotProps.subject} placeholder={t('general.subjectPlaceholder')}
             disabled={isLocked()}
             onInput={(e) => updateAnnotProp('subject', e.target.value)} />
         </div>
 
         <div class="property-group">
-          <label>Author</label>
+          <label>{t('general.author')}</label>
           <input type="text" value={annotProps.author}
             disabled={isLocked()}
             onInput={(e) => updateAnnotProp('author', e.target.value)} />
         </div>
 
         <div class="property-group">
-          <label>Created</label>
+          <label>{t('general.created')}</label>
           <input type="text" value={annotProps.created} readonly class="prop-date" />
         </div>
 
         <div class="property-group">
-          <label>Modified</label>
+          <label>{t('general.modified')}</label>
           <input type="text" value={annotProps.modified} readonly class="prop-date" />
         </div>
 
         <div class="property-group">
-          <label>Locked</label>
+          <label>{t('general.locked')}</label>
           <select value={annotProps.locked ? 'yes' : 'no'}
             onChange={(e) => updateAnnotProp('locked', e.target.value === 'yes')}>
-            <option value="no">No</option>
-            <option value="yes">Yes</option>
+            <option value="no">{tCommon('no')}</option>
+            <option value="yes">{tCommon('yes')}</option>
           </select>
         </div>
 
         <div class="property-group">
-          <label>Printable</label>
+          <label>{t('general.printable')}</label>
           <select value={annotProps.printable ? 'yes' : 'no'}
             disabled={isLocked()}
             onChange={(e) => updateAnnotProp('printable', e.target.value === 'yes')}>
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
+            <option value="yes">{tCommon('yes')}</option>
+            <option value="no">{tCommon('no')}</option>
           </select>
         </div>
 
         <div class="property-group">
-          <label>Read Only</label>
+          <label>{t('general.readOnly')}</label>
           <select value={annotProps.readOnly ? 'yes' : 'no'}
             disabled={isLocked()}
             onChange={(e) => updateAnnotProp('readOnly', e.target.value === 'yes')}>
-            <option value="no">No</option>
-            <option value="yes">Yes</option>
+            <option value="no">{tCommon('no')}</option>
+            <option value="yes">{tCommon('yes')}</option>
           </select>
         </div>
 
         <div class="property-group">
-          <label>Marked</label>
+          <label>{t('general.marked')}</label>
           <select value={annotProps.marked ? 'yes' : 'no'}
             disabled={isLocked()}
             onChange={(e) => updateAnnotProp('marked', e.target.value === 'yes')}>
-            <option value="no">No</option>
-            <option value="yes">Yes</option>
+            <option value="no">{tCommon('no')}</option>
+            <option value="yes">{tCommon('yes')}</option>
           </select>
         </div>
 
         <div class="property-group">
-          <label>Alt Text</label>
-          <textarea rows="2" placeholder="Description for accessibility..."
+          <label>{t('general.altText')}</label>
+          <textarea rows="2" placeholder={t('general.altTextPlaceholder')}
             style="width: 100%; resize: vertical; font-size: 12px;"
             value={annotProps.altText}
             disabled={isLocked()}
@@ -86,15 +89,15 @@ export default function GeneralSection() {
         </div>
 
         <div class="property-group">
-          <label>Status</label>
+          <label>{t('general.status')}</label>
           <select value={annotProps.status}
             onChange={(e) => updateAnnotProp('status', e.target.value)}>
-            <option value="none">None</option>
-            <option value="accepted">Accepted</option>
-            <option value="rejected">Rejected</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="completed">Completed</option>
-            <option value="reviewed">Reviewed</option>
+            <option value="none">{tCommon('none')}</option>
+            <option value="accepted">{t('general.accepted')}</option>
+            <option value="rejected">{t('general.rejected')}</option>
+            <option value="cancelled">{t('general.cancelled')}</option>
+            <option value="completed">{t('general.completed')}</option>
+            <option value="reviewed">{t('general.reviewed')}</option>
           </select>
         </div>
       </CollapsibleSection>

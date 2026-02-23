@@ -9,6 +9,7 @@ import { showPreferencesDialog } from '../../../core/preferences.js';
 import { showDocPropertiesDialog, showNewDocDialog, showPrintDialog } from '../../../ui/chrome/dialogs.js';
 import { hasUnsavedChanges, getUnsavedDocumentNames } from '../../../ui/chrome/tabs.js';
 import { closeWindow } from '../../../core/platform.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 function MenuItem(props) {
   return (
@@ -46,25 +47,30 @@ function actionAndClose(fn) {
   fn();
 }
 
-async function handleExit() {
-  closeBackstage();
-  if (hasUnsavedChanges()) {
-    const names = getUnsavedDocumentNames().join(', ');
-    let result = false;
-    if (window.__TAURI__?.dialog?.ask) {
-      result = await window.__TAURI__.dialog.ask(
-        `The following files have unsaved changes:\n${names}\n\nDo you want to exit without saving?`,
-        { title: 'Unsaved Changes', kind: 'warning' }
-      );
-    } else {
-      result = confirm(`The following files have unsaved changes:\n${names}\n\nDo you want to exit without saving?`);
-    }
-    if (!result) return;
-  }
-  closeWindow();
-}
-
 export default function Backstage() {
+  const { t } = useTranslation('backstage');
+  const { t: tDialogs } = useTranslation('dialogs');
+
+  async function handleExit() {
+    closeBackstage();
+    if (hasUnsavedChanges()) {
+      const names = getUnsavedDocumentNames().join(', ');
+      const message = tDialogs('unsavedChanges.message', { names });
+      const title = tDialogs('unsavedChanges.title');
+      let result = false;
+      if (window.__TAURI__?.dialog?.ask) {
+        result = await window.__TAURI__.dialog.ask(
+          message,
+          { title: title, kind: 'warning' }
+        );
+      } else {
+        result = confirm(message);
+      }
+      if (!result) return;
+    }
+    closeWindow();
+  }
+
   const handleKeyDown = (e) => {
     if (e.key === 'Escape' && isBackstageOpen()) {
       closeBackstage();
@@ -88,25 +94,25 @@ export default function Backstage() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
-            <span>File</span>
+            <span>{t('file')}</span>
           </button>
           <div class="backstage-items">
-            <MenuItem icon={ICONS.new} label="New" shortcut="Ctrl+N" onClick={() => actionAndClose(showNewDocDialog)} />
-            <MenuItem icon={ICONS.open} label="Open" shortcut="Ctrl+O" onClick={() => actionAndClose(openPDFFile)} />
-            <MenuItem icon={ICONS.save} label="Save" shortcut="Ctrl+S" onClick={() => actionAndClose(savePDF)} />
-            <MenuItem icon={ICONS.saveAs} label="Save As..." shortcut="Ctrl+Shift+S" onClick={() => actionAndClose(savePDFAs)} />
-            <MenuItem icon={ICONS.print} label="Print" shortcut="Ctrl+P" onClick={() => actionAndClose(showPrintDialog)} />
+            <MenuItem icon={ICONS.new} label={t('new')} shortcut="Ctrl+N" onClick={() => actionAndClose(showNewDocDialog)} />
+            <MenuItem icon={ICONS.open} label={t('open')} shortcut="Ctrl+O" onClick={() => actionAndClose(openPDFFile)} />
+            <MenuItem icon={ICONS.save} label={t('save')} shortcut="Ctrl+S" onClick={() => actionAndClose(savePDF)} />
+            <MenuItem icon={ICONS.saveAs} label={t('saveAs')} shortcut="Ctrl+Shift+S" onClick={() => actionAndClose(savePDFAs)} />
+            <MenuItem icon={ICONS.print} label={t('print')} shortcut="Ctrl+P" onClick={() => actionAndClose(showPrintDialog)} />
             <Divider />
-            <MenuItem icon={ICONS.import} label="Import" active={getActivePanel() === 'import'} onClick={() => setActivePanel('import')} />
-            <MenuItem icon={ICONS.export} label="Export" active={getActivePanel() === 'export'} onClick={() => setActivePanel('export')} />
+            <MenuItem icon={ICONS.import} label={t('import')} active={getActivePanel() === 'import'} onClick={() => setActivePanel('import')} />
+            <MenuItem icon={ICONS.export} label={t('export')} active={getActivePanel() === 'export'} onClick={() => setActivePanel('export')} />
             <Divider />
-            <MenuItem icon={ICONS.docProperties} label="Document Properties" shortcut="Ctrl+D" onClick={() => actionAndClose(showDocPropertiesDialog)} />
+            <MenuItem icon={ICONS.docProperties} label={t('docProperties')} shortcut="Ctrl+D" onClick={() => actionAndClose(showDocPropertiesDialog)} />
             <Divider />
-            <MenuItem icon={ICONS.preferences} label="Preferences" shortcut="Ctrl+," onClick={() => actionAndClose(showPreferencesDialog)} />
+            <MenuItem icon={ICONS.preferences} label={t('preferences')} shortcut="Ctrl+," onClick={() => actionAndClose(showPreferencesDialog)} />
             <Divider />
-            <MenuItem icon={ICONS.about} label="About" active={getActivePanel() === 'about'} onClick={() => setActivePanel('about')} />
+            <MenuItem icon={ICONS.about} label={t('about')} active={getActivePanel() === 'about'} onClick={() => setActivePanel('about')} />
             <Divider />
-            <MenuItem icon={ICONS.exit} label="Exit" shortcut="Alt+F4" onClick={handleExit} />
+            <MenuItem icon={ICONS.exit} label={t('exit')} shortcut="Alt+F4" onClick={handleExit} />
           </div>
         </div>
         <div class="backstage-content" onClick={handleContentClick}>

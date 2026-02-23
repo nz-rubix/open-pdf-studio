@@ -2,36 +2,39 @@ import { Show } from 'solid-js';
 import { annotProps, sectionVis, updateAnnotProp, updateOpacity, getLineWidthLabel } from '../../stores/propertiesStore.js';
 import CollapsibleSection from './CollapsibleSection.jsx';
 import ColorPalettePicker from './ColorPalettePicker.jsx';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function AppearanceSection() {
+  const { t } = useTranslation('properties');
+  const { t: tCommon } = useTranslation('common');
   const isLocked = () => annotProps.locked;
 
   return (
     <Show when={sectionVis.appearance}>
-      <CollapsibleSection title="Appearance" name="appearance" id="prop-appearance-section">
+      <CollapsibleSection title={t('appearance.title')} name="appearance" id="prop-appearance-section">
         <Show when={sectionVis.iconGroup}>
           <div class="property-group">
-            <label>Icon</label>
+            <label>{t('appearance.icon')}</label>
             <select value={annotProps.icon} disabled={isLocked()}
               onChange={(e) => updateAnnotProp('icon', e.target.value)}>
-              <option value="comment">Comment</option>
-              <option value="note">Note</option>
-              <option value="help">Help</option>
-              <option value="insert">Insert</option>
-              <option value="key">Key</option>
-              <option value="newparagraph">New Paragraph</option>
-              <option value="paragraph">Paragraph</option>
-              <option value="check">Check</option>
-              <option value="circle">Circle</option>
-              <option value="cross">Cross</option>
-              <option value="star">Star</option>
+              <option value="comment">{t('appearance.iconComment')}</option>
+              <option value="note">{t('appearance.iconNote')}</option>
+              <option value="help">{t('appearance.iconHelp')}</option>
+              <option value="insert">{t('appearance.iconInsert')}</option>
+              <option value="key">{t('appearance.iconKey')}</option>
+              <option value="newparagraph">{t('appearance.iconNewParagraph')}</option>
+              <option value="paragraph">{t('appearance.iconParagraph')}</option>
+              <option value="check">{t('appearance.iconCheck')}</option>
+              <option value="circle">{t('appearance.iconCircle')}</option>
+              <option value="cross">{t('appearance.iconCross')}</option>
+              <option value="star">{t('appearance.iconStar')}</option>
             </select>
           </div>
         </Show>
 
         <Show when={sectionVis.fillColorGroup}>
           <ColorPalettePicker
-            label="Fill Color"
+            label={t('appearance.fillColor')}
             color={() => annotProps.fillColor}
             showNone={true}
             disabled={isLocked()}
@@ -42,7 +45,7 @@ export default function AppearanceSection() {
 
         <Show when={sectionVis.strokeColorGroup}>
           <ColorPalettePicker
-            label="Stroke Color"
+            label={t('appearance.strokeColor')}
             color={() => annotProps.strokeColor}
             showNone={false}
             disabled={isLocked()}
@@ -52,7 +55,7 @@ export default function AppearanceSection() {
 
         <Show when={sectionVis.colorGroup}>
           <ColorPalettePicker
-            label="Color"
+            label={t('appearance.color')}
             color={() => annotProps.color}
             showNone={false}
             disabled={isLocked()}
@@ -62,7 +65,7 @@ export default function AppearanceSection() {
 
         <Show when={sectionVis.opacityGroup}>
           <div class="property-group">
-            <label>Opacity</label>
+            <label>{t('appearance.opacity')}</label>
             <div class="opacity-slider-wrapper">
               <input type="range" min="0" max="100"
                 value={annotProps.opacity}
@@ -94,12 +97,12 @@ export default function AppearanceSection() {
 
         <Show when={sectionVis.borderStyleGroup}>
           <div class="property-group">
-            <label>Border Style</label>
+            <label>{t('appearance.borderStyle')}</label>
             <select value={annotProps.borderStyle} disabled={isLocked()}
               onChange={(e) => updateAnnotProp('borderStyle', e.target.value)}>
-              <option value="solid">Solid</option>
-              <option value="dashed">Dashed</option>
-              <option value="dotted">Dotted</option>
+              <option value="solid">{tCommon('solid')}</option>
+              <option value="dashed">{tCommon('dashed')}</option>
+              <option value="dotted">{tCommon('dotted')}</option>
             </select>
           </div>
         </Show>

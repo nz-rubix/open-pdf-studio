@@ -1,33 +1,50 @@
+import { For } from 'solid-js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
+import { LANGUAGES } from '../../../i18n/config.js';
+
 export default function GeneralTab(props) {
+  const { t } = useTranslation('preferences');
+  const { t: tRibbon } = useTranslation('ribbon');
   const p = props.prefs;
   return (
     <>
       <div class="preferences-section">
-        <h3>Theme</h3>
+        <h3>{t('general.language')}</h3>
         <div class="pref-row">
-          <label>Application Theme</label>
-          <select style="width:120px;" value={p.theme[0]()} onChange={e => p.theme[1](e.target.value)}>
-            <option value="system">System</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-            <option value="blue">Blue</option>
-            <option value="highContrast">High Contrast</option>
+          <label>{t('general.interfaceLanguage')}</label>
+          <select style="width:180px;" value={p.language[0]()} onChange={e => p.language[1](e.target.value)}>
+            <For each={LANGUAGES}>
+              {(lang) => <option value={lang.code}>{lang.code === 'auto' ? 'Auto-detect' : lang.name}</option>}
+            </For>
           </select>
         </div>
       </div>
       <div class="preferences-section">
-        <h3>Startup</h3>
+        <h3>{t('general.theme')}</h3>
+        <div class="pref-row">
+          <label>{t('general.applicationTheme')}</label>
+          <select style="width:120px;" value={p.theme[0]()} onChange={e => p.theme[1](e.target.value)}>
+            <option value="system">{tRibbon('theme.system')}</option>
+            <option value="light">{tRibbon('theme.light')}</option>
+            <option value="dark">{tRibbon('theme.dark')}</option>
+            <option value="blue">{tRibbon('theme.blue')}</option>
+            <option value="highContrast">{tRibbon('theme.highContrast')}</option>
+          </select>
+        </div>
+      </div>
+      <div class="preferences-section">
+        <h3>{t('general.startup')}</h3>
         <div class="pref-row pref-checkbox-row">
           <label class="pref-checkbox-label">
             <input type="checkbox" checked={p.restoreLastSession[0]()} onChange={e => p.restoreLastSession[1](e.target.checked)} />
-            <span>Restore last session when application starts</span>
+            <span>{t('general.restoreLastSession')}</span>
           </label>
         </div>
       </div>
       <div class="preferences-section">
-        <h3>Author</h3>
+        <h3>{t('general.author')}</h3>
         <div class="pref-row">
-          <label>Default Author Name</label>
+          <label>{t('general.defaultAuthorName')}</label>
           <input type="text" value={p.authorName[0]()} onInput={e => p.authorName[1](e.target.value)} />
         </div>
       </div>

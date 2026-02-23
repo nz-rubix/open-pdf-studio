@@ -1,0 +1,117 @@
+{
+  "title": "Propriedades",
+  "general": {
+    "title": "Geral",
+    "type": "Tipo",
+    "subject": "Assunto",
+    "subjectPlaceholder": "Insira o assunto...",
+    "author": "Autor",
+    "created": "Criado",
+    "modified": "Modificado",
+    "locked": "Bloqueado",
+    "printable": "Imprim\u00edvel",
+    "readOnly": "Somente leitura",
+    "marked": "Marcado",
+    "altText": "Texto alternativo",
+    "altTextPlaceholder": "Descri\u00e7\u00e3o para acessibilidade...",
+    "status": "Status",
+    "accepted": "Aceito",
+    "rejected": "Rejeitado",
+    "cancelled": "Cancelado",
+    "completed": "Conclu\u00eddo",
+    "reviewed": "Revisado"
+  },
+  "appearance": {
+    "title": "Apar\u00eancia",
+    "icon": "\u00cdcone",
+    "iconComment": "Coment\u00e1rio",
+    "iconNote": "Nota",
+    "iconHelp": "Ajuda",
+    "iconInsert": "Inserir",
+    "iconKey": "Chave",
+    "iconNewParagraph": "Novo par\u00e1grafo",
+    "iconParagraph": "Par\u00e1grafo",
+    "iconCheck": "Marca de sele\u00e7\u00e3o",
+    "iconCircle": "C\u00edrculo",
+    "iconCross": "Cruz",
+    "iconStar": "Estrela",
+    "fillColor": "Cor de preenchimento",
+    "strokeColor": "Cor do tra\u00e7o",
+    "color": "Cor",
+    "opacity": "Opacidade",
+    "borderStyle": "Estilo da borda"
+  },
+  "content": {
+    "title": "Conte\u00fado",
+    "text": "Texto",
+    "fontSize": "Tamanho da fonte"
+  },
+  "dimensions": {
+    "title": "Tamanho e dimens\u00f5es",
+    "length": "Comprimento"
+  },
+  "lineEndings": {
+    "title": "Extremidades da linha",
+    "start": "In\u00edcio",
+    "end": "Fim",
+    "openArrow": "Seta aberta",
+    "closedArrow": "Seta fechada",
+    "diamond": "Losango",
+    "circle": "C\u00edrculo",
+    "square": "Quadrado",
+    "slash": "Barra",
+    "headSize": "Tamanho da ponta"
+  },
+  "textFormat": {
+    "title": "Caractere",
+    "textColor": "Cor do texto",
+    "font": "Fonte",
+    "fontSize": "Tamanho da fonte",
+    "style": "Estilo",
+    "bold": "Negrito",
+    "italic": "It\u00e1lico",
+    "underline": "Sublinhado",
+    "strikethrough": "Tachado"
+  },
+  "paragraph": {
+    "title": "Par\u00e1grafo",
+    "textAlignment": "Alinhamento do texto",
+    "alignLeft": "Alinhar \u00e0 esquerda",
+    "alignCenter": "Alinhar ao centro",
+    "alignRight": "Alinhar \u00e0 direita",
+    "lineSpacing": "Espa\u00e7amento entre linhas",
+    "rotation": "Rota\u00e7\u00e3o"
+  },
+  "replies": {
+    "title": "Respostas",
+    "noReplies": "Nenhuma resposta ainda.",
+    "user": "Usu\u00e1rio",
+    "addReply": "Adicionar uma resposta...",
+    "addButton": "Adicionar"
+  },
+  "docInfo": {
+    "document": "Documento",
+    "file": "Arquivo",
+    "path": "Caminho",
+    "pages": "P\u00e1ginas",
+    "pageSize": "Tamanho da p\u00e1gina",
+    "metadata": "Metadados",
+    "title": "T\u00edtulo",
+    "author": "Autor",
+    "subject": "Assunto",
+    "creator": "Criador",
+    "producer": "Produtor",
+    "pdfVersion": "Vers\u00e3o do PDF",
+    "annotations": "Anota\u00e7\u00f5es",
+    "total": "Total",
+    "onPage": "Na p\u00e1gina",
+    "selectHint": "Selecione uma anota\u00e7\u00e3o para editar suas propriedades"
+  },
+  "image": {
+    "title": "Imagem",
+    "width": "Largura",
+    "height": "Altura",
+    "rotation": "Rota\u00e7\u00e3o",
+    "resetToOriginal": "Redefinir para o tamanho original"
+  }
+}

@@ -2,8 +2,12 @@ import { createSignal, For, Show } from 'solid-js';
 import Dialog from '../Dialog.jsx';
 import { closeDialog } from '../../stores/dialogStore.js';
 import { mergeFiles } from '../../../pdf/page-manager.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function MergePdfsDialog() {
+  const { t } = useTranslation('dialogs');
+  const { t: tCommon } = useTranslation('common');
+
   const [position, setPosition] = createSignal('end');
   const [fileList, setFileList] = createSignal([]);
   const [selectedIndex, setSelectedIndex] = createSignal(-1);
@@ -80,7 +84,7 @@ export default function MergePdfsDialog() {
 
   function handleMerge() {
     if (fileList().length === 0) {
-      alert('Please add at least one PDF file to merge.');
+      alert(t('mergePdfs.addAtLeastOne'));
       return;
     }
     const paths = fileList().map(f => f.path);
@@ -92,22 +96,22 @@ export default function MergePdfsDialog() {
   const fileCountText = () => {
     const files = fileList();
     const totalPages = files.reduce((sum, f) => sum + (f.pages || 0), 0);
-    return `${files.length} file(s), ${totalPages} total pages`;
+    return t('mergePdfs.filesAndPages', { files: files.length, pages: totalPages });
   };
 
   const footer = (
     <>
       <div class="merge-pdfs-file-count">{fileCountText()}</div>
       <div class="merge-pdfs-footer-right">
-        <button class="pref-btn pref-btn-primary" onClick={handleMerge}>Merge</button>
-        <button class="pref-btn pref-btn-secondary" onClick={close}>Cancel</button>
+        <button class="pref-btn pref-btn-primary" onClick={handleMerge}>{tCommon('merge')}</button>
+        <button class="pref-btn pref-btn-secondary" onClick={close}>{tCommon('cancel')}</button>
       </div>
     </>
   );
 
   return (
     <Dialog
-      title="Merge PDFs"
+      title={t('mergePdfs.title')}
       overlayClass="merge-pdfs-overlay"
       dialogClass="merge-pdfs-dialog"
       headerClass="merge-pdfs-header"
@@ -118,31 +122,31 @@ export default function MergePdfsDialog() {
     >
       <div class="merge-pdfs-form">
         <div class="merge-pdfs-row">
-          <label class="merge-pdfs-label">Insert at:</label>
+          <label class="merge-pdfs-label">{t('mergePdfs.insertAt')}</label>
           <select
             class="merge-pdfs-select"
             value={position()}
             onChange={(e) => setPosition(e.target.value)}
           >
-            <option value="end">End of document</option>
-            <option value="after">After current page</option>
-            <option value="start">Beginning of document</option>
+            <option value="end">{t('mergePdfs.endOfDocument')}</option>
+            <option value="after">{t('mergePdfs.afterCurrentPage')}</option>
+            <option value="start">{t('mergePdfs.beginningOfDocument')}</option>
           </select>
         </div>
         <div class="merge-pdfs-file-section">
           <div class="merge-pdfs-file-toolbar">
-            <span class="merge-pdfs-file-toolbar-label">Files to merge:</span>
+            <span class="merge-pdfs-file-toolbar-label">{t('mergePdfs.filesToMerge')}</span>
             <div class="merge-pdfs-file-toolbar-btns">
-              <button class="merge-pdfs-toolbar-btn" title="Add files" onClick={addFiles}>
+              <button class="merge-pdfs-toolbar-btn" title={t('mergePdfs.addFiles')} onClick={addFiles}>
                 <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
               </button>
-              <button class="merge-pdfs-toolbar-btn" title="Remove selected" onClick={removeFile}>
+              <button class="merge-pdfs-toolbar-btn" title={t('mergePdfs.removeSelected')} onClick={removeFile}>
                 <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
               </button>
-              <button class="merge-pdfs-toolbar-btn" title="Move up" onClick={moveUp}>
+              <button class="merge-pdfs-toolbar-btn" title={t('mergePdfs.moveUp')} onClick={moveUp}>
                 <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
               </button>
-              <button class="merge-pdfs-toolbar-btn" title="Move down" onClick={moveDown}>
+              <button class="merge-pdfs-toolbar-btn" title={t('mergePdfs.moveDown')} onClick={moveDown}>
                 <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
               </button>
             </div>
@@ -150,7 +154,7 @@ export default function MergePdfsDialog() {
           <div class="merge-pdfs-file-list">
             <Show
               when={fileList().length > 0}
-              fallback={<div class="merge-pdfs-empty">Click + to add PDF files</div>}
+              fallback={<div class="merge-pdfs-empty">{t('mergePdfs.clickToAdd')}</div>}
             >
               <For each={fileList()}>
                 {(file, idx) => (
@@ -160,7 +164,7 @@ export default function MergePdfsDialog() {
                   >
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
                     <span class="merge-pdfs-file-name" title={file.path}>{file.name}</span>
-                    <span class="merge-pdfs-file-pages">{file.pages != null ? `${file.pages} pg` : ''}</span>
+                    <span class="merge-pdfs-file-pages">{file.pages != null ? `${file.pages} ${t('mergePdfs.pg')}` : ''}</span>
                   </div>
                 )}
               </For>

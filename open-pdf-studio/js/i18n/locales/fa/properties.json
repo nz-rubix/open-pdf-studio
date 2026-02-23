@@ -1,0 +1,117 @@
+{
+  "title": "ویژگی‌ها",
+  "general": {
+    "title": "عمومی",
+    "type": "نوع",
+    "subject": "موضوع",
+    "subjectPlaceholder": "موضوع را وارد کنید...",
+    "author": "نویسنده",
+    "created": "ایجاد شده",
+    "modified": "تغییر یافته",
+    "locked": "قفل شده",
+    "printable": "قابل چاپ",
+    "readOnly": "فقط خواندنی",
+    "marked": "علامت‌گذاری‌شده",
+    "altText": "متن جایگزین",
+    "altTextPlaceholder": "توضیحات برای دسترس‌پذیری...",
+    "status": "وضعیت",
+    "accepted": "پذیرفته‌شده",
+    "rejected": "ردشده",
+    "cancelled": "لغوشده",
+    "completed": "تکمیل‌شده",
+    "reviewed": "بررسی‌شده"
+  },
+  "appearance": {
+    "title": "ظاهر",
+    "icon": "نماد",
+    "iconComment": "نظر",
+    "iconNote": "یادداشت",
+    "iconHelp": "راهنما",
+    "iconInsert": "درج",
+    "iconKey": "کلید",
+    "iconNewParagraph": "پاراگراف جدید",
+    "iconParagraph": "پاراگراف",
+    "iconCheck": "تیک",
+    "iconCircle": "دایره",
+    "iconCross": "ضربدر",
+    "iconStar": "ستاره",
+    "fillColor": "رنگ پر کردن",
+    "strokeColor": "رنگ خط",
+    "color": "رنگ",
+    "opacity": "شفافیت",
+    "borderStyle": "سبک حاشیه"
+  },
+  "content": {
+    "title": "محتوا",
+    "text": "متن",
+    "fontSize": "اندازه قلم"
+  },
+  "dimensions": {
+    "title": "اندازه و ابعاد",
+    "length": "طول"
+  },
+  "lineEndings": {
+    "title": "انتهای خط",
+    "start": "شروع",
+    "end": "پایان",
+    "openArrow": "فلش باز",
+    "closedArrow": "فلش بسته",
+    "diamond": "لوزی",
+    "circle": "دایره",
+    "square": "مربع",
+    "slash": "خط مورب",
+    "headSize": "اندازه سر"
+  },
+  "textFormat": {
+    "title": "نویسه",
+    "textColor": "رنگ متن",
+    "font": "قلم",
+    "fontSize": "اندازه قلم",
+    "style": "سبک",
+    "bold": "ضخیم",
+    "italic": "کج",
+    "underline": "زیرخط",
+    "strikethrough": "خط‌خورده"
+  },
+  "paragraph": {
+    "title": "پاراگراف",
+    "textAlignment": "تراز متن",
+    "alignLeft": "تراز چپ",
+    "alignCenter": "تراز وسط",
+    "alignRight": "تراز راست",
+    "lineSpacing": "فاصله خطوط",
+    "rotation": "چرخش"
+  },
+  "replies": {
+    "title": "پاسخ‌ها",
+    "noReplies": "هنوز پاسخی وجود ندارد.",
+    "user": "کاربر",
+    "addReply": "افزودن پاسخ...",
+    "addButton": "افزودن"
+  },
+  "docInfo": {
+    "document": "سند",
+    "file": "فایل",
+    "path": "مسیر",
+    "pages": "صفحات",
+    "pageSize": "اندازه صفحه",
+    "metadata": "فراداده",
+    "title": "عنوان",
+    "author": "نویسنده",
+    "subject": "موضوع",
+    "creator": "ایجادکننده",
+    "producer": "تولیدکننده",
+    "pdfVersion": "نسخه PDF",
+    "annotations": "حاشیه‌نویسی‌ها",
+    "total": "مجموع",
+    "onPage": "در صفحه",
+    "selectHint": "یک حاشیه‌نویسی را برای ویرایش ویژگی‌هایش انتخاب کنید"
+  },
+  "image": {
+    "title": "تصویر",
+    "width": "عرض",
+    "height": "ارتفاع",
+    "rotation": "چرخش",
+    "resetToOriginal": "بازنشانی به اندازه اصلی"
+  }
+}

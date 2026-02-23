@@ -147,5 +147,8 @@ export const DEFAULT_PREFERENCES = {
 
   // Display
   showHandles: true,
-  handleSize: 8
+  handleSize: 8,
+
+  // Language
+  language: 'auto'
 };

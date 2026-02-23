@@ -2,8 +2,11 @@ import { createSignal, Show } from 'solid-js';
 import { closeBackstage } from '../../stores/backstageStore.js';
 import { state } from '../../../core/state.js';
 import { exportAsImages, exportAsRasterPdf, parsePageRange } from '../../../pdf/exporter.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function ExportPanel() {
+  const { t } = useTranslation('backstage');
+  const { t: tCommon } = useTranslation('common');
   const [exportType, setExportType] = createSignal('images');
   const [showOptions, setShowOptions] = createSignal(false);
   const [pageRange, setPageRange] = createSignal('all');
@@ -30,7 +33,7 @@ export default function ExportPanel() {
 
   const handleExport = async () => {
     if (!state.pdfDoc) {
-      alert('No document is open.');
+      alert(tCommon('noDocumentOpen'));
       return;
     }
 
@@ -42,7 +45,7 @@ export default function ExportPanel() {
     } else if (pageRange() === 'custom') {
       pages = parsePageRange(customPages(), totalPages);
       if (pages.length === 0) {
-        alert('Invalid page range. Please enter valid page numbers.');
+        alert(tCommon('invalidPageRange'));
         return;
       }
     } else {
@@ -61,7 +64,7 @@ export default function ExportPanel() {
 
   return (
     <div class="bs-export-panel">
-      <h2 class="bs-export-title">Export</h2>
+      <h2 class="bs-export-title">{t('exportPanel.title')}</h2>
 
       <div class="bs-export-cards">
         <div class={`bs-export-card${showOptions() && exportType() === 'images' ? ' active' : ''}`} onClick={() => handleCardClick('images')}>
@@ -73,8 +76,8 @@ export default function ExportPanel() {
             </svg>
           </div>
           <div class="bs-export-card-info">
-            <h3>Export as Images</h3>
-            <p>Save pages as PNG or JPEG image files</p>
+            <h3>{t('exportPanel.exportImages')}</h3>
+            <p>{t('exportPanel.exportImagesDesc')}</p>
           </div>
         </div>
 
@@ -87,8 +90,8 @@ export default function ExportPanel() {
             </svg>
           </div>
           <div class="bs-export-card-info">
-            <h3>Export as Raster PDF</h3>
-            <p>Flatten pages and annotations into a new PDF with rasterized images</p>
+            <h3>{t('exportPanel.exportRaster')}</h3>
+            <p>{t('exportPanel.exportRasterDesc')}</p>
           </div>
         </div>
 
@@ -102,8 +105,8 @@ export default function ExportPanel() {
             </svg>
           </div>
           <div class="bs-export-card-info">
-            <h3>Export Annotations (XFDF)</h3>
-            <p>Export all annotations to an XFDF file for sharing or backup</p>
+            <h3>{t('exportPanel.exportXfdf')}</h3>
+            <p>{t('exportPanel.exportXfdfDesc')}</p>
           </div>
         </div>
       </div>
@@ -111,26 +114,26 @@ export default function ExportPanel() {
       <Show when={showOptions()}>
         <div class="bs-export-options">
           <h3 class="bs-export-options-title">
-            {exportType() === 'raster' ? 'Raster PDF Options' : 'Image Export Options'}
+            {exportType() === 'raster' ? t('exportPanel.rasterOptions') : t('exportPanel.imageOptions')}
           </h3>
 
           <div class="bs-export-option-group">
-            <label class="bs-export-option-label">Page Range</label>
+            <label class="bs-export-option-label">{t('exportPanel.pageRange')}</label>
             <div class="bs-export-radio-group">
               <label class="bs-export-radio">
-                <input type="radio" name="bs-export-page-range" value="all" checked={pageRange() === 'all'} onChange={() => setPageRange('all')} /> All pages
+                <input type="radio" name="bs-export-page-range" value="all" checked={pageRange() === 'all'} onChange={() => setPageRange('all')} /> {t('exportPanel.allPages')}
               </label>
               <label class="bs-export-radio">
-                <input type="radio" name="bs-export-page-range" value="current" checked={pageRange() === 'current'} onChange={() => setPageRange('current')} /> Current page
+                <input type="radio" name="bs-export-page-range" value="current" checked={pageRange() === 'current'} onChange={() => setPageRange('current')} /> {t('exportPanel.currentPage')}
               </label>
               <label class="bs-export-radio">
-                <input type="radio" name="bs-export-page-range" value="custom" checked={pageRange() === 'custom'} onChange={() => setPageRange('custom')} /> Custom:
+                <input type="radio" name="bs-export-page-range" value="custom" checked={pageRange() === 'custom'} onChange={() => setPageRange('custom')} /> {t('exportPanel.customRange')}
               </label>
             </div>
             <input
               type="text"
               class="bs-export-input"
-              placeholder="e.g. 1-5, 8, 11-13"
+              placeholder={t('exportPanel.rangePlaceholder')}
               disabled={pageRange() !== 'custom'}
               value={customPages()}
               onInput={(e) => setCustomPages(e.target.value)}
@@ -139,7 +142,7 @@ export default function ExportPanel() {
 
           <Show when={exportType() === 'images'}>
             <div class="bs-export-option-group">
-              <label class="bs-export-option-label">Format</label>
+              <label class="bs-export-option-label">{t('exportPanel.format')}</label>
               <select class="bs-export-select" value={format()} onChange={(e) => setFormat(e.target.value)}>
                 <option value="png">PNG</option>
                 <option value="jpeg">JPEG</option>
@@ -149,7 +152,7 @@ export default function ExportPanel() {
 
           <Show when={exportType() === 'images' && format() === 'jpeg'}>
             <div class="bs-export-option-group">
-              <label class="bs-export-option-label">JPEG Quality</label>
+              <label class="bs-export-option-label">{t('exportPanel.jpegQuality')}</label>
               <div class="bs-export-range-row">
                 <input type="range" min="10" max="100" value={quality()} class="bs-export-range" onInput={(e) => setQuality(parseInt(e.target.value))} />
                 <span class="bs-export-range-value">{quality()}%</span>
@@ -158,16 +161,16 @@ export default function ExportPanel() {
           </Show>
 
           <div class="bs-export-option-group">
-            <label class="bs-export-option-label">Resolution</label>
+            <label class="bs-export-option-label">{t('exportPanel.resolution')}</label>
             <select class="bs-export-select" value={dpi()} onChange={(e) => setDpi(parseInt(e.target.value))}>
-              <option value="72">72 DPI (Screen)</option>
-              <option value="150">150 DPI</option>
-              <option value="300">300 DPI (Print)</option>
-              <option value="600">600 DPI (High Quality)</option>
+              <option value="72">{t('exportPanel.dpi72')}</option>
+              <option value="150">{t('exportPanel.dpi150')}</option>
+              <option value="300">{t('exportPanel.dpi300')}</option>
+              <option value="600">{t('exportPanel.dpi600')}</option>
             </select>
           </div>
 
-          <button class="bs-export-btn" onClick={handleExport}>Export</button>
+          <button class="bs-export-btn" onClick={handleExport}>{tCommon('export')}</button>
         </div>
       </Show>
     </div>

@@ -2,8 +2,11 @@ import { For } from 'solid-js';
 import Dialog from '../Dialog.jsx';
 import { closeDialog } from '../../stores/dialogStore.js';
 import { BUILT_IN_STAMPS } from '../../../annotations/stamps.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function StampPickerDialog(props) {
+  const { t } = useTranslation('dialogs');
+
   const cancel = () => { closeDialog('stamp-picker'); };
 
   function handleStampClick(stamp) {
@@ -18,7 +21,7 @@ export default function StampPickerDialog(props) {
 
   return (
     <Dialog
-      title="Select Stamp"
+      title={t('stampPicker.title')}
       overlayClass="stamp-picker-overlay"
       dialogClass="stamp-picker-dialog"
       onClose={cancel}
@@ -64,7 +67,7 @@ export default function StampPickerDialog(props) {
           }}
           onClick={handleCustomClick}
         >
-          Custom Stamp from Image...
+          {t('stampPicker.customFromImage')}
         </button>
       </div>
     </Dialog>

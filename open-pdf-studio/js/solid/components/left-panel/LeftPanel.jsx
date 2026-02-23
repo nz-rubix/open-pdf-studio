@@ -16,21 +16,24 @@ import FormFieldsPanel from './panels/FormFieldsPanel.jsx';
 import DestinationsPanel from './panels/DestinationsPanel.jsx';
 import TagsPanel from './panels/TagsPanel.jsx';
 import LinksPanel from './panels/LinksPanel.jsx';
-
-const TABS = [
-  { panelId: 'thumbnails', title: 'Page Thumbnails', label: 'Pages', icon: thumbnailsIcon },
-  { panelId: 'bookmarks', title: 'Bookmarks', label: 'Bookmarks', icon: bookmarksIcon },
-  { panelId: 'annotations', title: 'Annotations', label: 'Annotations', icon: annotationsIcon },
-  { panelId: 'attachments', title: 'Attachments', label: 'Attachments', icon: attachmentsIcon },
-  { panelId: 'signatures', title: 'Digital Signatures', label: 'Signatures', icon: signaturesIcon },
-  { panelId: 'layers', title: 'Layers', label: 'Layers', icon: layersIcon },
-  { panelId: 'form-fields', title: 'Form Fields', label: 'Form Fields', icon: formFieldsIcon },
-  { panelId: 'destinations', title: 'Destinations', label: 'Destinations', icon: destinationsIcon },
-  { panelId: 'tags', title: 'Tags', label: 'Tags', icon: tagsIcon },
-  { panelId: 'links', title: 'Links', label: 'Links', icon: linksIcon },
-];
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function LeftPanel() {
+  const { t } = useTranslation('properties');
+
+  const TABS = [
+    { panelId: 'thumbnails', title: 'Page Thumbnails', label: t('docInfo.pages'), icon: thumbnailsIcon },
+    { panelId: 'bookmarks', title: 'Bookmarks', label: 'Bookmarks', icon: bookmarksIcon },
+    { panelId: 'annotations', title: t('docInfo.annotations'), label: t('docInfo.annotations'), icon: annotationsIcon },
+    { panelId: 'attachments', title: 'Attachments', label: 'Attachments', icon: attachmentsIcon },
+    { panelId: 'signatures', title: 'Digital Signatures', label: 'Signatures', icon: signaturesIcon },
+    { panelId: 'layers', title: 'Layers', label: 'Layers', icon: layersIcon },
+    { panelId: 'form-fields', title: 'Form Fields', label: 'Form Fields', icon: formFieldsIcon },
+    { panelId: 'destinations', title: 'Destinations', label: 'Destinations', icon: destinationsIcon },
+    { panelId: 'tags', title: 'Tags', label: 'Tags', icon: tagsIcon },
+    { panelId: 'links', title: 'Links', label: 'Links', icon: linksIcon },
+  ];
+
   return (
     <>
     <div class={`left-panel${collapsed() ? ' collapsed' : ''}`} id="left-panel">

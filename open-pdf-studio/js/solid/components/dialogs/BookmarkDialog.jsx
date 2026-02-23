@@ -1,8 +1,12 @@
 import { createSignal, onMount } from 'solid-js';
 import Dialog from '../Dialog.jsx';
 import { closeDialog } from '../../stores/dialogStore.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function BookmarkDialog(props) {
+  const { t } = useTranslation('dialogs');
+  const { t: tCommon } = useTranslation('common');
+
   const [title, setTitle] = createSignal(props.data?.title || '');
   const [page, setPage] = createSignal(props.data?.page || 1);
 
@@ -10,7 +14,7 @@ export default function BookmarkDialog(props) {
   let resolved = false;
 
   const isEdit = () => !!props.data?.isEdit;
-  const headerText = () => isEdit() ? 'Edit Bookmark' : 'Add Bookmark';
+  const headerText = () => isEdit() ? t('bookmark.editTitle') : t('bookmark.addTitle');
 
   onMount(() => {
     if (titleInputRef) {
@@ -49,8 +53,8 @@ export default function BookmarkDialog(props) {
 
   const footer = (
     <div class="bookmark-dialog-footer">
-      <button class="primary" onClick={handleOk}>OK</button>
-      <button onClick={cancel}>Cancel</button>
+      <button class="primary" onClick={handleOk}>{tCommon('ok')}</button>
+      <button onClick={cancel}>{tCommon('cancel')}</button>
     </div>
   );
 
@@ -65,16 +69,16 @@ export default function BookmarkDialog(props) {
       onClose={cancel}
       footer={footer}
     >
-      <label>Title:</label>
+      <label>{t('bookmark.titleLabel')}</label>
       <input
         ref={titleInputRef}
         type="text"
-        placeholder="Bookmark title"
+        placeholder={t('bookmark.titlePlaceholder')}
         value={title()}
         onInput={(e) => setTitle(e.target.value)}
         onKeyDown={handleKeyDown}
       />
-      <label>Page:</label>
+      <label>{t('bookmark.pageLabel')}</label>
       <input
         type="number"
         min="1"

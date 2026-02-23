@@ -2,6 +2,7 @@ import { createSignal, createMemo, Show } from 'solid-js';
 import Dialog from '../Dialog.jsx';
 import { closeDialog } from '../../stores/dialogStore.js';
 import { createBlankPDF } from '../../../pdf/loader.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 const PAPER_SIZES = {
   a0:      { width: 2384, height: 3370, label: 'A0', widthMm: 841, heightMm: 1189 },
@@ -23,6 +24,9 @@ const PAPER_SIZES = {
 export { PAPER_SIZES };
 
 export default function NewDocDialog() {
+  const { t } = useTranslation('dialogs');
+  const { t: tCommon } = useTranslation('common');
+
   const [paperSize, setPaperSize] = createSignal('a4');
   const [orientation, setOrientation] = createSignal('portrait');
   const [numPages, setNumPages] = createSignal(1);
@@ -95,15 +99,15 @@ export default function NewDocDialog() {
     <div>
       <div></div>
       <div class="new-doc-footer-right">
-        <button class="pref-btn pref-btn-primary" onClick={handleOk}>OK</button>
-        <button class="pref-btn pref-btn-secondary" onClick={close}>Cancel</button>
+        <button class="pref-btn pref-btn-primary" onClick={handleOk}>{tCommon('ok')}</button>
+        <button class="pref-btn pref-btn-secondary" onClick={close}>{tCommon('cancel')}</button>
       </div>
     </div>
   );
 
   return (
     <Dialog
-      title="New Document"
+      title={t('newDoc.title')}
       overlayClass="new-doc-overlay"
       dialogClass="new-doc-dialog"
       headerClass="new-doc-header"
@@ -114,13 +118,13 @@ export default function NewDocDialog() {
     >
       <div class="new-doc-form">
         <div class="new-doc-row">
-          <label class="new-doc-label">Paper Size:</label>
+          <label class="new-doc-label">{t('newDoc.paperSize')}</label>
           <select
             class="new-doc-select"
             value={paperSize()}
             onChange={(e) => setPaperSize(e.target.value)}
           >
-            <optgroup label="ISO A Series">
+            <optgroup label={t('newDoc.isoASeries')}>
               <option value="a0">A0 (841 x 1189 mm)</option>
               <option value="a1">A1 (594 x 841 mm)</option>
               <option value="a2">A2 (420 x 594 mm)</option>
@@ -129,25 +133,25 @@ export default function NewDocDialog() {
               <option value="a5">A5 (148 x 210 mm)</option>
               <option value="a6">A6 (105 x 148 mm)</option>
             </optgroup>
-            <optgroup label="ISO B Series">
+            <optgroup label={t('newDoc.isoBSeries')}>
               <option value="b3">B3 (353 x 500 mm)</option>
               <option value="b4">B4 (250 x 353 mm)</option>
               <option value="b5">B5 (176 x 250 mm)</option>
             </optgroup>
-            <optgroup label="North American">
+            <optgroup label={t('newDoc.northAmerican')}>
               <option value="letter">Letter (8.5 x 11 in)</option>
               <option value="legal">Legal (8.5 x 14 in)</option>
               <option value="tabloid">Tabloid (11 x 17 in)</option>
               <option value="ledger">Ledger (17 x 11 in)</option>
             </optgroup>
-            <optgroup label="Other">
-              <option value="custom">Custom...</option>
+            <optgroup label={t('newDoc.other')}>
+              <option value="custom">{t('newDoc.customSize')}</option>
             </optgroup>
           </select>
         </div>
         <Show when={paperSize() === 'custom'}>
           <div class="new-doc-row new-doc-custom-row">
-            <label class="new-doc-label">Width (mm):</label>
+            <label class="new-doc-label">{t('newDoc.widthMm')}</label>
             <input
               type="number"
               class="new-doc-input"
@@ -157,7 +161,7 @@ export default function NewDocDialog() {
               step="1"
               onInput={(e) => setCustomWidth(parseInt(e.target.value) || 10)}
             />
-            <label class="new-doc-label new-doc-label-inline">Height (mm):</label>
+            <label class="new-doc-label new-doc-label-inline">{t('newDoc.heightMm')}</label>
             <input
               type="number"
               class="new-doc-input"
@@ -170,7 +174,7 @@ export default function NewDocDialog() {
           </div>
         </Show>
         <div class="new-doc-row">
-          <label class="new-doc-label">Orientation:</label>
+          <label class="new-doc-label">{t('newDoc.orientation')}</label>
           <div class="new-doc-radio-group">
             <label class="new-doc-radio-label">
               <input
@@ -179,7 +183,7 @@ export default function NewDocDialog() {
                 value="portrait"
                 checked={orientation() === 'portrait'}
                 onChange={() => setOrientation('portrait')}
-              /> Portrait
+              /> {tCommon('portrait')}
             </label>
             <label class="new-doc-radio-label">
               <input
@@ -188,12 +192,12 @@ export default function NewDocDialog() {
                 value="landscape"
                 checked={orientation() === 'landscape'}
                 onChange={() => setOrientation('landscape')}
-              /> Landscape
+              /> {tCommon('landscape')}
             </label>
           </div>
         </div>
         <div class="new-doc-row">
-          <label class="new-doc-label">Pages:</label>
+          <label class="new-doc-label">{t('newDoc.pagesCount')}</label>
           <input
             type="number"
             class="new-doc-input"

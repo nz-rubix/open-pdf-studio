@@ -3,6 +3,7 @@ import { state } from './state.js';
 import { setColorPickerValue, setLineWidthValue, setCurrentTheme } from '../solid/stores/ribbonStore.js';
 import { updateStatusMessage } from '../ui/chrome/status-bar.js';
 import { openDialog } from '../solid/stores/dialogStore.js';
+import { changeLanguage } from '../i18n/useTranslation.js';
 
 // Load preferences from localStorage
 export function loadPreferences() {
@@ -106,6 +107,9 @@ export function applyPreferences() {
 
   // Update line width default
   setLineWidthValue(state.preferences.defaultLineWidth);
+
+  // Apply language
+  changeLanguage(state.preferences.language || 'auto');
 }
 
 // Show preferences dialog (bridges to Solid.js dialog)

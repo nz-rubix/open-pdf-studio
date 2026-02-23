@@ -1,19 +1,21 @@
 import { Show } from 'solid-js';
 import { annotProps, sectionVis, updateAnnotProp } from '../../stores/propertiesStore.js';
 import CollapsibleSection from './CollapsibleSection.jsx';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function ParagraphSection() {
+  const { t } = useTranslation('properties');
   const isLocked = () => annotProps.locked;
 
   return (
     <Show when={sectionVis.paragraph}>
-      <CollapsibleSection title="Paragraph" name="paragraph" id="prop-paragraph-section">
+      <CollapsibleSection title={t('paragraph.title')} name="paragraph" id="prop-paragraph-section">
         <div class="property-group">
-          <label>Text Alignment</label>
+          <label>{t('paragraph.textAlignment')}</label>
           <div class="text-align-buttons">
             <button type="button"
               class={`text-align-btn${annotProps.textAlign === 'left' ? ' active' : ''}`}
-              title="Align Left" disabled={isLocked()}
+              title={t('paragraph.alignLeft')} disabled={isLocked()}
               onClick={() => updateAnnotProp('textAlign', 'left')}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M3 6h18M3 12h12M3 18h18"/>
@@ -21,7 +23,7 @@ export default function ParagraphSection() {
             </button>
             <button type="button"
               class={`text-align-btn${annotProps.textAlign === 'center' ? ' active' : ''}`}
-              title="Align Center" disabled={isLocked()}
+              title={t('paragraph.alignCenter')} disabled={isLocked()}
               onClick={() => updateAnnotProp('textAlign', 'center')}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M3 6h18M6 12h12M3 18h18"/>
@@ -29,7 +31,7 @@ export default function ParagraphSection() {
             </button>
             <button type="button"
               class={`text-align-btn${annotProps.textAlign === 'right' ? ' active' : ''}`}
-              title="Align Right" disabled={isLocked()}
+              title={t('paragraph.alignRight')} disabled={isLocked()}
               onClick={() => updateAnnotProp('textAlign', 'right')}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M3 6h18M9 12h12M3 18h18"/>
@@ -39,7 +41,7 @@ export default function ParagraphSection() {
         </div>
 
         <div class="property-group">
-          <label>Line Spacing</label>
+          <label>{t('paragraph.lineSpacing')}</label>
           <select value={annotProps.lineSpacing} disabled={isLocked()}
             onChange={(e) => updateAnnotProp('lineSpacing', e.target.value)}>
             <option value="1">1x</option>
@@ -52,7 +54,7 @@ export default function ParagraphSection() {
         </div>
 
         <div class="property-group">
-          <label>Rotation</label>
+          <label>{t('paragraph.rotation')}</label>
           <div style="display: flex; align-items: center; gap: 4px;">
             <input type="number" min="-360" max="360" step="1" style="flex: 1;"
               value={annotProps.rotation} disabled={isLocked()}

@@ -4,8 +4,12 @@ import { closeDialog } from '../../stores/dialogStore.js';
 import { PAPER_SIZES } from './NewDocDialog.jsx';
 import { state } from '../../../core/state.js';
 import { insertBlankPages } from '../../../pdf/page-manager.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function InsertPageDialog() {
+  const { t } = useTranslation('dialogs');
+  const { t: tCommon } = useTranslation('common');
+
   const [position, setPosition] = createSignal('after');
   const [count, setCount] = createSignal(1);
   const [paperSize, setPaperSize] = createSignal('current');
@@ -35,15 +39,15 @@ export default function InsertPageDialog() {
     <div>
       <div></div>
       <div class="insert-page-footer-right">
-        <button class="pref-btn pref-btn-primary" onClick={handleOk}>OK</button>
-        <button class="pref-btn pref-btn-secondary" onClick={close}>Cancel</button>
+        <button class="pref-btn pref-btn-primary" onClick={handleOk}>{tCommon('ok')}</button>
+        <button class="pref-btn pref-btn-secondary" onClick={close}>{tCommon('cancel')}</button>
       </div>
     </div>
   );
 
   return (
     <Dialog
-      title="Insert Pages"
+      title={t('insertPage.title')}
       overlayClass="insert-page-overlay"
       dialogClass="insert-page-dialog"
       headerClass="insert-page-header"
@@ -54,20 +58,20 @@ export default function InsertPageDialog() {
     >
       <div class="insert-page-form">
         <div class="insert-page-row">
-          <label class="insert-page-label">Position:</label>
+          <label class="insert-page-label">{t('insertPage.position')}</label>
           <select
             class="insert-page-select"
             value={position()}
             onChange={(e) => setPosition(e.target.value)}
           >
-            <option value="after">After current page</option>
-            <option value="before">Before current page</option>
-            <option value="start">At the beginning</option>
-            <option value="end">At the end</option>
+            <option value="after">{t('insertPage.afterCurrentPage')}</option>
+            <option value="before">{t('insertPage.beforeCurrentPage')}</option>
+            <option value="start">{t('insertPage.atTheBeginning')}</option>
+            <option value="end">{t('insertPage.atTheEnd')}</option>
           </select>
         </div>
         <div class="insert-page-row">
-          <label class="insert-page-label">Count:</label>
+          <label class="insert-page-label">{t('insertPage.count')}</label>
           <input
             type="number"
             class="insert-page-input"
@@ -79,14 +83,14 @@ export default function InsertPageDialog() {
           />
         </div>
         <div class="insert-page-row">
-          <label class="insert-page-label">Paper Size:</label>
+          <label class="insert-page-label">{t('insertPage.paperSize')}</label>
           <select
             class="insert-page-select"
             value={paperSize()}
             onChange={(e) => setPaperSize(e.target.value)}
           >
-            <option value="current">Same as current page</option>
-            <optgroup label="ISO A Series">
+            <option value="current">{t('insertPage.sameAsCurrentPage')}</option>
+            <optgroup label={t('newDoc.isoASeries')}>
               <option value="a0">A0 (841 x 1189 mm)</option>
               <option value="a1">A1 (594 x 841 mm)</option>
               <option value="a2">A2 (420 x 594 mm)</option>
@@ -95,12 +99,12 @@ export default function InsertPageDialog() {
               <option value="a5">A5 (148 x 210 mm)</option>
               <option value="a6">A6 (105 x 148 mm)</option>
             </optgroup>
-            <optgroup label="ISO B Series">
+            <optgroup label={t('newDoc.isoBSeries')}>
               <option value="b3">B3 (353 x 500 mm)</option>
               <option value="b4">B4 (250 x 353 mm)</option>
               <option value="b5">B5 (176 x 250 mm)</option>
             </optgroup>
-            <optgroup label="North American">
+            <optgroup label={t('newDoc.northAmerican')}>
               <option value="letter">Letter (8.5 x 11 in)</option>
               <option value="legal">Legal (8.5 x 14 in)</option>
               <option value="tabloid">Tabloid (11 x 17 in)</option>

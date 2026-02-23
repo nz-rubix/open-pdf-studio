@@ -5,6 +5,7 @@ import { state } from '../../../core/state.js';
 import { recordAddWatermark, recordModifyWatermark } from '../../../core/undo-manager.js';
 import { markDocumentModified } from '../../../ui/chrome/tabs.js';
 import { redrawAnnotations, redrawContinuous } from '../../../annotations/rendering.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 function generateId() {
   return 'wm-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
@@ -19,6 +20,9 @@ function refresh() {
 }
 
 export default function WatermarkDialog(props) {
+  const { t } = useTranslation('dialogs');
+  const { t: tCommon } = useTranslation('common');
+
   const editWm = props.data?.editWm || null;
   const isEditing = !!editWm;
   const isImageEdit = editWm?.type === 'imageWatermark';
@@ -27,7 +31,7 @@ export default function WatermarkDialog(props) {
   const [activeTab, setActiveTab] = createSignal(isImageEdit ? 'image' : 'text');
 
   // Text tab signals
-  const [text, setText] = createSignal(editWm?.text || 'DRAFT');
+  const [text, setText] = createSignal(editWm?.text || t('watermark.defaultText'));
   const [font, setFont] = createSignal(editWm?.fontFamily || 'Helvetica');
   const [fontSize, setFontSize] = createSignal(editWm?.fontSize || 72);
   const [color, setColor] = createSignal(editWm?.color || '#ff0000');
@@ -102,7 +106,7 @@ export default function WatermarkDialog(props) {
     return {
       id: editWm ? editWm.id : generateId(),
       type: 'textWatermark',
-      text: text() || 'DRAFT',
+      text: text() || t('watermark.defaultText'),
       fontFamily: font(),
       fontSize: parseInt(fontSize()) || 72,
       color: color(),
@@ -143,7 +147,7 @@ export default function WatermarkDialog(props) {
     const wm = tab === 'image' ? buildImageWatermark() : buildTextWatermark();
 
     if (tab === 'image' && !wm.imageData) {
-      alert('Please select an image first.');
+      alert(t('watermark.selectImageFirst'));
       return;
     }
 
@@ -169,16 +173,16 @@ export default function WatermarkDialog(props) {
       <div class="watermark-footer-left"></div>
       <div class="watermark-footer-right">
         <button class="pref-btn pref-btn-primary" onClick={handleAdd}>
-          {isEditing ? 'Update' : 'Add'}
+          {isEditing ? tCommon('update') : tCommon('add')}
         </button>
-        <button class="pref-btn pref-btn-secondary" onClick={close}>Cancel</button>
+        <button class="pref-btn pref-btn-secondary" onClick={close}>{tCommon('cancel')}</button>
       </div>
     </>
   );
 
   return (
     <Dialog
-      title={isEditing ? 'Edit Watermark' : 'Add Watermark'}
+      title={isEditing ? t('watermark.editTitle') : t('watermark.addTitle')}
       overlayClass="watermark-overlay"
       dialogClass="watermark-dialog"
       headerClass="watermark-header"
@@ -192,12 +196,12 @@ export default function WatermarkDialog(props) {
           class="watermark-tab"
           classList={{ active: activeTab() === 'text' }}
           onClick={() => setActiveTab('text')}
-        >Text</button>
+        >{t('watermark.text')}</button>
         <button
           class="watermark-tab"
           classList={{ active: activeTab() === 'image' }}
           onClick={() => setActiveTab('image')}
-        >Image</button>
+        >{t('watermark.image')}</button>
       </div>
 
       {/* Text Tab */}
@@ -207,17 +211,17 @@ export default function WatermarkDialog(props) {
       >
         <div class="watermark-form">
           <div class="watermark-row">
-            <label class="watermark-label">Text:</label>
+            <label class="watermark-label">{t('watermark.textLabel')}</label>
             <input
               type="text"
               class="watermark-input"
               value={text()}
-              placeholder="Watermark text"
+              placeholder={t('watermark.watermarkText')}
               onInput={(e) => setText(e.target.value)}
             />
           </div>
           <div class="watermark-row">
-            <label class="watermark-label">Font:</label>
+            <label class="watermark-label">{t('watermark.font')}</label>
             <select
               class="watermark-select"
               value={font()}
@@ -231,7 +235,7 @@ export default function WatermarkDialog(props) {
             </select>
           </div>
           <div class="watermark-row">
-            <label class="watermark-label">Font Size:</label>
+            <label class="watermark-label">{t('watermark.fontSize')}</label>
             <input
               type="number"
               class="watermark-input watermark-input-sm"
@@ -242,7 +246,7 @@ export default function WatermarkDialog(props) {
             />
           </div>
           <div class="watermark-row">
-            <label class="watermark-label">Color:</label>
+            <label class="watermark-label">{t('watermark.color')}</label>
             <input
               type="color"
               class="watermark-color"
@@ -251,7 +255,7 @@ export default function WatermarkDialog(props) {
             />
           </div>
           <div class="watermark-row">
-            <label class="watermark-label">Opacity:</label>
+            <label class="watermark-label">{t('watermark.opacity')}</label>
             <input
               type="range"
               class="watermark-slider"
@@ -263,7 +267,7 @@ export default function WatermarkDialog(props) {
             <span class="watermark-slider-val">{opacity()}%</span>
           </div>
           <div class="watermark-row">
-            <label class="watermark-label">Rotation:</label>
+            <label class="watermark-label">{t('watermark.rotation')}</label>
             <input
               type="number"
               class="watermark-input watermark-input-sm"
@@ -274,23 +278,23 @@ export default function WatermarkDialog(props) {
             />&deg;
           </div>
           <div class="watermark-row">
-            <label class="watermark-label">Position:</label>
+            <label class="watermark-label">{t('watermark.position')}</label>
             <select
               class="watermark-select"
               value={position()}
               onChange={(e) => setPosition(e.target.value)}
             >
-              <option value="center">Center</option>
-              <option value="top-left">Top Left</option>
-              <option value="top-right">Top Right</option>
-              <option value="bottom-left">Bottom Left</option>
-              <option value="bottom-right">Bottom Right</option>
-              <option value="custom">Custom</option>
+              <option value="center">{t('watermark.center')}</option>
+              <option value="top-left">{t('watermark.topLeft')}</option>
+              <option value="top-right">{t('watermark.topRight')}</option>
+              <option value="bottom-left">{t('watermark.bottomLeft')}</option>
+              <option value="bottom-right">{t('watermark.bottomRight')}</option>
+              <option value="custom">{tCommon('custom')}</option>
             </select>
           </div>
           <Show when={position() === 'custom'}>
             <div class="watermark-row wm-custom-pos">
-              <label class="watermark-label">X / Y:</label>
+              <label class="watermark-label">{t('watermark.xyLabel')}</label>
               <input
                 type="number"
                 class="watermark-input watermark-input-sm"
@@ -306,36 +310,36 @@ export default function WatermarkDialog(props) {
             </div>
           </Show>
           <div class="watermark-row">
-            <label class="watermark-label">Layer:</label>
+            <label class="watermark-label">{t('watermark.layer')}</label>
             <select
               class="watermark-select"
               value={layer()}
               onChange={(e) => setLayer(e.target.value)}
             >
-              <option value="behind">Behind content</option>
-              <option value="infront">In front of content</option>
+              <option value="behind">{t('watermark.behindContent')}</option>
+              <option value="infront">{t('watermark.inFrontOfContent')}</option>
             </select>
           </div>
           <div class="watermark-row">
-            <label class="watermark-label">Pages:</label>
+            <label class="watermark-label">{t('watermark.pagesLabel')}</label>
             <select
               class="watermark-select"
               value={pageRange()}
               onChange={(e) => setPageRange(e.target.value)}
             >
-              <option value="all">All pages</option>
-              <option value="first">First page only</option>
-              <option value="custom">Custom</option>
+              <option value="all">{t('watermark.allPages')}</option>
+              <option value="first">{t('watermark.firstPageOnly')}</option>
+              <option value="custom">{tCommon('custom')}</option>
             </select>
           </div>
           <Show when={pageRange() === 'custom'}>
             <div class="watermark-row wm-custom-pages">
-              <label class="watermark-label">Range:</label>
+              <label class="watermark-label">{t('watermark.range')}</label>
               <input
                 type="text"
                 class="watermark-input"
                 value={customPages()}
-                placeholder="e.g. 1-5, 8"
+                placeholder={t('watermark.rangePlaceholder')}
                 onInput={(e) => setCustomPages(e.target.value)}
               />
             </div>
@@ -350,9 +354,9 @@ export default function WatermarkDialog(props) {
       >
         <div class="watermark-form">
           <div class="watermark-row">
-            <label class="watermark-label">Image:</label>
+            <label class="watermark-label">{t('watermark.image')}</label>
             <button class="pref-btn pref-btn-secondary" onClick={handleImagePick}>
-              Choose Image...
+              {t('watermark.chooseImage')}
             </button>
             <input
               type="file"
@@ -369,7 +373,7 @@ export default function WatermarkDialog(props) {
             </div>
           </Show>
           <div class="watermark-row">
-            <label class="watermark-label">Opacity:</label>
+            <label class="watermark-label">{t('watermark.opacity')}</label>
             <input
               type="range"
               class="watermark-slider"
@@ -381,7 +385,7 @@ export default function WatermarkDialog(props) {
             <span class="watermark-slider-val">{imgOpacity()}%</span>
           </div>
           <div class="watermark-row">
-            <label class="watermark-label">Scale:</label>
+            <label class="watermark-label">{t('watermark.scale')}</label>
             <input
               type="range"
               class="watermark-slider"
@@ -393,7 +397,7 @@ export default function WatermarkDialog(props) {
             <span class="watermark-slider-val">{imgScale()}%</span>
           </div>
           <div class="watermark-row">
-            <label class="watermark-label">Rotation:</label>
+            <label class="watermark-label">{t('watermark.rotation')}</label>
             <input
               type="number"
               class="watermark-input watermark-input-sm"
@@ -404,23 +408,23 @@ export default function WatermarkDialog(props) {
             />&deg;
           </div>
           <div class="watermark-row">
-            <label class="watermark-label">Position:</label>
+            <label class="watermark-label">{t('watermark.position')}</label>
             <select
               class="watermark-select"
               value={imgPosition()}
               onChange={(e) => setImgPosition(e.target.value)}
             >
-              <option value="center">Center</option>
-              <option value="top-left">Top Left</option>
-              <option value="top-right">Top Right</option>
-              <option value="bottom-left">Bottom Left</option>
-              <option value="bottom-right">Bottom Right</option>
-              <option value="custom">Custom</option>
+              <option value="center">{t('watermark.center')}</option>
+              <option value="top-left">{t('watermark.topLeft')}</option>
+              <option value="top-right">{t('watermark.topRight')}</option>
+              <option value="bottom-left">{t('watermark.bottomLeft')}</option>
+              <option value="bottom-right">{t('watermark.bottomRight')}</option>
+              <option value="custom">{tCommon('custom')}</option>
             </select>
           </div>
           <Show when={imgPosition() === 'custom'}>
             <div class="watermark-row wm-img-custom-pos">
-              <label class="watermark-label">X / Y:</label>
+              <label class="watermark-label">{t('watermark.xyLabel')}</label>
               <input
                 type="number"
                 class="watermark-input watermark-input-sm"
@@ -436,36 +440,36 @@ export default function WatermarkDialog(props) {
             </div>
           </Show>
           <div class="watermark-row">
-            <label class="watermark-label">Layer:</label>
+            <label class="watermark-label">{t('watermark.layer')}</label>
             <select
               class="watermark-select"
               value={imgLayer()}
               onChange={(e) => setImgLayer(e.target.value)}
             >
-              <option value="behind">Behind content</option>
-              <option value="infront">In front of content</option>
+              <option value="behind">{t('watermark.behindContent')}</option>
+              <option value="infront">{t('watermark.inFrontOfContent')}</option>
             </select>
           </div>
           <div class="watermark-row">
-            <label class="watermark-label">Pages:</label>
+            <label class="watermark-label">{t('watermark.pagesLabel')}</label>
             <select
               class="watermark-select"
               value={imgPageRange()}
               onChange={(e) => setImgPageRange(e.target.value)}
             >
-              <option value="all">All pages</option>
-              <option value="first">First page only</option>
-              <option value="custom">Custom</option>
+              <option value="all">{t('watermark.allPages')}</option>
+              <option value="first">{t('watermark.firstPageOnly')}</option>
+              <option value="custom">{tCommon('custom')}</option>
             </select>
           </div>
           <Show when={imgPageRange() === 'custom'}>
             <div class="watermark-row wm-img-custom-pages">
-              <label class="watermark-label">Range:</label>
+              <label class="watermark-label">{t('watermark.range')}</label>
               <input
                 type="text"
                 class="watermark-input"
                 value={imgCustomPages()}
-                placeholder="e.g. 1-5, 8"
+                placeholder={t('watermark.rangePlaceholder')}
                 onInput={(e) => setImgCustomPages(e.target.value)}
               />
             </div>

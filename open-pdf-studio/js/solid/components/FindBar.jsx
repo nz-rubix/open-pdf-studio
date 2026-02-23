@@ -2,8 +2,10 @@ import { createEffect } from 'solid-js';
 import {
   visible, resultsText, messageText, notFound, navDisabled,
 } from '../stores/findBarStore.js';
+import { useTranslation } from '../../i18n/useTranslation.js';
 
 export default function FindBar() {
+  const { t } = useTranslation('statusbar');
   let inputRef;
 
   // Focus input when find bar becomes visible
@@ -72,12 +74,12 @@ export default function FindBar() {
 
   return (
     <div class="find-bar" classList={{ visible: visible() }}>
-      <button class="find-close-btn" title="Close (Esc)" onClick={handleClose}>&times;</button>
+      <button class="find-close-btn" title={t('closeEsc')} onClick={handleClose}>&times;</button>
       <div class="find-input-container">
         <input
           class="find-input"
           classList={{ 'not-found': notFound() }}
-          placeholder="Find in document..."
+          placeholder={t('findPlaceholder')}
           autocomplete="off"
           ref={inputRef}
           onInput={handleInput}
@@ -85,12 +87,12 @@ export default function FindBar() {
         />
       </div>
       <div class="find-nav-buttons">
-        <button class="find-nav-btn" title="Previous (Shift+Enter)" disabled={navDisabled()} onClick={handlePrev}>
+        <button class="find-nav-btn" title={t('previousShiftEnter')} disabled={navDisabled()} onClick={handlePrev}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M15 18l-6-6 6-6"/>
           </svg>
         </button>
-        <button class="find-nav-btn" title="Next (Enter)" disabled={navDisabled()} onClick={handleNext}>
+        <button class="find-nav-btn" title={t('nextEnter')} disabled={navDisabled()} onClick={handleNext}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M9 18l6-6-6-6"/>
           </svg>
@@ -101,15 +103,15 @@ export default function FindBar() {
       <div class="find-options">
         <label class="find-option">
           <input type="checkbox" onChange={handleMatchCase} />
-          <span>Match case</span>
+          <span>{t('matchCase')}</span>
         </label>
         <label class="find-option">
           <input type="checkbox" onChange={handleWholeWord} />
-          <span>Whole words</span>
+          <span>{t('wholeWords')}</span>
         </label>
         <label class="find-option">
           <input type="checkbox" checked onChange={handleHighlightAll} />
-          <span>Highlight all</span>
+          <span>{t('highlightAll')}</span>
         </label>
       </div>
     </div>

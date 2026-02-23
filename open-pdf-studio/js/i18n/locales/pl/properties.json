@@ -1,0 +1,117 @@
+{
+  "title": "W\u0142a\u015bciwo\u015bci",
+  "general": {
+    "title": "Og\u00f3lne",
+    "type": "Typ",
+    "subject": "Temat",
+    "subjectPlaceholder": "Wprowad\u017a temat...",
+    "author": "Autor",
+    "created": "Utworzono",
+    "modified": "Zmodyfikowano",
+    "locked": "Zablokowane",
+    "printable": "Drukowalne",
+    "readOnly": "Tylko do odczytu",
+    "marked": "Oznaczone",
+    "altText": "Tekst alternatywny",
+    "altTextPlaceholder": "Opis do cel\u00f3w dost\u0119pno\u015bci...",
+    "status": "Status",
+    "accepted": "Zaakceptowane",
+    "rejected": "Odrzucone",
+    "cancelled": "Anulowane",
+    "completed": "Zako\u0144czone",
+    "reviewed": "Zrecenzowane"
+  },
+  "appearance": {
+    "title": "Wygl\u0105d",
+    "icon": "Ikona",
+    "iconComment": "Komentarz",
+    "iconNote": "Notatka",
+    "iconHelp": "Pomoc",
+    "iconInsert": "Wstaw",
+    "iconKey": "Klucz",
+    "iconNewParagraph": "Nowy akapit",
+    "iconParagraph": "Akapit",
+    "iconCheck": "Znacznik",
+    "iconCircle": "Ko\u0142o",
+    "iconCross": "Krzy\u017cyk",
+    "iconStar": "Gwiazdka",
+    "fillColor": "Kolor wype\u0142nienia",
+    "strokeColor": "Kolor obrysu",
+    "color": "Kolor",
+    "opacity": "Krycie",
+    "borderStyle": "Styl obramowania"
+  },
+  "content": {
+    "title": "Zawarto\u015b\u0107",
+    "text": "Tekst",
+    "fontSize": "Rozmiar czcionki"
+  },
+  "dimensions": {
+    "title": "Rozmiar i wymiary",
+    "length": "D\u0142ugo\u015b\u0107"
+  },
+  "lineEndings": {
+    "title": "Ko\u0144c\u00f3wki linii",
+    "start": "Pocz\u0105tek",
+    "end": "Koniec",
+    "openArrow": "Otwarta strza\u0142ka",
+    "closedArrow": "Zamkni\u0119ta strza\u0142ka",
+    "diamond": "Romb",
+    "circle": "Ko\u0142o",
+    "square": "Kwadrat",
+    "slash": "Uko\u015bnik",
+    "headSize": "Rozmiar ko\u0144c\u00f3wki"
+  },
+  "textFormat": {
+    "title": "Znak",
+    "textColor": "Kolor tekstu",
+    "font": "Czcionka",
+    "fontSize": "Rozmiar czcionki",
+    "style": "Styl",
+    "bold": "Pogrubienie",
+    "italic": "Kursywa",
+    "underline": "Podkre\u015blenie",
+    "strikethrough": "Przekre\u015blenie"
+  },
+  "paragraph": {
+    "title": "Akapit",
+    "textAlignment": "Wyr\u00f3wnanie tekstu",
+    "alignLeft": "Wyr\u00f3wnaj do lewej",
+    "alignCenter": "Wyr\u00f3wnaj do \u015brodka",
+    "alignRight": "Wyr\u00f3wnaj do prawej",
+    "lineSpacing": "Odst\u0119p mi\u0119dzy wierszami",
+    "rotation": "Obr\u00f3t"
+  },
+  "replies": {
+    "title": "Odpowiedzi",
+    "noReplies": "Brak odpowiedzi.",
+    "user": "U\u017cytkownik",
+    "addReply": "Dodaj odpowied\u017a...",
+    "addButton": "Dodaj"
+  },
+  "docInfo": {
+    "document": "Dokument",
+    "file": "Plik",
+    "path": "\u015acie\u017cka",
+    "pages": "Strony",
+    "pageSize": "Rozmiar strony",
+    "metadata": "Metadane",
+    "title": "Tytu\u0142",
+    "author": "Autor",
+    "subject": "Temat",
+    "creator": "Tw\u00f3rca",
+    "producer": "Producent",
+    "pdfVersion": "Wersja PDF",
+    "annotations": "Adnotacje",
+    "total": "\u0141\u0105cznie",
+    "onPage": "Na stronie",
+    "selectHint": "Zaznacz adnotacj\u0119, aby edytowa\u0107 jej w\u0142a\u015bciwo\u015bci"
+  },
+  "image": {
+    "title": "Obraz",
+    "width": "Szeroko\u015b\u0107",
+    "height": "Wysoko\u015b\u0107",
+    "rotation": "Obr\u00f3t",
+    "resetToOriginal": "Przywr\u00f3\u0107 oryginalny rozmiar"
+  }
+}

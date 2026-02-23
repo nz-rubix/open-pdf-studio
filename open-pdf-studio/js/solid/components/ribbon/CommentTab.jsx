@@ -17,72 +17,75 @@ import {
   redactionIcon, applyRedactionsIcon,
   undoIcon, clearPageIcon, clearAllIcon
 } from '../../data/ribbonIcons.js';
+import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function CommentTab() {
+  const { t } = useTranslation('ribbon');
+
   return (
     <div class="ribbon-content active" id="tab-comment">
       <div class="ribbon-groups">
-        <RibbonGroup label="Drawing">
-          <RibbonButton id="tool-highlight" title="Highlight" icon={highlightIcon} label="Highlight"
+        <RibbonGroup label={t('comment.drawing')}>
+          <RibbonButton id="tool-highlight" title={t('comment.highlight')} icon={highlightIcon} label={t('comment.highlight')}
             disabled={isPdfAReadOnly()} active={state.currentTool === 'highlight'} onClick={() => setTool('highlight')} />
-          <RibbonButton id="tool-draw" title="Freehand" icon={freehandIcon} label="Freehand"
+          <RibbonButton id="tool-draw" title={t('comment.freehand')} icon={freehandIcon} label={t('comment.freehand')}
             disabled={isPdfAReadOnly()} active={state.currentTool === 'draw'} onClick={() => setTool('draw')} />
           <RibbonButtonStack>
-            <RibbonButton size="small" id="tool-line" title="Line" icon={lineIcon} label="Line"
+            <RibbonButton size="small" id="tool-line" title={t('comment.line')} icon={lineIcon} label={t('comment.line')}
               disabled={isPdfAReadOnly()} active={state.currentTool === 'line'} onClick={() => setTool('line')} />
-            <RibbonButton size="small" id="tool-arrow" title="Arrow" icon={arrowIcon} label="Arrow"
+            <RibbonButton size="small" id="tool-arrow" title={t('comment.arrow')} icon={arrowIcon} label={t('comment.arrow')}
               disabled={isPdfAReadOnly()} active={state.currentTool === 'arrow'} onClick={() => setTool('arrow')} />
-            <RibbonButton size="small" id="tool-polyline" title="Polyline (double-click to finish)" icon={polylineIcon} label="Polyline"
+            <RibbonButton size="small" id="tool-polyline" title={t('comment.polylineTitle')} icon={polylineIcon} label={t('comment.polyline')}
               disabled={isPdfAReadOnly()} active={state.currentTool === 'polyline'} onClick={() => setTool('polyline')} />
           </RibbonButtonStack>
         </RibbonGroup>
 
-        <RibbonGroup label="Shapes">
-          <RibbonButton id="tool-box" title="Rectangle" icon={rectIcon} label="Rect"
+        <RibbonGroup label={t('comment.shapes')}>
+          <RibbonButton id="tool-box" title={t('comment.rectangle')} icon={rectIcon} label={t('comment.rect')}
             disabled={isPdfAReadOnly()} active={state.currentTool === 'box'} onClick={() => setTool('box')} />
-          <RibbonButton id="tool-circle" title="Ellipse" icon={ellipseIcon} label="Ellipse"
+          <RibbonButton id="tool-circle" title={t('comment.ellipse')} icon={ellipseIcon} label={t('comment.ellipse')}
             disabled={isPdfAReadOnly()} active={state.currentTool === 'circle'} onClick={() => setTool('circle')} />
           <RibbonButtonStack>
-            <RibbonButton size="small" id="tool-polygon" title="Polygon" icon={polygonIcon} label="Polygon"
+            <RibbonButton size="small" id="tool-polygon" title={t('comment.polygon')} icon={polygonIcon} label={t('comment.polygon')}
               disabled={isPdfAReadOnly()} active={state.currentTool === 'polygon'} onClick={() => setTool('polygon')} />
-            <RibbonButton size="small" id="tool-cloud" title="Cloud" icon={cloudIcon} label="Cloud"
+            <RibbonButton size="small" id="tool-cloud" title={t('comment.cloud')} icon={cloudIcon} label={t('comment.cloud')}
               disabled={isPdfAReadOnly()} active={state.currentTool === 'cloud'} onClick={() => setTool('cloud')} />
           </RibbonButtonStack>
         </RibbonGroup>
 
-        <RibbonGroup label="Text">
-          <RibbonButton id="tool-text" title="Text" icon={textAnnotIcon} label="Text"
+        <RibbonGroup label={t('comment.text')}>
+          <RibbonButton id="tool-text" title={t('comment.text')} icon={textAnnotIcon} label={t('comment.text')}
             disabled={isPdfAReadOnly()} active={state.currentTool === 'text'} onClick={() => setTool('text')} />
-          <RibbonButton id="tool-textbox" title="Text Box" icon={textboxIcon} label="Text Box"
+          <RibbonButton id="tool-textbox" title={t('comment.textBox')} icon={textboxIcon} label={t('comment.textBox')}
             disabled={isPdfAReadOnly()} active={state.currentTool === 'textbox'} onClick={() => setTool('textbox')} />
-          <RibbonButton id="tool-comment" title="Note" icon={noteIcon} label="Note"
+          <RibbonButton id="tool-comment" title={t('comment.note')} icon={noteIcon} label={t('comment.note')}
             disabled={isPdfAReadOnly()} active={state.currentTool === 'comment'} onClick={() => setTool('comment')} />
-          <RibbonButton id="tool-callout" title="Callout" icon={calloutIcon} label="Callout"
+          <RibbonButton id="tool-callout" title={t('comment.callout')} icon={calloutIcon} label={t('comment.callout')}
             disabled={isPdfAReadOnly()} active={state.currentTool === 'callout'} onClick={() => setTool('callout')} />
         </RibbonGroup>
 
-        <RibbonGroup label="Stamp">
-          <RibbonButton id="tool-stamp" title="Stamp" icon={stampIcon} label="Stamp"
+        <RibbonGroup label={t('comment.stamp')}>
+          <RibbonButton id="tool-stamp" title={t('comment.stamp')} icon={stampIcon} label={t('comment.stamp')}
             disabled={isPdfAReadOnly()} active={state.currentTool === 'stamp'} onClick={() => setTool('stamp')} />
-          <RibbonButton id="tool-signature" title="Signature" icon={signatureIcon} label="Signature"
+          <RibbonButton id="tool-signature" title={t('comment.signature')} icon={signatureIcon} label={t('comment.signature')}
             disabled={isPdfAReadOnly()} active={state.currentTool === 'signature'} onClick={() => setTool('signature')} />
         </RibbonGroup>
 
-        <RibbonGroup label="Measure">
+        <RibbonGroup label={t('comment.measure')}>
           <RibbonButtonStack>
-            <RibbonButton size="small" id="tool-measure-distance" title="Measure Distance" icon={measureDistanceIcon} label="Distance"
+            <RibbonButton size="small" id="tool-measure-distance" title={t('comment.measureDistance')} icon={measureDistanceIcon} label={t('comment.distance')}
               disabled={isPdfAReadOnly()} active={state.currentTool === 'measureDistance'} onClick={() => setTool('measureDistance')} />
-            <RibbonButton size="small" id="tool-measure-area" title="Measure Area" icon={measureAreaIcon} label="Area"
+            <RibbonButton size="small" id="tool-measure-area" title={t('comment.measureArea')} icon={measureAreaIcon} label={t('comment.area')}
               disabled={isPdfAReadOnly()} active={state.currentTool === 'measureArea'} onClick={() => setTool('measureArea')} />
-            <RibbonButton size="small" id="tool-measure-perimeter" title="Measure Perimeter" icon={measurePerimeterIcon} label="Perimeter"
+            <RibbonButton size="small" id="tool-measure-perimeter" title={t('comment.measurePerimeter')} icon={measurePerimeterIcon} label={t('comment.perimeter')}
               disabled={isPdfAReadOnly()} active={state.currentTool === 'measurePerimeter'} onClick={() => setTool('measurePerimeter')} />
           </RibbonButtonStack>
         </RibbonGroup>
 
-        <RibbonGroup label="Redaction">
-          <RibbonButton id="tool-redaction" title="Mark for Redaction" icon={redactionIcon} label="Redact"
+        <RibbonGroup label={t('comment.redaction')}>
+          <RibbonButton id="tool-redaction" title={t('comment.markForRedaction')} icon={redactionIcon} label={t('comment.redact')}
             disabled={isPdfAReadOnly()} active={state.currentTool === 'redaction'} onClick={() => setTool('redaction')} />
-          <RibbonButton id="btn-apply-redactions" title="Apply Redactions on Current Page" icon={applyRedactionsIcon} label="Apply"
+          <RibbonButton id="btn-apply-redactions" title={t('comment.applyRedactions')} icon={applyRedactionsIcon} label={t('comment.applyLabel')}
             disabled={isPdfAReadOnly()} iconStyle={{ color: '#dc2626' }}
             onClick={async () => {
               const { applyRedactions } = await import('../../../annotations/redaction.js');
@@ -90,17 +93,17 @@ export default function CommentTab() {
             }} />
         </RibbonGroup>
 
-        <RibbonGroup label="Properties">
+        <RibbonGroup label={t('comment.properties')}>
           <RibbonButtonStack>
             <div class="ribbon-input-row">
-              <label class="ribbon-input-label">Color</label>
+              <label class="ribbon-input-label">{t('comment.color')}</label>
               <input type="color" id="color-picker" class="ribbon-color-input"
                 value={colorPickerValue()}
                 disabled={isPdfAReadOnly()}
                 onInput={(e) => setColorPickerValue(e.target.value)} />
             </div>
             <div class="ribbon-input-row">
-              <label class="ribbon-input-label">Width</label>
+              <label class="ribbon-input-label">{t('comment.width')}</label>
               <input type="number" id="line-width" class="ribbon-input" min="1" max="20"
                 value={lineWidthValue()}
                 disabled={isPdfAReadOnly()}
@@ -109,23 +112,23 @@ export default function CommentTab() {
           </RibbonButtonStack>
         </RibbonGroup>
 
-        <RibbonGroup label="Edit">
+        <RibbonGroup label={t('comment.edit')}>
           <RibbonButtonStack>
-            <RibbonButton size="small" id="tool-undo" title="Undo" icon={undoIcon} label="Undo"
+            <RibbonButton size="small" id="tool-undo" title={t('comment.undo')} icon={undoIcon} label={t('comment.undo')}
               disabled={isPdfAReadOnly()} onClick={() => undo()} />
-            <RibbonButton size="small" id="tool-clear" title="Clear Page Annotations" icon={clearPageIcon} label="Clear Page"
+            <RibbonButton size="small" id="tool-clear" title={t('comment.clearPageAnnotations')} icon={clearPageIcon} label={t('comment.clearPage')}
               disabled={isPdfAReadOnly()} onClick={() => {
-                if (confirm('Clear all annotations on current page?')) {
+                if (confirm(t('comment.clearPageConfirm'))) {
                   recordClearPage(state.currentPage, state.annotations);
                   state.annotations = state.annotations.filter(a => a.page !== state.currentPage);
                   hideProperties();
                   if (state.viewMode === 'continuous') { redrawContinuous(); } else { redrawAnnotations(); }
                 }
               }} />
-            <RibbonButton size="small" id="ribbon-clear-all" title="Clear All Annotations" icon={clearAllIcon} label="Clear All"
+            <RibbonButton size="small" id="ribbon-clear-all" title={t('comment.clearAllAnnotations')} icon={clearAllIcon} label={t('comment.clearAll')}
               disabled={isPdfAReadOnly()} onClick={async () => {
                 if (state.annotations.length === 0) return;
-                const confirmed = await window.__TAURI__?.dialog?.ask('Clear ALL annotations from ALL pages?', { title: 'Clear All', kind: 'warning' });
+                const confirmed = await window.__TAURI__?.dialog?.ask(t('comment.clearAllConfirm'), { title: t('comment.clearAll'), kind: 'warning' });
                 if (confirmed) {
                   recordClearAll(state.annotations);
                   state.annotations = [];

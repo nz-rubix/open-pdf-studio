@@ -464,17 +464,25 @@ pub fn run() {
         .find(|arg| arg.to_lowercase().ends_with(".pdf") && !arg.starts_with('-'))
         .cloned();
 
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .manage(OpenedFile(Mutex::new(opened_file)))
         .manage(LockedFiles(Mutex::new(HashMap::new())))
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_process::init());
+
+    // Updater plugin is desktop-only (Play Store handles updates on Android)
+    #[cfg(not(target_os = "android"))]
+    {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+
+    builder
         .setup(|app| {
-            // Set the window icon so taskbar matches the title bar icon
+            // Set the window icon (desktop only — not applicable on Android)
+            #[cfg(not(target_os = "android"))]
             if let Some(window) = app.get_webview_window("main") {
                 let icon_bytes = include_bytes!("../icons/icon.png");
                 if let Ok(icon) = tauri::image::Image::from_bytes(icon_bytes) {

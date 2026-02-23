@@ -1,24 +1,6 @@
 import { Show } from 'solid-js';
 import { state } from '../../core/state.js';
-
-const TOOL_NAMES = {
-  'select': 'Select Tool',
-  'selectComments': 'Select Comments',
-  'hand': 'Hand Tool',
-  'highlight': 'Highlight',
-  'draw': 'Freehand',
-  'line': 'Line',
-  'arrow': 'Arrow',
-  'circle': 'Ellipse',
-  'box': 'Rectangle',
-  'polygon': 'Polygon',
-  'cloud': 'Cloud',
-  'polyline': 'Polyline',
-  'textbox': 'Text Box',
-  'callout': 'Callout',
-  'comment': 'Sticky Note',
-  'text': 'Text'
-};
+import { useTranslation } from '../../i18n/useTranslation.js';
 
 async function goFirst() {
   const { renderPage } = await import('../../pdf/renderer.js');
@@ -123,7 +105,13 @@ async function handleZoomBlur(e) {
 }
 
 export default function StatusBar() {
-  const toolName = () => TOOL_NAMES[state.currentTool] || state.currentTool;
+  const { t } = useTranslation('statusbar');
+
+  const toolName = () => {
+    const key = `tools.${state.currentTool}`;
+    const translated = t(key);
+    return translated !== key ? translated : state.currentTool;
+  };
   const totalPages = () => state.pdfDoc?.numPages || 0;
   const zoomText = () => Math.round(state.scale * 100) + '%';
   const annotationText = () => {
@@ -131,32 +119,32 @@ export default function StatusBar() {
       return `${state.annotations.length}`;
     }
     const pageCount = state.annotations.filter(a => a.page === state.currentPage).length;
-    return `${pageCount} (${state.annotations.length} total)`;
+    return t('annotationsCount', { count: pageCount, total: state.annotations.length });
   };
 
   return (
     <div class="status-bar">
       <div class="status-bar-left">
         <div class="status-item">
-          <span class="status-item-label">Tool:</span>
+          <span class="status-item-label">{t('toolLabel')}</span>
           <span class="status-item-value">{toolName()}</span>
         </div>
         <div class="status-separator"></div>
         <div class="status-item">
-          <span class="status-item-label">Annotations:</span>
+          <span class="status-item-label">{t('annotationsLabel')}</span>
           <span class="status-item-value">{annotationText()}</span>
         </div>
       </div>
 
       <Show when={!!state.pdfDoc}>
         <div class="status-bar-center">
-          <button class="status-nav-btn" title="First Page" onClick={goFirst}>
+          <button class="status-nav-btn" title={t('firstPage')} onClick={goFirst}>
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7M18 19l-7-7 7-7"/>
             </svg>
           </button>
 
-          <button class="status-nav-btn" title="Previous Page" onClick={goPrev}>
+          <button class="status-nav-btn" title={t('previousPage')} onClick={goPrev}>
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
             </svg>
@@ -166,20 +154,20 @@ export default function StatusBar() {
             Page <input type="number" class="status-page-input" value={state.currentPage} min="1" onKeyDown={handlePageInput} onBlur={handlePageBlur} /> / <span>{totalPages()}</span>
           </span>
 
-          <button class="status-nav-btn" title="Next Page" onClick={goNext}>
+          <button class="status-nav-btn" title={t('nextPage')} onClick={goNext}>
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
             </svg>
           </button>
 
-          <button class="status-nav-btn" title="Last Page" onClick={goLast}>
+          <button class="status-nav-btn" title={t('lastPage')} onClick={goLast}>
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M6 5l7 7-7 7"/>
             </svg>
           </button>
 
           <div class="status-zoom-controls">
-            <button class="status-nav-btn" title="Zoom Out" onClick={handleZoomOut}>
+            <button class="status-nav-btn" title={t('zoomOut')} onClick={handleZoomOut}>
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
               </svg>
@@ -187,7 +175,7 @@ export default function StatusBar() {
 
             <input type="text" class="status-zoom-input" value={zoomText()} onKeyDown={handleZoomInput} onBlur={handleZoomBlur} />
 
-            <button class="status-nav-btn" title="Zoom In" onClick={handleZoomIn}>
+            <button class="status-nav-btn" title={t('zoomIn')} onClick={handleZoomIn}>
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
               </svg>

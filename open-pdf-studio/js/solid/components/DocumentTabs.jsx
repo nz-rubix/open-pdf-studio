@@ -1,5 +1,6 @@
 import { For, Show } from 'solid-js';
 import { state } from '../../core/state.js';
+import { useTranslation } from '../../i18n/useTranslation.js';
 
 function handleTabClick(index) {
   import('../../ui/chrome/tabs.js').then(m => m.switchToTab(index));
@@ -22,10 +23,12 @@ function handleAddClick() {
 }
 
 export default function DocumentTabs() {
+  const { t } = useTranslation('statusbar');
+
   return (
     <div class="document-tabs" id="document-tabs">
       <Show when={state.documents.length === 0}>
-        <div class="document-tabs-empty">No documents open</div>
+        <div class="document-tabs-empty">{t('noDocumentsOpen')}</div>
       </Show>
 
       <For each={state.documents}>
@@ -38,12 +41,12 @@ export default function DocumentTabs() {
           >
             <span class="document-tab-modified">{doc.modified ? '*' : ''}</span>
             <span class="document-tab-title" title={doc.filePath || doc.fileName}>{doc.fileName}</span>
-            <span class="document-tab-close" title="Close" onClick={(e) => handleCloseTab(e, i())}>&times;</span>
+            <span class="document-tab-close" title={t('closeTab')} onClick={(e) => handleCloseTab(e, i())}>&times;</span>
           </div>
         )}
       </For>
 
-      <div class="document-tabs-add" title="Open PDF file" onClick={handleAddClick}>+</div>
+      <div class="document-tabs-add" title={t('openPdfFile')} onClick={handleAddClick}>+</div>
     </div>
   );
 }
