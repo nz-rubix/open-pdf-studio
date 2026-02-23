@@ -49,16 +49,13 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      - name: Install Tauri CLI
-        run: npm install -g @tauri-apps/cli
-
       - name: Initialize Android project
-        run: cargo tauri android init
+        run: npx tauri android init
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
 
       - name: Build Android APK
-        run: cargo tauri android build --apk
+        run: npx tauri android build --apk
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
 
