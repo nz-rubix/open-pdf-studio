@@ -16,6 +16,11 @@ export function initPinchZoom(container) {
     return Math.sqrt(dx * dx + dy * dy);
   }
 
+  // Get the scrollable PDF container
+  function getScrollContainer() {
+    return container.querySelector('#pdf-container') || container;
+  }
+
   container.addEventListener('touchstart', (e) => {
     if (e.touches.length === 2) {
       isPinching = true;
@@ -55,15 +60,28 @@ export function initPinchZoom(container) {
         const currentTransform = canvasWrapper.style.transform;
         const match = currentTransform.match(/scale\(([\d.]+)\)/);
         if (match) {
-          let newScale = state.scale * parseFloat(match[1]);
+          const oldScale = state.scale;
+          let newScale = oldScale * parseFloat(match[1]);
           newScale = Math.max(0.25, Math.min(5.0, newScale));
+          const zoomRatio = newScale / oldScale;
+
+          // Record scroll center point before zoom
+          const sc = getScrollContainer();
+          const centerX = (sc.scrollLeft + sc.clientWidth / 2) / (sc.scrollWidth || 1);
+          const centerY = (sc.scrollTop + sc.clientHeight / 2) / (sc.scrollHeight || 1);
 
           // Reset CSS transform
           canvasWrapper.style.transform = '';
           canvasWrapper.style.transformOrigin = '';
 
           // Apply proper re-render at new scale
-          setZoom(newScale);
+          setZoom(newScale).then(() => {
+            // Restore scroll so the same content point stays centered
+            const newScrollWidth = sc.scrollWidth;
+            const newScrollHeight = sc.scrollHeight;
+            sc.scrollLeft = centerX * newScrollWidth - sc.clientWidth / 2;
+            sc.scrollTop = centerY * newScrollHeight - sc.clientHeight / 2;
+          });
         } else {
           canvasWrapper.style.transform = '';
           canvasWrapper.style.transformOrigin = '';

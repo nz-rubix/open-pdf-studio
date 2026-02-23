@@ -9,6 +9,10 @@
   --border-color: var(--theme-border, #d4d4d4);
   --hover-bg: var(--theme-hover, rgba(0, 0, 0, 0.08));
 
+  /* Safe area insets for Android status bar / navigation bar */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -25,6 +29,7 @@
   height: 48px;
   min-height: 48px;
   padding: 0 4px;
+  padding-top: var(--sat);
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
   gap: 4px;
@@ -115,13 +120,15 @@
 }
 
 .mobile-app #pdf-container.visible {
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  display: block;
 }
 
-/* When the page is larger than the viewport, allow scrolling from top-left */
+/* Center the canvas when it's smaller than the viewport (fit-page/fit-width),
+   but allow full scrolling when zoomed in larger than the viewport.
+   Using margin:auto instead of flexbox centering avoids the flexbox overflow bug
+   where content overflowing a centered flex child becomes unreachable on the start side. */
 .mobile-app #canvas-wrapper {
+  margin: auto;
   min-width: min-content;
   min-height: min-content;
 }
@@ -133,6 +140,7 @@
   justify-content: center;
   min-height: 52px;
   padding: 0 8px;
+  padding-bottom: var(--sab);
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-color);
   gap: 2px;
@@ -239,7 +247,7 @@
 
 .mobile-tools-menu {
   position: absolute;
-  bottom: 56px;
+  bottom: calc(56px + var(--sab));
   right: 8px;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
@@ -307,6 +315,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
+  padding-top: var(--sat);
   height: 56px;
   min-height: 56px;
   border-bottom: 1px solid var(--border-color);
@@ -496,7 +505,7 @@
 /* Copy text floating action button */
 .mobile-copy-fab {
   position: fixed;
-  bottom: 64px;
+  bottom: calc(64px + var(--sab));
   right: 16px;
   z-index: 800;
   display: flex;
@@ -553,7 +562,7 @@
 }
 
 .mobile-app.fullscreen.bars-visible .mobile-main {
-  height: calc(100vh - 48px - 52px);
+  height: calc(100vh - 48px - 52px - var(--sat) - var(--sab));
 }
 
 /* Mobile Preferences full-screen page */
@@ -573,6 +582,7 @@
   height: 48px;
   min-height: 48px;
   padding: 0 4px;
+  padding-top: var(--sat);
   background: var(--bg-secondary, #f5f5f5);
   border-bottom: 1px solid var(--border-color, #d4d4d4);
   gap: 4px;

@@ -158,11 +158,15 @@ export default function MobileApp() {
   }
 
   function handleZoomIn() {
-    window.dispatchEvent(new CustomEvent('zoom-change', { detail: { direction: 'in' } }));
+    if (!hasDocument()) return;
+    const newScale = Math.min(5.0, state.scale * 1.25);
+    setZoom(newScale);
   }
 
   function handleZoomOut() {
-    window.dispatchEvent(new CustomEvent('zoom-change', { detail: { direction: 'out' } }));
+    if (!hasDocument()) return;
+    const newScale = Math.max(0.25, state.scale / 1.25);
+    setZoom(newScale);
   }
 
   function handleSave() {
