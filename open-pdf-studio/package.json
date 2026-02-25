@@ -26,6 +26,9 @@
     "vite": "^7.3.1",
     "vite-plugin-solid": "^2.11.10"
   },
+  "overrides": {
+    "lru-cache": "^10.0.0"
+  },
   "dependencies": {
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-dialog": "^2.6.0",
