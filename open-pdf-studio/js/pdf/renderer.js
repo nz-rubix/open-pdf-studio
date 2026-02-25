@@ -1,5 +1,7 @@
 import { state, getPageRotation, setPageRotation } from '../core/state.js';
-import { pdfCanvas, annotationCanvas, pdfCtx } from '../ui/dom-elements.js';
+// Always-fresh DOM refs (never stale regardless of init timing or bundler behavior)
+function getPdfCanvas() { return document.getElementById('pdf-canvas'); }
+function getAnnotationCanvas() { return document.getElementById('annotation-canvas'); }
 import { redrawAnnotations, renderAnnotationsForPage } from '../annotations/rendering.js';
 import { ensureAnnotationsForPage, hidePdfABar } from './loader.js';
 import { updateAllStatus } from '../ui/chrome/status-bar.js';
@@ -34,6 +36,10 @@ export async function renderPage(pageNum) {
     viewportOpts.rotation = (page.rotate + extraRotation) % 360;
   }
   const viewport = page.getViewport(viewportOpts);
+
+  const pdfCanvas = getPdfCanvas();
+  const annotationCanvas = getAnnotationCanvas();
+  if (!pdfCanvas || !annotationCanvas) return;
 
   // Set canvas dimensions
   pdfCanvas.width = viewport.width;
@@ -465,7 +471,12 @@ export async function rotatePage(delta, targetPage) {
 
 // Clear the PDF view when no document is open
 export function clearPdfView() {
+  const pdfCanvas = getPdfCanvas();
+  const annotationCanvas = getAnnotationCanvas();
+  if (!pdfCanvas || !annotationCanvas) return;
+
   // Clear single page mode canvases
+  const pdfCtx = pdfCanvas.getContext('2d');
   pdfCtx.clearRect(0, 0, pdfCanvas.width, pdfCanvas.height);
   const annotationCtx = annotationCanvas.getContext('2d');
   annotationCtx.clearRect(0, 0, annotationCanvas.width, annotationCanvas.height);

@@ -47,7 +47,12 @@
     "iconNewParagraph": "Nowy akapit",
     "iconParagraph": "Akapit",
     "iconInsert": "Wstaw",
-    "noFill": "Bez wype\u0142nienia"
+    "noFill": "Bez wype\u0142nienia",
+    "subtabGeneral": "Ogólne",
+    "subtabComments": "Komentarze",
+    "subtabText": "Tekst",
+    "subtabDrawing": "Rysowanie",
+    "subtabShapes": "Kształty"
   },
   "drawing": {
     "freehandDefaults": "Ustawienia domy\u015blne rysowania odr\u0119cznego",

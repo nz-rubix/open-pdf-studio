@@ -1,3 +1,4 @@
+import i18next from '../../i18n/config.js';
 import { getActiveDocument } from '../../core/state.js';
 import { setTree, setCountText, setEmptyMessage } from '../../solid/stores/panels/tagsStore.js';
 
@@ -15,12 +16,12 @@ export async function updateTagsList() {
   const activeDoc = getActiveDocument();
   if (!activeDoc || !activeDoc.pdfDoc) {
     setTree([]);
-    setCountText('0 tags');
-    setEmptyMessage('No document open');
+    setCountText(i18next.t('leftPanel.tagsCount', { count: 0 }));
+    setEmptyMessage(i18next.t('leftPanel.noDocumentOpen'));
     return;
   }
 
-  setEmptyMessage('Loading...');
+  setEmptyMessage(i18next.t('loading'));
 
   try {
     const pdfDoc = activeDoc.pdfDoc;
@@ -46,8 +47,8 @@ export async function updateTagsList() {
 
     if (collectedTrees.length === 0) {
       setTree([]);
-      setCountText('0 tags');
-      setEmptyMessage('No structure tags in this document');
+      setCountText(i18next.t('leftPanel.tagsCount', { count: 0 }));
+      setEmptyMessage(i18next.t('leftPanel.noTags'));
       return;
     }
 
@@ -58,11 +59,11 @@ export async function updateTagsList() {
 
     setEmptyMessage(null);
     setTree(collectedTrees);
-    setCountText(`${totalTagCount} tag${totalTagCount !== 1 ? 's' : ''}`);
+    setCountText(i18next.t('leftPanel.tagsCount', { count: totalTagCount }));
   } catch (e) {
     console.warn('Failed to load tags:', e);
     setTree([]);
-    setCountText('0 tags');
-    setEmptyMessage('Could not load structure tags');
+    setCountText(i18next.t('leftPanel.tagsCount', { count: 0 }));
+    setEmptyMessage(i18next.t('leftPanel.couldNotLoadTags'));
   }
 }

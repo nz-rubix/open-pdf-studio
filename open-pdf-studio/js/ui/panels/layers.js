@@ -1,3 +1,4 @@
+import i18next from '../../i18n/config.js';
 import { getActiveDocument } from '../../core/state.js';
 import { setItems, setCountText, setEmptyMessage } from '../../solid/stores/panels/layersStore.js';
 
@@ -22,21 +23,21 @@ export async function updateLayersList() {
   const activeDoc = getActiveDocument();
   if (!activeDoc || !activeDoc.pdfDoc) {
     setItems([]);
-    setCountText('0 layers');
-    setEmptyMessage('No document open');
+    setCountText(i18next.t('leftPanel.layersCount', { count: 0 }));
+    setEmptyMessage(i18next.t('leftPanel.noDocumentOpen'));
     currentOCConfig = null;
     return;
   }
 
-  setEmptyMessage('Loading...');
+  setEmptyMessage(i18next.t('loading'));
 
   try {
     const pdfDoc = activeDoc.pdfDoc;
 
     if (typeof pdfDoc.getOptionalContentConfig !== 'function') {
       setItems([]);
-      setCountText('0 layers');
-      setEmptyMessage('No layers in this document');
+      setCountText(i18next.t('leftPanel.layersCount', { count: 0 }));
+      setEmptyMessage(i18next.t('leftPanel.noLayers'));
       return;
     }
 
@@ -45,16 +46,16 @@ export async function updateLayersList() {
 
     if (!ocConfig) {
       setItems([]);
-      setCountText('0 layers');
-      setEmptyMessage('No layers in this document');
+      setCountText(i18next.t('leftPanel.layersCount', { count: 0 }));
+      setEmptyMessage(i18next.t('leftPanel.noLayers'));
       return;
     }
 
     const groups = ocConfig.getGroups();
     if (!groups || Object.keys(groups).length === 0) {
       setItems([]);
-      setCountText('0 layers');
-      setEmptyMessage('No layers in this document');
+      setCountText(i18next.t('leftPanel.layersCount', { count: 0 }));
+      setEmptyMessage(i18next.t('leftPanel.noLayers'));
       return;
     }
 
@@ -69,12 +70,12 @@ export async function updateLayersList() {
 
     setEmptyMessage(null);
     setItems(layerItems);
-    setCountText(`${layerItems.length} layer${layerItems.length !== 1 ? 's' : ''}`);
+    setCountText(i18next.t('leftPanel.layersCount', { count: layerItems.length }));
   } catch (e) {
     console.warn('Failed to load layers:', e);
     setItems([]);
-    setCountText('0 layers');
-    setEmptyMessage('No layers in this document');
+    setCountText(i18next.t('leftPanel.layersCount', { count: 0 }));
+    setEmptyMessage(i18next.t('leftPanel.noLayers'));
     currentOCConfig = null;
   }
 }

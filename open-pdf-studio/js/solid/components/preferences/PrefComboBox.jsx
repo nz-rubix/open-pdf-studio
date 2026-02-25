@@ -40,6 +40,20 @@ export default function PrefComboBox(props) {
     e.target.value = val;
   }
 
+  function handleKeyDown(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      let val = parseFloat(e.target.value);
+      if (!isNaN(val)) {
+        val = Math.max(min, Math.min(max, val));
+        props.setValue(val);
+        e.target.value = val;
+      }
+      setOpen(false);
+      e.target.blur();
+    }
+  }
+
   function selectOption(val) {
     if (isDisabled()) return;
     props.setValue(val);
@@ -49,12 +63,22 @@ export default function PrefComboBox(props) {
   function positionDropdown() {
     if (!wrapperRef) return;
     const rect = wrapperRef.getBoundingClientRect();
-    setDropdownStyle({
+    const dropdownHeight = options.length * 24 + 4; // approx item height + padding
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUpward = spaceBelow < dropdownHeight && rect.top > spaceBelow;
+    const style = {
       position: 'fixed',
-      top: rect.bottom + 'px',
       left: (rect.left - 1) + 'px',
       width: (rect.width + 2) + 'px',
-    });
+    };
+    if (openUpward) {
+      style.bottom = (window.innerHeight - rect.top) + 'px';
+      style.maxHeight = (rect.top - 4) + 'px';
+    } else {
+      style.top = rect.bottom + 'px';
+      style.maxHeight = (spaceBelow - 4) + 'px';
+    }
+    setDropdownStyle(style);
   }
 
   function toggleDropdown(e) {
@@ -80,9 +104,10 @@ export default function PrefComboBox(props) {
         disabled={isDisabled()}
         onInput={handleInput}
         onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
       />
       <span class="pref-combo-suffix">{suffix}</span>
-      <button type="button" class="pref-combo-arrow" disabled={isDisabled()} onMouseDown={toggleDropdown}>
+      <button type="button" class="pref-combo-arrow" tabIndex={-1} disabled={isDisabled()} onMouseDown={toggleDropdown}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M6 9l6 6 6-6"/>
         </svg>

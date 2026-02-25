@@ -51,7 +51,7 @@ export default function ColorPalettePicker(props) {
         </button>
         <div class={`color-palette-dropdown${open() ? ' show' : ''}`}>
           <Show when={props.showNone}>
-            <button type="button" class="color-none-btn"
+            <button type="button" class="color-none-btn" tabIndex={-1}
               onClick={(e) => {
                 e.stopPropagation();
                 props.onNone?.();
@@ -95,7 +95,7 @@ export default function ColorPalettePicker(props) {
               )}
             </For>
           </div>
-          <button type="button" class="color-custom-btn"
+          <button type="button" class="color-custom-btn" tabIndex={-1}
             onClick={(e) => {
               e.stopPropagation();
               if (hiddenInput) {
@@ -114,6 +114,7 @@ export default function ColorPalettePicker(props) {
         <input
           ref={hiddenInput}
           type="color"
+          tabIndex={-1}
           style="position:absolute;width:0;height:0;opacity:0;pointer-events:none;"
           onInput={(e) => props.onColorChange?.(e.target.value)}
         />

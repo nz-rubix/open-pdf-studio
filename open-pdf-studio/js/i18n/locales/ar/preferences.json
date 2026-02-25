@@ -47,7 +47,12 @@
     "iconNewParagraph": "فقرة جديدة",
     "iconParagraph": "فقرة",
     "iconInsert": "إدراج",
-    "noFill": "بدون تعبئة"
+    "noFill": "بدون تعبئة",
+    "subtabGeneral": "عام",
+    "subtabComments": "التعليقات",
+    "subtabText": "النص",
+    "subtabDrawing": "الرسم",
+    "subtabShapes": "الأشكال"
   },
   "drawing": {
     "freehandDefaults": "إعدادات الرسم الحر الافتراضية",

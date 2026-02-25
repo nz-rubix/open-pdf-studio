@@ -2,6 +2,7 @@ import { Show, For, createMemo } from 'solid-js';
 import { annotProps, sectionVis, updateAnnotProp, cycleSelectNext } from '../../stores/propertiesStore.js';
 import CollapsibleSection from './CollapsibleSection.jsx';
 import ColorPalettePicker from './ColorPalettePicker.jsx';
+import PrefComboBox from '../preferences/PrefComboBox.jsx';
 import { systemFontList } from '../../stores/fontStore.js';
 import { ensureFontInStore } from '../../../utils/fonts.js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
@@ -19,16 +20,6 @@ export default function TextFormatSection() {
     }
     return systemFontList();
   });
-
-  const fontSizeOptions = () => {
-    const sizes = [...FONT_SIZE_OPTIONS];
-    const current = annotProps.textFontSize;
-    if (current && !sizes.includes(current)) {
-      sizes.push(current);
-      sizes.sort((a, b) => a - b);
-    }
-    return sizes;
-  };
 
   return (
     <Show when={sectionVis.textFormat}>
@@ -54,13 +45,13 @@ export default function TextFormatSection() {
 
         <div class="property-group">
           <label>{t('textFormat.fontSize')}</label>
-          <select value={annotProps.textFontSize} disabled={isLocked()}
-            onDblClick={cycleSelectNext}
-            onChange={(e) => updateAnnotProp('textFontSize', e.target.value)}>
-            <For each={fontSizeOptions()}>
-              {(size) => <option value={size}>{size} pt</option>}
-            </For>
-          </select>
+          <PrefComboBox
+            value={() => annotProps.textFontSize}
+            setValue={(val) => updateAnnotProp('textFontSize', val)}
+            options={FONT_SIZE_OPTIONS}
+            min={1} max={999} fallback={14} suffix="pt"
+            disabled={isLocked}
+          />
         </div>
 
         <div class="property-group">

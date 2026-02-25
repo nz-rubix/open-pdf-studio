@@ -1,3 +1,4 @@
+import i18next from '../../i18n/config.js';
 import { getActiveDocument } from '../../core/state.js';
 import { setGroups, setCountText, setEmptyMessage } from '../../solid/stores/panels/formFieldsStore.js';
 
@@ -18,20 +19,20 @@ export async function updateFormFieldsList() {
   const activeDoc = getActiveDocument();
   if (!activeDoc || !activeDoc.pdfDoc) {
     setGroups([]);
-    setCountText('0 fields');
-    setEmptyMessage('No document open');
+    setCountText(i18next.t('leftPanel.fieldsCount', { count: 0 }));
+    setEmptyMessage(i18next.t('leftPanel.noDocumentOpen'));
     return;
   }
 
-  setEmptyMessage('Loading...');
+  setEmptyMessage(i18next.t('loading'));
 
   try {
     const pdfDoc = activeDoc.pdfDoc;
 
     if (typeof pdfDoc.getFieldObjects !== 'function') {
       setGroups([]);
-      setCountText('0 fields');
-      setEmptyMessage('No form fields in this document');
+      setCountText(i18next.t('leftPanel.fieldsCount', { count: 0 }));
+      setEmptyMessage(i18next.t('leftPanel.noFormFields'));
       return;
     }
 
@@ -39,8 +40,8 @@ export async function updateFormFieldsList() {
 
     if (!fields || Object.keys(fields).length === 0) {
       setGroups([]);
-      setCountText('0 fields');
-      setEmptyMessage('No form fields in this document');
+      setCountText(i18next.t('leftPanel.fieldsCount', { count: 0 }));
+      setEmptyMessage(i18next.t('leftPanel.noFormFields'));
       return;
     }
 
@@ -67,8 +68,8 @@ export async function updateFormFieldsList() {
 
     if (totalCount === 0) {
       setGroups([]);
-      setCountText('0 fields');
-      setEmptyMessage('No form fields in this document');
+      setCountText(i18next.t('leftPanel.fieldsCount', { count: 0 }));
+      setEmptyMessage(i18next.t('leftPanel.noFormFields'));
       return;
     }
 
@@ -78,7 +79,7 @@ export async function updateFormFieldsList() {
     for (const pageNum of sortedPages) {
       const pageFields = fieldsByPage.get(pageNum);
       groupsArray.push({
-        pageLabel: `Page ${pageNum}`,
+        pageLabel: `${i18next.t('page')} ${pageNum}`,
         fields: pageFields.map(({ fieldName, field }) => ({
           fieldName,
           type: field.type,
@@ -91,7 +92,7 @@ export async function updateFormFieldsList() {
 
     if (fieldsNoPage.length > 0) {
       groupsArray.push({
-        pageLabel: 'Document Level',
+        pageLabel: i18next.t('leftPanel.documentLevel'),
         fields: fieldsNoPage.map(({ fieldName, field }) => ({
           fieldName,
           type: field.type,
@@ -104,11 +105,11 @@ export async function updateFormFieldsList() {
 
     setEmptyMessage(null);
     setGroups(groupsArray);
-    setCountText(`${totalCount} field${totalCount !== 1 ? 's' : ''}`);
+    setCountText(i18next.t('leftPanel.fieldsCount', { count: totalCount }));
   } catch (e) {
     console.warn('Failed to load form fields:', e);
     setGroups([]);
-    setCountText('0 fields');
-    setEmptyMessage('Could not load form fields');
+    setCountText(i18next.t('leftPanel.fieldsCount', { count: 0 }));
+    setEmptyMessage(i18next.t('leftPanel.couldNotLoadFormFields'));
   }
 }

@@ -187,101 +187,115 @@
 .pdfa-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  background: #f8d7da;
-  border-bottom: 1px solid #e8a0a8;
+  gap: 10px;
+  padding: 3px 32px 3px 12px;
+  position: relative;
+  background: var(--theme-pdfabar-bg);
+  border-bottom: 1px solid var(--theme-pdfabar-border);
   font-size: 12px;
-  color: #1a1a1a;
+  color: var(--theme-pdfabar-text);
   flex-shrink: 0;
   user-select: none;
 }
 
 .pdfa-bar svg {
   flex-shrink: 0;
+  color: var(--theme-pdfabar-icon);
 }
 
 .pdfa-bar span {
   flex: 1;
 }
 
-.pdfa-bar button#pdfa-bar-enable {
-  background: #ffffff;
-  border: 1px solid #c0c0c0;
+.pdfa-bar .pdfa-bar-action {
+  background: var(--theme-pdfabar-btn-bg);
+  border: 1px solid var(--theme-pdfabar-btn-border);
   font-size: 11px;
-  color: #333;
+  color: var(--theme-pdfabar-btn-text);
   cursor: pointer;
-  padding: 3px 12px;
+  padding: 4px 14px;
   line-height: 1;
+  font-weight: 500;
 }
 
-.pdfa-bar button#pdfa-bar-enable:hover {
-  background: #e5e5e5;
-  border-color: #999;
+.pdfa-bar .pdfa-bar-action:hover {
+  background: var(--theme-pdfabar-btn-hover-bg);
+  border-color: var(--theme-pdfabar-btn-hover-border);
 }
 
-.pdfa-bar button#pdfa-bar-close {
+.pdfa-bar .pdfa-bar-close {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
   background: none;
   border: none;
   font-size: 16px;
-  color: #666;
+  color: var(--theme-pdfabar-close);
   cursor: pointer;
   padding: 0 4px;
   line-height: 1;
 }
 
-.pdfa-bar button#pdfa-bar-close:hover {
+.pdfa-bar .pdfa-bar-close:hover {
   color: #e81123;
 }
 
-/* Default app info bar */
-.default-app-bar {
+/* Notification bar */
+.notification-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  background: #dbeafe;
-  border-bottom: 1px solid #93c5fd;
+  gap: 10px;
+  padding: 3px 32px 3px 12px;
+  position: relative;
+  background: var(--theme-notifbar-bg);
+  border-bottom: 1px solid var(--theme-notifbar-border);
   font-size: 12px;
-  color: #1a1a1a;
+  color: var(--theme-notifbar-text);
   flex-shrink: 0;
   user-select: none;
 }
 
-.default-app-bar svg {
+.notification-bar svg {
   flex-shrink: 0;
+  color: var(--theme-notifbar-icon);
 }
 
-.default-app-bar span {
+.notification-bar span {
   flex: 1;
 }
 
-.default-app-bar .default-app-bar-action {
-  background: #ffffff;
-  border: 1px solid #c0c0c0;
+.notification-bar .notification-bar-action {
+  background: var(--theme-notifbar-btn-bg);
+  border: 1px solid var(--theme-notifbar-btn-border);
   font-size: 11px;
-  color: #333;
+  color: var(--theme-notifbar-btn-text);
   cursor: pointer;
-  padding: 3px 12px;
+  padding: 4px 14px;
   line-height: 1;
+  font-weight: 500;
 }
 
-.default-app-bar .default-app-bar-action:hover {
-  background: #e5e5e5;
-  border-color: #999;
+.notification-bar .notification-bar-action:hover {
+  background: var(--theme-notifbar-btn-hover-bg);
+  border-color: var(--theme-notifbar-btn-hover-border);
 }
 
-.default-app-bar .default-app-bar-close {
+.notification-bar .notification-bar-close {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
   background: none;
   border: none;
   font-size: 16px;
-  color: #666;
+  color: var(--theme-notifbar-close);
   cursor: pointer;
   padding: 0 4px;
   line-height: 1;
 }
 
-.default-app-bar .default-app-bar-close:hover {
+.notification-bar .notification-bar-close:hover {
   color: #e81123;
 }
 

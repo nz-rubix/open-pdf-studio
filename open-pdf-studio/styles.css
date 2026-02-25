@@ -1,4 +1,5 @@
 @import './styles/base.css';
+@import './styles/fonts.css';
 @import './styles/themes.css';
 @import './styles/titlebar.css';
 @import './styles/backstage.css';

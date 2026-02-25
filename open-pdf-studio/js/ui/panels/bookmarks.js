@@ -1,3 +1,4 @@
+import i18next from '../../i18n/config.js';
 import { state, getActiveDocument } from '../../core/state.js';
 import { goToPage } from '../../pdf/renderer.js';
 import { markDocumentModified } from '../../ui/chrome/tabs.js';
@@ -131,8 +132,8 @@ export function updateBookmarksList() {
   const doc = getActiveDocument();
   if (!doc) {
     setTree([]);
-    setCountText('0 bookmarks');
-    setEmptyMessage('No document open');
+    setCountText(i18next.t('leftPanel.bookmarksCount', { count: 0 }));
+    setEmptyMessage(i18next.t('leftPanel.noDocumentOpen'));
     setSelectedId(null);
     updateToolbarState();
     return;
@@ -141,8 +142,8 @@ export function updateBookmarksList() {
   const bookmarks = doc.bookmarks || [];
   if (bookmarks.length === 0) {
     setTree([]);
-    setCountText('0 bookmarks');
-    setEmptyMessage('No bookmarks in this document');
+    setCountText(i18next.t('leftPanel.bookmarksCount', { count: 0 }));
+    setEmptyMessage(i18next.t('leftPanel.noBookmarks'));
     updateToolbarState();
     return;
   }
@@ -151,7 +152,7 @@ export function updateBookmarksList() {
   const componentTree = toComponentTree(tree);
 
   setTree(componentTree);
-  setCountText(`${bookmarks.length} bookmark${bookmarks.length !== 1 ? 's' : ''}`);
+  setCountText(i18next.t('leftPanel.bookmarksCount', { count: bookmarks.length }));
   setEmptyMessage(null);
   updateToolbarState();
 }

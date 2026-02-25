@@ -1,3 +1,4 @@
+import i18next from '../../i18n/config.js';
 import { getActiveDocument } from '../../core/state.js';
 import { setItems, setCountText, setEmptyMessage } from '../../solid/stores/panels/signaturesStore.js';
 
@@ -91,20 +92,20 @@ export async function updateSignaturesList() {
   const activeDoc = getActiveDocument();
   if (!activeDoc || !activeDoc.pdfDoc) {
     setItems([]);
-    setCountText('0 signatures');
-    setEmptyMessage('No document open');
+    setCountText(i18next.t('leftPanel.signaturesCount', { count: 0 }));
+    setEmptyMessage(i18next.t('leftPanel.noDocumentOpen'));
     return;
   }
 
-  setEmptyMessage('Loading...');
+  setEmptyMessage(i18next.t('loading'));
 
   try {
     const sigs = await getSignatureFields(activeDoc.pdfDoc);
 
     if (sigs.length === 0) {
       setItems([]);
-      setCountText('0 signatures');
-      setEmptyMessage('No digital signatures in this document');
+      setCountText(i18next.t('leftPanel.signaturesCount', { count: 0 }));
+      setEmptyMessage(i18next.t('leftPanel.noSignatures'));
       return;
     }
 
@@ -113,21 +114,21 @@ export async function updateSignaturesList() {
       const status = sig.verified === true ? 'valid' : sig.verified === false ? 'invalid' : 'unknown';
       return {
         fieldName: sig.fieldName,
-        name: sig.name || 'Unknown Signer',
+        name: sig.name || i18next.t('leftPanel.unknownSigner'),
         reason: sig.reason,
         location: sig.location,
         date: sig.date ? formatSignatureDate(sig.date) : null,
         contactInfo: sig.contactInfo,
         status,
-        statusText: status === 'valid' ? 'Signature is valid' : status === 'invalid' ? 'Signature is invalid' : 'Verification not available',
+        statusText: status === 'valid' ? i18next.t('leftPanel.signatureValid') : status === 'invalid' ? i18next.t('leftPanel.signatureInvalid') : i18next.t('leftPanel.signatureUnknown'),
         page: sig.page
       };
     }));
-    setCountText(`${sigs.length} signature${sigs.length !== 1 ? 's' : ''}`);
+    setCountText(i18next.t('leftPanel.signaturesCount', { count: sigs.length }));
   } catch (e) {
     console.warn('Failed to load signatures:', e);
     setItems([]);
-    setCountText('0 signatures');
-    setEmptyMessage('Could not load signatures');
+    setCountText(i18next.t('leftPanel.signaturesCount', { count: 0 }));
+    setEmptyMessage(i18next.t('leftPanel.couldNotLoadSignatures'));
   }
 }

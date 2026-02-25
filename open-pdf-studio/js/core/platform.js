@@ -296,6 +296,16 @@ export async function openDefaultAppsSettings() {
   }
 }
 
+// Download a PDF from URL to a temp file
+export async function downloadPdfFromUrl(url) {
+  return await invoke('download_pdf_from_url', { url });
+}
+
+// List PDF files in a directory
+export async function listPdfFiles(dir) {
+  return await invoke('list_pdf_files', { dir });
+}
+
 // File locking - prevent other apps from writing to an open file
 export async function lockFile(path) {
   try {

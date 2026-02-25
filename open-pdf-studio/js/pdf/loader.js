@@ -1,5 +1,4 @@
 import { state, getNextUntitledName } from '../core/state.js';
-import { placeholder, pdfContainer } from '../ui/dom-elements.js';
 import { showLoading, hideLoading } from '../ui/chrome/dialogs.js';
 import { updateAllStatus } from '../ui/chrome/status-bar.js';
 import { setViewMode } from './renderer.js';
@@ -9,6 +8,8 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { isTauri, readBinaryFile, openFileDialog, lockFile } from '../core/platform.js';
 import { PDFDocument } from 'pdf-lib';
 import { resetAnnotationStorage } from './form-layer.js';
+import { addRecentFile } from '../mobile/recent-files.js';
+import { extractFileName } from '../core/platform.js';
 
 // Sub-module imports
 import { extractAnnotationColors } from './loader/color-extraction.js';
@@ -158,9 +159,12 @@ export async function loadPDF(filePath, preloadedData = null) {
     // Eagerly start pdf-lib loading in background (don't await - runs in parallel with first paint)
     getSharedPdfLibDoc();
 
-    // Show PDF container, hide placeholder
-    placeholder.style.display = 'none';
-    pdfContainer.classList.add('visible');
+    // Show PDF container, hide placeholder (use getElementById directly — bundled
+    // module bindings can be stale after Solid re-renders)
+    const placeholder = document.getElementById('placeholder');
+    const pdfContainer = document.getElementById('pdf-container');
+    if (placeholder) placeholder.style.display = 'none';
+    if (pdfContainer) pdfContainer.classList.add('visible');
 
     // Render first page immediately (before annotation loading)
     await setViewMode(state.viewMode);
@@ -192,6 +196,11 @@ export async function loadPDF(filePath, preloadedData = null) {
 
     // Update window title
     updateWindowTitle();
+
+    // Track in recent files
+    if (filePath && !filePath.startsWith('__memory__')) {
+      addRecentFile(filePath, extractFileName(filePath));
+    }
 
     // Load existing annotations in background (after first paint)
     await loadExistingAnnotations();
@@ -273,8 +282,10 @@ export async function createBlankPDF(widthPt, heightPt, numPages) {
     state.currentPage = 1;
 
     // Show PDF container, hide placeholder
-    placeholder.style.display = 'none';
-    pdfContainer.classList.add('visible');
+    const placeholder = document.getElementById('placeholder');
+    const pdfContainer = document.getElementById('pdf-container');
+    if (placeholder) placeholder.style.display = 'none';
+    if (pdfContainer) pdfContainer.classList.add('visible');
 
     // Mark as modified so Ctrl+S will trigger Save As
     markDocumentModified();

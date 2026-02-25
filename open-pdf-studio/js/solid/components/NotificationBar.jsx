@@ -2,7 +2,7 @@ import { Show } from 'solid-js';
 import { visible, hideDefaultAppBar } from '../stores/defaultAppBarStore.js';
 import { state } from '../../core/state.js';
 
-export default function DefaultAppBar() {
+export default function NotificationBar() {
   const handleSetDefault = () => {
     import('../../core/platform.js').then(m => m.openDefaultAppsSettings());
     hideDefaultAppBar();
@@ -20,15 +20,15 @@ export default function DefaultAppBar() {
 
   return (
     <Show when={visible()}>
-      <div class="default-app-bar">
+      <div class="notification-bar">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="8" cy="8" r="7" stroke="#0969da" stroke-width="1.5" fill="none"/>
-          <path d="M7.5 5V4h1v1h-1zm0 7V6.5h1V12h-1z" fill="#0969da"/>
+          <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" fill="none"/>
+          <path d="M7.5 5V4h1v1h-1zm0 7V6.5h1V12h-1z" fill="currentColor"/>
         </svg>
         <span>Open PDF Studio is not set as the default app for opening PDF files.</span>
-        <button class="default-app-bar-action" onClick={handleSetDefault}>Set as Default</button>
-        <button class="default-app-bar-action" onClick={handleDontAsk}>Don't Ask Again</button>
-        <button class="default-app-bar-close" onClick={handleDismiss} title="Close">&times;</button>
+        <button class="notification-bar-action" onClick={handleSetDefault}>Set as Default</button>
+        <button class="notification-bar-action" onClick={handleDontAsk}>Don't Ask Again</button>
+        <button class="notification-bar-close" onClick={handleDismiss} title="Close">&times;</button>
       </div>
     </Show>
   );

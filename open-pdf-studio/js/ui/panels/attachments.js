@@ -1,3 +1,4 @@
+import i18next from '../../i18n/config.js';
 import { getActiveDocument } from '../../core/state.js';
 import { isTauri, writeBinaryFile, readBinaryFile } from '../../core/platform.js';
 import { PDFDocument, PDFName, PDFHexString, PDFDict, PDFArray, PDFString } from 'pdf-lib';
@@ -322,8 +323,8 @@ export async function updateAttachmentsList() {
     currentAttachments = {};
     selectedKeyLocal = null;
     setItems([]);
-    setCountText('0 attachments');
-    setEmptyMessage('No document open');
+    setCountText(i18next.t('leftPanel.attachmentsCount', { count: 0 }));
+    setEmptyMessage(i18next.t('leftPanel.noDocumentOpen'));
     setSelectedKey(null);
     updateToolbarState();
     return;
@@ -341,8 +342,8 @@ export async function updateAttachmentsList() {
       currentAttachments = {};
       selectedKeyLocal = null;
       setItems([]);
-      setCountText('0 attachments');
-      setEmptyMessage('No attachments in this document');
+      setCountText(i18next.t('leftPanel.attachmentsCount', { count: 0 }));
+      setEmptyMessage(i18next.t('leftPanel.noAttachments'));
       setSelectedKey(null);
       updateToolbarState();
       return;
@@ -385,15 +386,15 @@ export async function updateAttachmentsList() {
     });
 
     setItems(itemsArray);
-    setCountText(`${keys.length} attachment${keys.length !== 1 ? 's' : ''}`);
+    setCountText(i18next.t('leftPanel.attachmentsCount', { count: keys.length }));
     setEmptyMessage('');
   } catch (e) {
     console.warn('Failed to load attachments:', e);
     currentAttachments = {};
     selectedKeyLocal = null;
     setItems([]);
-    setCountText('0 attachments');
-    setEmptyMessage('Could not load attachments');
+    setCountText(i18next.t('leftPanel.attachmentsCount', { count: 0 }));
+    setEmptyMessage(i18next.t('leftPanel.couldNotLoadAttachments'));
     setSelectedKey(null);
   }
 

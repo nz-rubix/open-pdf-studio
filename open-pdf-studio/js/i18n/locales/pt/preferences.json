@@ -47,7 +47,12 @@
     "iconNewParagraph": "Novo par\u00e1grafo",
     "iconParagraph": "Par\u00e1grafo",
     "iconInsert": "Inserir",
-    "noFill": "Sem preenchimento"
+    "noFill": "Sem preenchimento",
+    "subtabGeneral": "Geral",
+    "subtabComments": "Comentários",
+    "subtabText": "Texto",
+    "subtabDrawing": "Desenho",
+    "subtabShapes": "Formas"
   },
   "drawing": {
     "freehandDefaults": "Padr\u00f5es de m\u00e3o livre",

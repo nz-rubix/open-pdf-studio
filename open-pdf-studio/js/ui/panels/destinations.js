@@ -1,3 +1,4 @@
+import i18next from '../../i18n/config.js';
 import { getActiveDocument } from '../../core/state.js';
 import { goToPage } from '../../pdf/renderer.js';
 import { setItems, setCountText, setEmptyMessage } from '../../solid/stores/panels/destinationsStore.js';
@@ -27,12 +28,12 @@ export async function updateDestinationsList() {
   if (!activeDoc || !activeDoc.pdfDoc) {
     destinationsMap = {};
     setItems([]);
-    setCountText('0 destinations');
-    setEmptyMessage('No document open');
+    setCountText(i18next.t('leftPanel.destinationsCount', { count: 0 }));
+    setEmptyMessage(i18next.t('leftPanel.noDocumentOpen'));
     return;
   }
 
-  setEmptyMessage('Loading...');
+  setEmptyMessage(i18next.t('loading'));
 
   try {
     const pdfDoc = activeDoc.pdfDoc;
@@ -40,8 +41,8 @@ export async function updateDestinationsList() {
     if (typeof pdfDoc.getDestinations !== 'function') {
       destinationsMap = {};
       setItems([]);
-      setCountText('0 destinations');
-      setEmptyMessage('No named destinations in this document');
+      setCountText(i18next.t('leftPanel.destinationsCount', { count: 0 }));
+      setEmptyMessage(i18next.t('leftPanel.noDestinations'));
       return;
     }
 
@@ -50,8 +51,8 @@ export async function updateDestinationsList() {
     if (!destinations || Object.keys(destinations).length === 0) {
       destinationsMap = {};
       setItems([]);
-      setCountText('0 destinations');
-      setEmptyMessage('No named destinations in this document');
+      setCountText(i18next.t('leftPanel.destinationsCount', { count: 0 }));
+      setEmptyMessage(i18next.t('leftPanel.noDestinations'));
       return;
     }
 
@@ -67,12 +68,12 @@ export async function updateDestinationsList() {
       }
       return { name, fitType };
     }));
-    setCountText(`${names.length} destination${names.length !== 1 ? 's' : ''}`);
+    setCountText(i18next.t('leftPanel.destinationsCount', { count: names.length }));
   } catch (e) {
     console.warn('Failed to load destinations:', e);
     destinationsMap = {};
     setItems([]);
-    setCountText('0 destinations');
-    setEmptyMessage('Could not load destinations');
+    setCountText(i18next.t('leftPanel.destinationsCount', { count: 0 }));
+    setEmptyMessage(i18next.t('leftPanel.couldNotLoadDestinations'));
   }
 }

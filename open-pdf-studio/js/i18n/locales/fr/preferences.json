@@ -47,7 +47,12 @@
     "iconNewParagraph": "Nouveau paragraphe",
     "iconParagraph": "Paragraphe",
     "iconInsert": "Insertion",
-    "noFill": "Sans remplissage"
+    "noFill": "Sans remplissage",
+    "subtabGeneral": "Général",
+    "subtabComments": "Commentaires",
+    "subtabText": "Texte",
+    "subtabDrawing": "Dessin",
+    "subtabShapes": "Formes"
   },
   "drawing": {
     "freehandDefaults": "Valeurs par défaut du dessin à main levée",

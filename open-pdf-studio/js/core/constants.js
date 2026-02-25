@@ -16,7 +16,8 @@ export const HANDLE_TYPES = {
   RADIUS: 'radius',
   ROTATE: 'rotate',
   CALLOUT_ARROW: 'callout_arrow',
-  CALLOUT_KNEE: 'callout_knee'
+  CALLOUT_KNEE: 'callout_knee',
+  CALLOUT_MOVE: 'callout_move'
 };
 
 // Default application preferences

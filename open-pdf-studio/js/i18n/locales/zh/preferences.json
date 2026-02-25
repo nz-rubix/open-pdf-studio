@@ -47,7 +47,12 @@
     "iconNewParagraph": "新段落",
     "iconParagraph": "段落",
     "iconInsert": "插入",
-    "noFill": "无填充"
+    "noFill": "无填充",
+    "subtabGeneral": "常规",
+    "subtabComments": "批注",
+    "subtabText": "文本",
+    "subtabDrawing": "绘图",
+    "subtabShapes": "形状"
   },
   "drawing": {
     "freehandDefaults": "手绘默认值",

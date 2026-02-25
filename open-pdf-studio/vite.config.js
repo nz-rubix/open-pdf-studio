@@ -10,7 +10,7 @@ export default defineConfig({
     '__APP_VERSION__': JSON.stringify(pkg.version),
   },
   server: {
-    port: 3001,
+    port: 3041,
     strictPort: true,
     host: '0.0.0.0',
     watch: {
@@ -19,7 +19,7 @@ export default defineConfig({
     hmr: {
       protocol: 'ws',
       host: 'localhost',
-      port: 3001,
+      port: 3041,
     },
   },
   build: { outDir: 'dist', emptyOutDir: true, chunkSizeWarningLimit: 2000 },

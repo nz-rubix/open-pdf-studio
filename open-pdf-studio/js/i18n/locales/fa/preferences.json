@@ -47,7 +47,12 @@
     "iconNewParagraph": "پاراگراف جدید",
     "iconParagraph": "پاراگراف",
     "iconInsert": "درج",
-    "noFill": "بدون پر کردن"
+    "noFill": "بدون پر کردن",
+    "subtabGeneral": "عمومی",
+    "subtabComments": "نظرات",
+    "subtabText": "متن",
+    "subtabDrawing": "ترسیم",
+    "subtabShapes": "اشکال"
   },
   "drawing": {
     "freehandDefaults": "پیش‌فرض‌های دست‌آزاد",

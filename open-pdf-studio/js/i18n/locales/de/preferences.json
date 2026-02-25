@@ -47,7 +47,12 @@
     "iconNewParagraph": "Neuer Absatz",
     "iconParagraph": "Absatz",
     "iconInsert": "Einf\u00fcgen",
-    "noFill": "Keine F\u00fcllung"
+    "noFill": "Keine F\u00fcllung",
+    "subtabGeneral": "Allgemein",
+    "subtabComments": "Kommentare",
+    "subtabText": "Text",
+    "subtabDrawing": "Zeichnung",
+    "subtabShapes": "Formen"
   },
   "drawing": {
     "freehandDefaults": "Freihand-Standardwerte",

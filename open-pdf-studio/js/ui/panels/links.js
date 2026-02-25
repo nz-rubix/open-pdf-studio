@@ -1,3 +1,4 @@
+import i18next from '../../i18n/config.js';
 import { state, getActiveDocument } from '../../core/state.js';
 import { goToPage } from '../../pdf/renderer.js';
 import { isTauri, saveFileDialog, writeBinaryFile, openExternal } from '../../core/platform.js';
@@ -131,9 +132,9 @@ async function scanAllLinks(pdfDoc) {
 
 function getLinkLabel(link) {
   if (link.url) return link.url;
-  if (link.destPage !== null) return `Go to Page ${link.destPage}`;
-  if (link.destName) return `Destination: ${link.destName}`;
-  return 'Internal Link';
+  if (link.destPage !== null) return i18next.t('leftPanel.goToPage', { page: link.destPage });
+  if (link.destName) return i18next.t('leftPanel.destination', { name: link.destName });
+  return i18next.t('leftPanel.internalLink');
 }
 
 function getLinkType(link) {
@@ -156,13 +157,13 @@ export function filterLinks(filterValue) {
   });
 
   if (filtered.length === 0) {
-    let msg = 'No links in this document';
-    if (filterValue === 'current') msg = 'No links on current page';
-    else if (filterValue === 'external') msg = 'No external links';
-    else if (filterValue === 'internal') msg = 'No internal links';
+    let msg = i18next.t('leftPanel.noLinks');
+    if (filterValue === 'current') msg = i18next.t('leftPanel.noLinksCurrentPage');
+    else if (filterValue === 'external') msg = i18next.t('leftPanel.noExternalLinks');
+    else if (filterValue === 'internal') msg = i18next.t('leftPanel.noInternalLinks');
 
     setGroups([]);
-    setCountText(`0 of ${allLinks.length} links`);
+    setCountText(i18next.t('leftPanel.linksFiltered', { filtered: 0, total: allLinks.length }));
     setEmptyMessage(msg);
     selectedLinkIndex = -1;
     setSelectedIndex(-1);
@@ -199,7 +200,7 @@ export function filterLinks(filterValue) {
         globalIndex,
         isExternal,
         label: getLinkLabel(link),
-        detail: `Page ${link.sourcePage} \u00B7 ${getLinkType(link)}`,
+        detail: `${i18next.t('page')} ${link.sourcePage} \u00B7 ${getLinkType(link)}`,
         borderColor: link.borderColor || null,
         appearance: hasAppearance,
         appearanceText: appearanceParts.length > 0 ? appearanceParts.join(' \u00B7 ') : ''
@@ -214,9 +215,9 @@ export function filterLinks(filterValue) {
 
   // Count text
   if (filtered.length === allLinks.length) {
-    setCountText(`${allLinks.length} link${allLinks.length !== 1 ? 's' : ''}`);
+    setCountText(i18next.t('leftPanel.linksCount', { count: allLinks.length }));
   } else {
-    setCountText(`${filtered.length} of ${allLinks.length} links`);
+    setCountText(i18next.t('leftPanel.linksFiltered', { filtered: filtered.length, total: allLinks.length }));
   }
 
   // Preserve or reset selection
@@ -348,15 +349,15 @@ export async function updateLinksList() {
     selectedLinkIndex = -1;
     setSelectedIndex(-1);
     setGroups([]);
-    setCountText('0 links');
-    setEmptyMessage('No document open');
+    setCountText(i18next.t('leftPanel.linksCount', { count: 0 }));
+    setEmptyMessage(i18next.t('leftPanel.noDocumentOpen'));
     updateToolbarState();
     return;
   }
 
   setGroups([]);
-  setEmptyMessage('Loading...');
-  setCountText('0 links');
+  setEmptyMessage(i18next.t('loading'));
+  setCountText(i18next.t('leftPanel.linksCount', { count: 0 }));
   selectedLinkIndex = -1;
   setSelectedIndex(-1);
   updateToolbarState();
@@ -368,8 +369,8 @@ export async function updateLinksList() {
     console.warn('Failed to load links:', e);
     allLinks = [];
     setGroups([]);
-    setCountText('0 links');
-    setEmptyMessage('Could not load links');
+    setCountText(i18next.t('leftPanel.linksCount', { count: 0 }));
+    setEmptyMessage(i18next.t('leftPanel.couldNotLoadLinks'));
     updateToolbarState();
   }
 }

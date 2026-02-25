@@ -107,14 +107,14 @@ export default function HomeTab() {
         <RibbonGroup label={t('home.navigate')}>
           <RibbonButtonStack>
             <RibbonButton size="small" id="first-page" title={t('home.firstPage')} icon={firstPageIcon} label={t('home.first')}
-              disabled={noPdf()} onClick={async () => { if (state.pdfDoc && state.currentPage !== 1) await goToPage(1); }} />
+              disabled={noPdf() || state.currentPage === 1} onClick={() => goToPage(1)} />
             <RibbonButton size="small" id="prev-page-ribbon" title={t('home.previousPage')} icon={prevPageIcon} label={t('home.previous')}
-              disabled={noPdf()} onClick={() => document.getElementById('prev-page')?.click()} />
+              disabled={noPdf() || state.currentPage <= 1} onClick={() => goToPage(state.currentPage - 1)} />
             <RibbonButton size="small" id="next-page-ribbon" title={t('home.nextPage')} icon={nextPageIcon} label={t('home.next')}
-              disabled={noPdf()} onClick={() => document.getElementById('next-page')?.click()} />
+              disabled={noPdf() || state.currentPage >= state.pdfDoc?.numPages} onClick={() => goToPage(state.currentPage + 1)} />
           </RibbonButtonStack>
           <RibbonButton id="last-page" title={t('home.lastPage')} icon={lastPageIcon} label={t('home.last')}
-            disabled={noPdf()} onClick={async () => { if (state.pdfDoc && state.currentPage !== state.pdfDoc.numPages) await goToPage(state.pdfDoc.numPages); }} />
+            disabled={noPdf() || state.currentPage >= state.pdfDoc?.numPages} onClick={() => goToPage(state.pdfDoc.numPages)} />
         </RibbonGroup>
 
         <RibbonGroup label={t('home.find')}>

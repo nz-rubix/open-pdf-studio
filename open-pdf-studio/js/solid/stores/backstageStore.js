@@ -6,7 +6,7 @@ const [activePanel, setActivePanelSignal] = createSignal('none');
 
 export function openBackstage() {
   state.backstageOpen = true;
-  setActivePanelSignal('none');
+  setActivePanelSignal('open');
 }
 
 export function closeBackstage() {

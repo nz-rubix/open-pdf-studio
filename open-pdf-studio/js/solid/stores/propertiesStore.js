@@ -3,6 +3,7 @@ import { createStore } from 'solid-js/store';
 import { state } from '../../core/state.js';
 import { recordPropertyChange } from '../../core/undo-manager.js';
 import { redrawAnnotations, redrawContinuous } from '../../annotations/rendering.js';
+import { computeTextboxContentHeight } from '../../annotations/rendering/shapes.js';
 import { formatDate, getTypeDisplayName } from '../../utils/helpers.js';
 import i18next from '../../i18n/config.js';
 
@@ -366,7 +367,7 @@ export function storeShowTextEditProperties(info) {
     fontUnderline: false,
     fontStrikethrough: false,
     textAlign: 'left',
-    lineSpacing: '1.2',
+    lineSpacing: '1.5',
     lineWidth: 0,
     opacity: 1,
     fillColor: null,
@@ -510,7 +511,14 @@ export function updateAnnotProp(key, value) {
     case 'fontUnderline': currentAnnotation.fontUnderline = value; break;
     case 'fontStrikethrough': currentAnnotation.fontStrikethrough = value; break;
     case 'textAlign': currentAnnotation.textAlign = value; break;
-    case 'lineSpacing': currentAnnotation.lineSpacing = parseFloat(value); break;
+    case 'lineSpacing': {
+      currentAnnotation.lineSpacing = parseFloat(value);
+      // Resize textbox height to fit content with new line spacing
+      if (['textbox', 'callout'].includes(currentAnnotation.type) && currentAnnotation.text) {
+        currentAnnotation.height = computeTextboxContentHeight(currentAnnotation);
+      }
+      break;
+    }
     case 'rotation': currentAnnotation.rotation = parseInt(value) || 0; break;
     case 'imageWidth': {
       const newW = parseInt(value) || 20;

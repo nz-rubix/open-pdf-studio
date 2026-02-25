@@ -1,6 +1,6 @@
 import { Show } from 'solid-js';
 import { state } from '../../core/state.js';
-import { useTranslation } from '../../i18n/useTranslation.js';
+import { useTranslation, localizeNumber } from '../../i18n/useTranslation.js';
 
 async function goFirst() {
   const { renderPage } = await import('../../pdf/renderer.js');
@@ -112,11 +112,11 @@ export default function StatusBar() {
     const translated = t(key);
     return translated !== key ? translated : state.currentTool;
   };
-  const totalPages = () => state.pdfDoc?.numPages || 0;
-  const zoomText = () => Math.round(state.scale * 100) + '%';
+  const totalPages = () => localizeNumber(state.pdfDoc?.numPages || 0);
+  const zoomText = () => localizeNumber(Math.round(state.scale * 100)) + '%';
   const annotationText = () => {
     if (state.viewMode === 'continuous') {
-      return `${state.annotations.length}`;
+      return localizeNumber(state.annotations.length);
     }
     const pageCount = state.annotations.filter(a => a.page === state.currentPage).length;
     return t('annotationsCount', { count: pageCount, total: state.annotations.length });
@@ -138,44 +138,44 @@ export default function StatusBar() {
 
       <Show when={!!state.pdfDoc}>
         <div class="status-bar-center">
-          <button class="status-nav-btn" title={t('firstPage')} onClick={goFirst}>
+          <button class="status-nav-btn" tabIndex={-1} title={t('firstPage')} onClick={goFirst}>
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7M18 19l-7-7 7-7"/>
             </svg>
           </button>
 
-          <button class="status-nav-btn" title={t('previousPage')} onClick={goPrev}>
+          <button class="status-nav-btn" tabIndex={-1} title={t('previousPage')} onClick={goPrev}>
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
             </svg>
           </button>
 
           <span class="status-page-info">
-            {t('page')} <input type="number" class="status-page-input" value={state.currentPage} min="1" onKeyDown={handlePageInput} onBlur={handlePageBlur} /> / <span>{totalPages()}</span>
+            {t('page')} <input type="number" class="status-page-input" tabIndex={-1} value={state.currentPage} min="1" onKeyDown={handlePageInput} onBlur={handlePageBlur} /> / <span>{totalPages()}</span>
           </span>
 
-          <button class="status-nav-btn" title={t('nextPage')} onClick={goNext}>
+          <button class="status-nav-btn" tabIndex={-1} title={t('nextPage')} onClick={goNext}>
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
             </svg>
           </button>
 
-          <button class="status-nav-btn" title={t('lastPage')} onClick={goLast}>
+          <button class="status-nav-btn" tabIndex={-1} title={t('lastPage')} onClick={goLast}>
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M6 5l7 7-7 7"/>
             </svg>
           </button>
 
           <div class="status-zoom-controls">
-            <button class="status-nav-btn" title={t('zoomOut')} onClick={handleZoomOut}>
+            <button class="status-nav-btn" tabIndex={-1} title={t('zoomOut')} onClick={handleZoomOut}>
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
               </svg>
             </button>
 
-            <input type="text" class="status-zoom-input" value={zoomText()} onKeyDown={handleZoomInput} onBlur={handleZoomBlur} />
+            <input type="text" class="status-zoom-input" tabIndex={-1} value={zoomText()} onKeyDown={handleZoomInput} onBlur={handleZoomBlur} />
 
-            <button class="status-nav-btn" title={t('zoomIn')} onClick={handleZoomIn}>
+            <button class="status-nav-btn" tabIndex={-1} title={t('zoomIn')} onClick={handleZoomIn}>
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
               </svg>

@@ -357,7 +357,8 @@ export function drawSnapIndicator(ctx, snapResult, scale) {
 
 // Combined snap: first try point snaps, then edge snap.
 // Returns the best snap result.
-export function performSnap(cursorX, cursorY, annotations, currentPage, scale, excludeId) {
+// inProgressPoints: optional array of {x,y} from the polyline/measure being drawn
+export function performSnap(cursorX, cursorY, annotations, currentPage, scale, excludeId, inProgressPoints) {
   const prefs = state.preferences;
   if (!prefs.enableObjectSnap) {
     return { x: cursorX, y: cursorY, snapped: false };
@@ -365,8 +366,15 @@ export function performSnap(cursorX, cursorY, annotations, currentPage, scale, e
 
   const snapRadius = (prefs.objectSnapRadius || 10) / scale;
 
-  // Collect point snap targets
+  // Collect point snap targets from completed annotations
   const snapPoints = collectSnapPoints(annotations, currentPage, excludeId);
+
+  // Add in-progress points (vertices already placed in the current polyline/measure)
+  if (inProgressPoints && inProgressPoints.length > 0) {
+    for (const pt of inProgressPoints) {
+      snapPoints.push({ x: pt.x, y: pt.y, type: 'endpoint', annotation: null });
+    }
+  }
 
   // Try point snap first (endpoints, corners, midpoints, centers)
   const pointResult = findNearestSnap(cursorX, cursorY, snapPoints, snapRadius);

@@ -3,6 +3,7 @@ import { isBackstageOpen, closeBackstage, getActivePanel, setActivePanel } from 
 import AboutPanel from './AboutPanel.jsx';
 import ImportPanel from './ImportPanel.jsx';
 import ExportPanel from './ExportPanel.jsx';
+import OpenPanel from './OpenPanel.jsx';
 import { openPDFFile } from '../../../pdf/loader.js';
 import { savePDF, savePDFAs } from '../../../pdf/saver.js';
 import { showPreferencesDialog } from '../../../core/preferences.js';
@@ -98,7 +99,7 @@ export default function Backstage() {
           </button>
           <div class="backstage-items">
             <MenuItem icon={ICONS.new} label={t('new')} shortcut="Ctrl+N" onClick={() => actionAndClose(showNewDocDialog)} />
-            <MenuItem icon={ICONS.open} label={t('open')} shortcut="Ctrl+O" onClick={() => actionAndClose(openPDFFile)} />
+            <MenuItem icon={ICONS.open} label={t('open')} shortcut="Ctrl+O" active={getActivePanel() === 'open'} onClick={() => setActivePanel('open')} />
             <MenuItem icon={ICONS.save} label={t('save')} shortcut="Ctrl+S" onClick={() => actionAndClose(savePDF)} />
             <MenuItem icon={ICONS.saveAs} label={t('saveAs')} shortcut="Ctrl+Shift+S" onClick={() => actionAndClose(savePDFAs)} />
             <MenuItem icon={ICONS.print} label={t('print')} shortcut="Ctrl+P" onClick={() => actionAndClose(showPrintDialog)} />
@@ -117,6 +118,9 @@ export default function Backstage() {
         </div>
         <div class="backstage-content" onClick={handleContentClick}>
           <Switch>
+            <Match when={getActivePanel() === 'open'}>
+              <OpenPanel />
+            </Match>
             <Match when={getActivePanel() === 'about'}>
               <AboutPanel />
             </Match>

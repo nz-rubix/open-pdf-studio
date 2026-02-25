@@ -47,7 +47,12 @@
     "iconNewParagraph": "新しい段落",
     "iconParagraph": "段落",
     "iconInsert": "挿入",
-    "noFill": "塗りつぶしなし"
+    "noFill": "塗りつぶしなし",
+    "subtabGeneral": "一般",
+    "subtabComments": "コメント",
+    "subtabText": "テキスト",
+    "subtabDrawing": "描画",
+    "subtabShapes": "図形"
   },
   "drawing": {
     "freehandDefaults": "フリーハンドの既定値",

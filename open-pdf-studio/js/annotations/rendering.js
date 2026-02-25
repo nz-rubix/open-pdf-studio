@@ -344,9 +344,16 @@ function drawAnnotation(ctx, annotation) {
       const coLineWidth = annotation.lineWidth !== undefined ? annotation.lineWidth : 1;
       const coBorderStyle = annotation.borderStyle || 'solid';
 
-      // Set stroke style for leader line
+      // Set stroke style for leader line and border
       ctx.strokeStyle = annotation.strokeColor || strokeColor;
       ctx.lineWidth = coLineWidth > 0 ? coLineWidth : 1;
+      if (coBorderStyle === 'dashed') {
+        ctx.setLineDash([8, 4]);
+      } else if (coBorderStyle === 'dotted') {
+        ctx.setLineDash([2, 2]);
+      } else {
+        ctx.setLineDash([]);
+      }
 
       // Arrow tip position
       const arrowX = annotation.arrowX !== undefined ? annotation.arrowX : annotation.x - 60;

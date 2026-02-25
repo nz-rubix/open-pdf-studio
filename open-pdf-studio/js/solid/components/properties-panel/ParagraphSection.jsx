@@ -1,5 +1,5 @@
 import { Show } from 'solid-js';
-import { annotProps, sectionVis, updateAnnotProp, cycleSelectNext } from '../../stores/propertiesStore.js';
+import { annotProps, sectionVis, updateAnnotProp } from '../../stores/propertiesStore.js';
 import CollapsibleSection from './CollapsibleSection.jsx';
 import PrefComboBox from '../preferences/PrefComboBox.jsx';
 import { useTranslation } from '../../../i18n/useTranslation.js';
@@ -43,16 +43,13 @@ export default function ParagraphSection() {
 
         <div class="property-group">
           <label>{t('paragraph.lineSpacing')}</label>
-          <select value={annotProps.lineSpacing} disabled={isLocked()}
-            onDblClick={cycleSelectNext}
-            onChange={(e) => updateAnnotProp('lineSpacing', e.target.value)}>
-            <option value="1">1x</option>
-            <option value="1.15">1.15x</option>
-            <option value="1.5">1.5x</option>
-            <option value="2">2x</option>
-            <option value="2.5">2.5x</option>
-            <option value="3">3x</option>
-          </select>
+          <PrefComboBox
+            value={() => annotProps.lineSpacing}
+            setValue={(val) => updateAnnotProp('lineSpacing', val)}
+            options={[1, 1.15, 1.5, 2, 2.5, 3]}
+            min={0.5} max={5} fallback={1.5} suffix="x"
+            disabled={isLocked}
+          />
         </div>
 
         <div class="property-group">

@@ -1,5 +1,5 @@
 import { state, selectAllOnPage, clearSelection } from '../core/state.js';
-import { undo, redo, recordBulkDelete, recordDelete, recordModify, recordBulkModify, recordClearPage } from '../core/undo-manager.js';
+import { undo, redo, recordAdd, recordBulkDelete, recordDelete, recordModify, recordBulkModify, recordClearPage } from '../core/undo-manager.js';
 // Properties panel now managed by Solid.js
 import { setTool } from './manager.js';
 import { showPreferencesDialog } from '../core/preferences.js';
@@ -7,6 +7,8 @@ import { showDocPropertiesDialog, showNewDocDialog } from '../ui/chrome/dialogs.
 import { copyAnnotation, copyAnnotations } from '../annotations/clipboard.js';
 import { redrawAnnotations, redrawContinuous } from '../annotations/rendering.js';
 import { applyMove } from '../annotations/transforms.js';
+import { calculateArea, calculatePerimeter, formatMeasurement } from '../annotations/measurement.js';
+import { createAnnotation } from '../annotations/factory.js';
 import { openPDFFile, isPdfAReadOnly } from '../pdf/loader.js';
 import { actualSize, fitWidth, fitPage } from '../pdf/renderer.js';
 import { savePDF, savePDFAs } from '../pdf/saver.js';
@@ -50,6 +52,54 @@ export function handleKeydown(e) {
 
   // Find input handles Enter, Shift+Enter, and Escape internally
   if (isFindInput) {
+    return;
+  }
+
+  // Enter key - complete area/perimeter measurement
+  if (e.key === 'Enter' && state.measurePoints && state.measurePoints.length >= 2) {
+    e.preventDefault();
+    const points = [...state.measurePoints];
+    const mPrefs = state.preferences;
+    let ann;
+    if (state.currentTool === 'measureArea' && points.length >= 3) {
+      const area = calculateArea(points);
+      ann = createAnnotation({
+        type: 'measureArea',
+        page: state.currentPage,
+        points: points,
+        color: mPrefs.measureStrokeColor,
+        strokeColor: mPrefs.measureStrokeColor,
+        lineWidth: mPrefs.measureLineWidth,
+        opacity: (mPrefs.measureOpacity || 100) / 100,
+        measureText: formatMeasurement(area),
+        measureValue: area.value,
+        measureUnit: area.unit
+      });
+    } else if (state.currentTool === 'measurePerimeter' && points.length >= 2) {
+      const perim = calculatePerimeter(points);
+      ann = createAnnotation({
+        type: 'measurePerimeter',
+        page: state.currentPage,
+        points: points,
+        color: mPrefs.measureStrokeColor,
+        strokeColor: mPrefs.measureStrokeColor,
+        lineWidth: mPrefs.measureLineWidth,
+        opacity: (mPrefs.measureOpacity || 100) / 100,
+        measureText: formatMeasurement(perim),
+        measureValue: perim.value,
+        measureUnit: perim.unit
+      });
+    }
+    if (ann) {
+      state.annotations.push(ann);
+      recordAdd(ann);
+    }
+    state.measurePoints = null;
+    if (state.viewMode === 'continuous') {
+      redrawContinuous();
+    } else {
+      redrawAnnotations();
+    }
     return;
   }
 
@@ -196,6 +246,16 @@ export function handleKeydown(e) {
     // First check if find bar is open
     if (state.search.isOpen) {
       closeFindBar();
+      return;
+    }
+    // Cancel in-progress measurement
+    if (state.measurePoints) {
+      state.measurePoints = null;
+      if (state.viewMode === 'continuous') {
+        redrawContinuous();
+      } else {
+        redrawAnnotations();
+      }
       return;
     }
     // If annotations are selected, deselect them first

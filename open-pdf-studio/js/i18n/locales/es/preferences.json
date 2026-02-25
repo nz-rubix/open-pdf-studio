@@ -47,7 +47,12 @@
     "iconNewParagraph": "Nuevo p\u00e1rrafo",
     "iconParagraph": "P\u00e1rrafo",
     "iconInsert": "Insertar",
-    "noFill": "Sin relleno"
+    "noFill": "Sin relleno",
+    "subtabGeneral": "General",
+    "subtabComments": "Comentarios",
+    "subtabText": "Texto",
+    "subtabDrawing": "Dibujo",
+    "subtabShapes": "Formas"
   },
   "drawing": {
     "freehandDefaults": "Valores predeterminados de mano alzada",

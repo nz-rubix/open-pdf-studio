@@ -57,11 +57,14 @@
 
 [dir="rtl"] .ribbon-group {
   border-right: none;
-  border-left: 1px solid var(--theme-ribbon-separator);
+  border-left: 1px solid var(--theme-ribbon-group-border);
+  margin-right: 0;
+  margin-left: 8px;
 }
 
 [dir="rtl"] .ribbon-group:last-child {
   border-left: none;
+  margin-left: 0;
 }
 
 /* Backstage / File menu */
@@ -130,6 +133,14 @@
 /* Properties panel sections */
 [dir="rtl"] .prop-row label {
   text-align: right;
+}
+
+/* Navigation icons: mirror directional arrows for RTL */
+[dir="rtl"] #first-page .ribbon-btn-icon,
+[dir="rtl"] #prev-page-ribbon .ribbon-btn-icon,
+[dir="rtl"] #next-page-ribbon .ribbon-btn-icon,
+[dir="rtl"] #last-page .ribbon-btn-icon {
+  transform: scaleX(-1);
 }
 
 /* Scrollbars - keep LTR direction for scroll behavior */

@@ -7,7 +7,7 @@ import { findHandleAt, getCursorForHandle } from '../annotations/handles.js';
 import { applyResize, applyMove, applyRotation } from '../annotations/transforms.js';
 import { redrawAnnotations, redrawContinuous, renderAnnotationsForPage, snapToGrid } from '../annotations/rendering.js';
 import { showProperties, hideProperties, showMultiSelectionProperties } from '../ui/panels/properties-panel.js';
-import { startTextEditing, addTextAnnotation, addComment } from './text-editing.js';
+import { startTextEditing, finishTextEditing, addTextAnnotation, addComment } from './text-editing.js';
 import { findTextEditAtPosition, startTextEditEditing } from './text-edit-tool.js';
 import { markDocumentModified } from '../ui/chrome/tabs.js';
 import { recordAdd, recordModify, recordBulkModify } from '../core/undo-manager.js';
@@ -43,6 +43,11 @@ export function handleMouseDown(e) {
   if (!state.pdfDoc) return;
   if (isModalDialogOpen()) return;
 
+  // Finish inline text editing when clicking outside
+  if (state.isEditingText) {
+    finishTextEditing();
+  }
+
   const rect = annotationCanvas.getBoundingClientRect();
   // Convert to unscaled coordinates
   const x = (e.clientX - rect.left) / state.scale;
@@ -76,7 +81,7 @@ export function handleMouseDown(e) {
         state.dragStartX = x;
         state.dragStartY = y;
         state.originalAnnotation = cloneAnnotation(state.selectedAnnotation);
-        annotationCanvas.style.cursor = getCursorForHandle(handleType, state.selectedAnnotation.rotation);
+        annotationCanvas.style.cursor = getCursorForHandle(handleType, state.selectedAnnotation.rotation, state.selectedAnnotation);
         return;
       }
     }
@@ -127,7 +132,7 @@ export function handleMouseDown(e) {
         state.isResizing = true;
         state.activeHandle = handleType;
         state.originalAnnotation = cloneAnnotation(state.selectedAnnotation);
-        annotationCanvas.style.cursor = getCursorForHandle(handleType, state.selectedAnnotation.rotation);
+        annotationCanvas.style.cursor = getCursorForHandle(handleType, state.selectedAnnotation.rotation, state.selectedAnnotation);
         return;
       }
     }
@@ -223,8 +228,8 @@ export function handleMouseDown(e) {
       return;
     }
 
-    // Single click - add point (with object snap)
-    const polySnap = performSnap(x, y, state.annotations, state.currentPage, state.scale);
+    // Single click - add point (with object snap, including in-progress vertices)
+    const polySnap = performSnap(x, y, state.annotations, state.currentPage, state.scale, null, state.polylinePoints);
     const polyPtX = polySnap.snapped ? polySnap.x : x;
     const polyPtY = polySnap.snapped ? polySnap.y : y;
     state.polylinePoints.push({ x: polyPtX, y: polyPtY });
@@ -277,8 +282,8 @@ export function handleMouseDown(e) {
   } else if (state.currentTool === 'measureArea' || state.currentTool === 'measurePerimeter') {
     // Multi-click to add points; use polyline-like behavior
     if (!state.measurePoints) state.measurePoints = [];
-    // Try object snap first
-    const mSnapResult = performSnap(x, y, state.annotations, state.currentPage, state.scale);
+    // Try object snap first (including in-progress vertices)
+    const mSnapResult = performSnap(x, y, state.annotations, state.currentPage, state.scale, null, state.measurePoints);
     let ptX = mSnapResult.snapped ? mSnapResult.x : x;
     let ptY = mSnapResult.snapped ? mSnapResult.y : y;
     // Snap angle relative to last placed point when Shift is held (only if not object-snapped)
@@ -352,7 +357,7 @@ export function handleMouseMove(e) {
     if (state.selectedAnnotation && state.selectedAnnotations.length === 1) {
       const handleType = findHandleAt(currentX, currentY, state.selectedAnnotation, state.scale);
       if (handleType) {
-        annotationCanvas.style.cursor = getCursorForHandle(handleType, state.selectedAnnotation.rotation);
+        annotationCanvas.style.cursor = getCursorForHandle(handleType, state.selectedAnnotation.rotation, state.selectedAnnotation);
         return;
       }
     }
@@ -388,7 +393,7 @@ export function handleMouseMove(e) {
     if (state.selectedAnnotations.length === 1) {
       const handleType = findHandleAt(currentX, currentY, state.selectedAnnotation, state.scale);
       if (handleType) {
-        annotationCanvas.style.cursor = getCursorForHandle(handleType, state.selectedAnnotation.rotation);
+        annotationCanvas.style.cursor = getCursorForHandle(handleType, state.selectedAnnotation.rotation, state.selectedAnnotation);
         return;
       }
     }
@@ -480,7 +485,7 @@ export function handleMouseMove(e) {
   if (state.currentTool === 'polyline' && state.isDrawingPolyline && state.polylinePoints.length > 0) {
     const polyPrefs = state.preferences;
     // Snap cursor position for preview
-    const polyPreviewSnap = performSnap(currentX, currentY, state.annotations, state.currentPage, state.scale);
+    const polyPreviewSnap = performSnap(currentX, currentY, state.annotations, state.currentPage, state.scale, null, state.polylinePoints);
     const polySnapX = polyPreviewSnap.snapped ? polyPreviewSnap.x : currentX;
     const polySnapY = polyPreviewSnap.snapped ? polyPreviewSnap.y : currentY;
     state.lastSnapResult = polyPreviewSnap.snapped ? polyPreviewSnap : null;
@@ -523,8 +528,8 @@ export function handleMouseMove(e) {
       state.measurePoints && state.measurePoints.length > 0) {
     const mPrefs = state.preferences;
     const mColor = mPrefs.measureStrokeColor || '#FF0000';
-    // Object snap for measurement preview
-    const mPreviewSnap = performSnap(currentX, currentY, state.annotations, state.currentPage, state.scale);
+    // Object snap for measurement preview (including in-progress vertices)
+    const mPreviewSnap = performSnap(currentX, currentY, state.annotations, state.currentPage, state.scale, null, state.measurePoints);
     state.lastSnapResult = mPreviewSnap.snapped ? mPreviewSnap : null;
     redrawAnnotations();
     annotationCtx.save();
@@ -777,6 +782,12 @@ export function handleMouseUp(e) {
 // Mouse event handlers for continuous mode
 export function handleContinuousMouseDown(e, pageNum) {
   if (isModalDialogOpen()) return;
+
+  // Finish inline text editing when clicking outside
+  if (state.isEditingText) {
+    finishTextEditing();
+  }
+
   const canvas = e.target;
   const rect = canvas.getBoundingClientRect();
   const rawX = (e.clientX - rect.left) / state.scale;

@@ -6,7 +6,7 @@ import { cloneAnnotation } from '../annotations/factory.js';
 import { markDocumentModified } from '../ui/chrome/tabs.js';
 import { injectSyntheticTextSpans } from '../text/text-layer.js';
 import { annotationCanvas } from '../ui/dom-elements.js';
-import { showTextEditOverlay, hideTextEditOverlay, getTextValue } from '../solid/stores/textEditOverlayStore.js';
+import { showTextEditOverlay, hideTextEditOverlay, getTextValue, getHeightGrowth } from '../solid/stores/textEditOverlayStore.js';
 
 // Start inline text editing for textbox/callout
 export function startTextEditing(annotation) {
@@ -50,7 +50,7 @@ export function startTextEditing(annotation) {
     'background-color': annotation.fillColor && annotation.fillColor !== 'transparent'
       ? annotation.fillColor : '#ffffff',
     border: `${(annotation.lineWidth || 1) * state.scale}px solid ${annotation.strokeColor || '#000000'}`,
-    padding: '5px',
+    padding: `${2 * state.scale}px`,
     'box-sizing': 'border-box',
     resize: 'none',
     outline: 'none',
@@ -65,7 +65,13 @@ export function startTextEditing(annotation) {
   if (annotation.fontBold) styleObj['font-weight'] = 'bold';
   if (annotation.fontItalic) styleObj['font-style'] = 'italic';
   if (annotation.textAlign) styleObj['text-align'] = annotation.textAlign;
-  if (annotation.lineSpacing) styleObj['line-height'] = annotation.lineSpacing;
+  // Line spacing: CSS line-height adds half-leading above first line.
+  // To show spacing only below text, we shift the textarea up inside a clipping wrapper.
+  const ls = annotation.lineSpacing || 1.5;
+  styleObj['line-height'] = ls;
+  const halfLeading = ((ls - 1) * (annotation.fontSize || 14) * state.scale) / 2;
+  // Pass halfLeading offset to the overlay component via a custom property
+  styleObj['--text-offset'] = `${halfLeading}px`;
 
   const initialText = annotation.text || '';
 
@@ -76,6 +82,12 @@ export function startTextEditing(annotation) {
     const ann = state.editingAnnotation;
     ann.text = newText;
     ann.modifiedAt = new Date().toISOString();
+
+    // Apply auto-grown height back to annotation
+    const growth = getHeightGrowth();
+    if (growth > 0) {
+      ann.height = (ann.height || 50) + growth / state.scale;
+    }
 
     if (state._textEditSnapshot && ann.id) {
       recordModify(ann.id, state._textEditSnapshot, ann);
@@ -133,6 +145,12 @@ export function finishTextEditing() {
   const currentText = getTextValue();
   annotation.text = currentText;
   annotation.modifiedAt = new Date().toISOString();
+
+  // Apply auto-grown height back to annotation
+  const growth = getHeightGrowth();
+  if (growth > 0) {
+    annotation.height = (annotation.height || 50) + growth / state.scale;
+  }
 
   if (state._textEditSnapshot && annotation.id) {
     recordModify(annotation.id, state._textEditSnapshot, annotation);

@@ -47,7 +47,12 @@
     "iconNewParagraph": "Nieuwe alinea",
     "iconParagraph": "Alinea",
     "iconInsert": "Invoegen",
-    "noFill": "Geen vulling"
+    "noFill": "Geen vulling",
+    "subtabGeneral": "Algemeen",
+    "subtabComments": "Opmerkingen",
+    "subtabText": "Tekst",
+    "subtabDrawing": "Tekening",
+    "subtabShapes": "Vormen"
   },
   "drawing": {
     "freehandDefaults": "Vrije hand standaardwaarden",

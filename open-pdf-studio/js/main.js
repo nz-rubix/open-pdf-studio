@@ -52,7 +52,7 @@ import App from './solid/App.jsx';
 import { addRecentFile } from './mobile/recent-files.js';
 
 // Tauri API
-import { isTauri, isMobile, isDevMode, getOpenedFile, loadSession, saveSession, fileExists, isDefaultPdfApp, openDefaultAppsSettings, extractFileName } from './core/platform.js';
+import { isTauri, isMobile, getOpenedFile, loadSession, saveSession, fileExists, isDefaultPdfApp, openDefaultAppsSettings, extractFileName } from './core/platform.js';
 
 // Disable default browser context menu
 function disableDefaultContextMenu() {
@@ -64,6 +64,35 @@ function disableDefaultContextMenu() {
   });
 }
 
+// Block browser/webview default shortcuts in production (Ctrl+I, Ctrl+U, Ctrl+G, etc.)
+function disableBrowserShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (!ctrl) return;
+
+    // Browser shortcuts to block: inspect (I/Shift+I), view source (U), find (G/Shift+G), print (P is handled by app)
+    const blocked = ['i', 'u', 'g', 'j'];
+    if (blocked.includes(e.key.toLowerCase()) && !e.target.matches('input, textarea')) {
+      e.preventDefault();
+    }
+    // Ctrl+Shift+I (DevTools), Ctrl+Shift+J (Console), Ctrl+Shift+C (Inspect element)
+    if (e.shiftKey && ['I', 'J', 'C'].includes(e.key)) {
+      e.preventDefault();
+    }
+    // F5 refresh, Ctrl+R refresh
+    if (e.key === 'r' || e.key === 'R') {
+      e.preventDefault();
+    }
+  }, true);
+
+  // Block F5/F12 at capture phase
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'F5') {
+      e.preventDefault();
+    }
+  }, true);
+}
+
 // Initialize application
 async function init() {
   const mobile = isMobile();
@@ -71,6 +100,11 @@ async function init() {
   // Disable context menu on desktop only (long-press is expected on mobile)
   if (!mobile) {
     disableDefaultContextMenu();
+  }
+
+  // Block browser shortcuts (Ctrl+I, Ctrl+U, F5, etc.)
+  if (isTauri() && !mobile) {
+    disableBrowserShortcuts();
   }
 
   // Load user preferences (before render so theme is applied)
@@ -141,6 +175,22 @@ async function init() {
     }
   }
 
+  // Listen for files opened from a second instance (single-instance plugin)
+  if (isTauri() && window.__TAURI__?.event) {
+    window.__TAURI__.event.listen('open-file', async (event) => {
+      try {
+        const filePath = event.payload;
+        if (filePath && filePath.toLowerCase().endsWith('.pdf')) {
+          createTab(filePath);
+          await loadPDF(filePath);
+          addRecentFile(filePath, extractFileName(filePath));
+        }
+      } catch (e) {
+        console.warn('Failed to open file from second instance:', e);
+      }
+    });
+  }
+
   // Check for file passed as command line argument
   const hasCommandLineFile = await checkCommandLineArgs();
 
@@ -149,9 +199,9 @@ async function init() {
     await restoreLastSession();
   }
 
-  // Desktop-only: check default PDF app and auto-update
+  // Desktop-only: check default PDF app and auto-update (deferred to avoid blocking startup)
   if (!mobile) {
-    await checkDefaultPdfApp();
+    setTimeout(() => checkDefaultPdfApp(), 3000);
     checkForUpdates(true);
   }
 }
@@ -165,6 +215,7 @@ async function checkCommandLineArgs() {
     if (filePath && filePath.toLowerCase().endsWith('.pdf')) {
       createTab(filePath);
       await loadPDF(filePath);
+      addRecentFile(filePath, extractFileName(filePath));
       return true;
     }
   } catch (e) {
