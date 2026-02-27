@@ -176,7 +176,7 @@ export function showCropMarginsDialog() {
   if (rangeRow) rangeRow.style.display = 'none';
 
   const paddingInput = document.getElementById('crop-margins-padding');
-  if (paddingInput) paddingInput.value = '5';
+  if (paddingInput) paddingInput.value = '0';
 
   const thresholdSlider = document.getElementById('crop-margins-threshold');
   if (thresholdSlider) thresholdSlider.value = '250';
@@ -246,7 +246,7 @@ export function initCropMarginsDialog() {
     okBtn.addEventListener('click', async () => {
       const applyTo = document.getElementById('crop-margins-apply')?.value || 'current';
       const rangeStr = document.getElementById('crop-margins-range')?.value || '';
-      const paddingMm = Math.max(0, Math.min(50, parseInt(document.getElementById('crop-margins-padding')?.value) || 5));
+      const paddingMm = Math.max(0, Math.min(50, parseInt(document.getElementById('crop-margins-padding')?.value) || 0));
       const threshold = parseInt(document.getElementById('crop-margins-threshold')?.value) || 250;
 
       hideCropMarginsDialog();
