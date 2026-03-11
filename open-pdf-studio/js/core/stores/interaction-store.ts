@@ -30,6 +30,8 @@ export interface InteractionState {
   panScrollStartY: number;
   activeContinuousCanvas: HTMLCanvasElement | null;
   activeContinuousPage: number | null;
+  measurePoints: Point[] | null;
+  lastSnapResult: any;
 }
 
 export const interactionState = createMutable<InteractionState>({
@@ -61,6 +63,8 @@ export const interactionState = createMutable<InteractionState>({
   panScrollStartY: 0,
   activeContinuousCanvas: null,
   activeContinuousPage: null,
+  measurePoints: null,
+  lastSnapResult: null,
 });
 
 export function resetDrawing(): void {
@@ -72,6 +76,8 @@ export function resetDrawing(): void {
   interactionState.isDrawingCloudPolyline = false;
   interactionState.dimPoints = [];
   interactionState.isDrawingDimension = false;
+  interactionState.measurePoints = null;
+  interactionState.lastSnapResult = null;
 }
 
 export function resetDrag(): void {

@@ -1,10 +1,12 @@
 import { state } from '../core/state.js';
 import { annotationCanvas, pdfContainer } from '../ui/dom-elements.js';
 import { hideProperties } from '../ui/panels/properties-panel.js';
-import { redrawAnnotations } from '../annotations/rendering.js';
+import { redrawAnnotations, redrawContinuous } from '../annotations/rendering.js';
 import { updateStatusTool } from '../ui/chrome/status-bar.js';
 import { isPdfAReadOnly } from '../pdf/loader.js';
 import { getAnnotationType } from '../plugins/annotation-type-registry.js';
+import { getTool } from './tool-registry.js';
+import { buildToolContext, resolvePointerCoords } from './tool-context.js';
 
 // Tools that are always allowed (view-only, non-modifying)
 const READONLY_ALLOWED_TOOLS = new Set(['select', 'selectComments', 'hand']);
@@ -75,31 +77,15 @@ export function setTool(tool) {
     return;
   }
 
-  // Cancel any ongoing polyline drawing when switching tools
-  if (state.isDrawingPolyline && tool !== 'polyline') {
-    state.polylinePoints = [];
-    state.isDrawingPolyline = false;
-    redrawAnnotations();
-  }
-
-  // Cancel any ongoing cloud polyline drawing when switching tools
-  if (state.isDrawingCloudPolyline && tool !== 'cloudPolyline') {
-    state.cloudPolylinePoints = [];
-    state.isDrawingCloudPolyline = false;
-    redrawAnnotations();
-  }
-
-  // Cancel any ongoing dimension drawing when switching tools
-  if (state.isDrawingDimension && tool !== 'measureDistance') {
-    state.dimPoints = [];
-    state.isDrawingDimension = false;
-    redrawAnnotations();
-  }
-
-  // Cancel any ongoing measurement when switching tools (including between area/perimeter)
-  if (state.measurePoints && tool !== state.currentTool) {
-    state.measurePoints = null;
-    redrawAnnotations();
+  // Deactivate the current tool via lifecycle
+  if (state.currentTool !== tool) {
+    const currentToolObj = getTool(state.currentTool);
+    if (currentToolObj && currentToolObj.onDeactivate) {
+      // Build a minimal context for deactivation
+      const redraw = () => { if (state.viewMode === 'continuous') redrawContinuous(); else redrawAnnotations(); };
+      const ctx = { state, redraw, redrawAnnotations, redrawContinuous };
+      currentToolObj.onDeactivate(ctx);
+    }
   }
 
   // Deactivate PDF text editing when switching away

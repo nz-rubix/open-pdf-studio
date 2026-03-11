@@ -92,6 +92,8 @@ export interface AppState {
   panScrollStartY: number;
   activeContinuousCanvas: HTMLCanvasElement | null;
   activeContinuousPage: number | null;
+  measurePoints: Point[] | null;
+  lastSnapResult: any;
 
   // Backward compat — clipboard-store
   clipboardAnnotation: Annotation | null;
@@ -208,6 +210,10 @@ export const state = createMutable<AppState>({
   set activeContinuousCanvas(v) { interactionState.activeContinuousCanvas = v; },
   get activeContinuousPage() { return interactionState.activeContinuousPage; },
   set activeContinuousPage(v) { interactionState.activeContinuousPage = v; },
+  get measurePoints() { return interactionState.measurePoints; },
+  set measurePoints(v) { interactionState.measurePoints = v; },
+  get lastSnapResult() { return interactionState.lastSnapResult; },
+  set lastSnapResult(v) { interactionState.lastSnapResult = v; },
 
   // Backward compat — clipboard-store
   get clipboardAnnotation() { return clipboardState.annotation; },

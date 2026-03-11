@@ -338,14 +338,16 @@ export async function renderContinuous() {
   });
 }
 
-// Setup mouse events for continuous mode pages
+// Setup pointer events for continuous mode pages
 function setupContinuousPageEvents(canvas, pageNum) {
+  // Store pageNum in dataset for the dispatcher's resolvePointerCoords
+  canvas.dataset.page = pageNum;
   // Import event handlers dynamically to avoid circular dependencies
-  import('../tools/mouse-handlers.js').then(({ handleContinuousMouseDown, handleContinuousMouseMove, handleContinuousMouseUp, handleContinuousDblClick }) => {
-    canvas.addEventListener('mousedown', (e) => handleContinuousMouseDown(e, pageNum));
-    canvas.addEventListener('mousemove', (e) => handleContinuousMouseMove(e, pageNum));
-    canvas.addEventListener('mouseup', (e) => handleContinuousMouseUp(e, pageNum));
-    canvas.addEventListener('dblclick', (e) => handleContinuousDblClick(e, pageNum));
+  import('../tools/tool-dispatcher.js').then(({ handlePointerDown, handlePointerMove, handlePointerUp, handleDblClick }) => {
+    canvas.addEventListener('pointerdown', handlePointerDown);
+    canvas.addEventListener('pointermove', handlePointerMove);
+    canvas.addEventListener('pointerup', handlePointerUp);
+    canvas.addEventListener('dblclick', handleDblClick);
   });
 }
 

@@ -1,6 +1,7 @@
 import { state } from '../core/state.js';
 import { annotationCanvas } from './dom-elements.js';
-import { handleMouseDown, handleMouseMove, handleMouseUp, handleDblClick } from '../tools/mouse-handlers.js';
+import { handlePointerDown, handlePointerMove, handlePointerUp, handleDblClick } from '../tools/tool-dispatcher.js';
+import { registerAllTools } from '../tools/tools/index.js';
 import { initKeyboardHandlers } from '../tools/keyboard-handlers.js';
 import { loadPDF } from '../pdf/loader.js';
 import { isTauri } from '../core/platform.js';
@@ -124,16 +125,19 @@ function setupPanelResize() {
 
 // Setup all event listeners
 export function setupEventListeners() {
-  // Canvas mouse events (single page mode)
+  // Register all tool handlers
+  registerAllTools();
+
+  // Canvas pointer events (single page mode) — pointer events enable setPointerCapture
   if (annotationCanvas) {
-    annotationCanvas.addEventListener('mousedown', handleMouseDown);
-    annotationCanvas.addEventListener('mousemove', handleMouseMove);
-    annotationCanvas.addEventListener('mouseup', handleMouseUp);
+    annotationCanvas.addEventListener('pointerdown', handlePointerDown);
+    annotationCanvas.addEventListener('pointermove', handlePointerMove);
+    annotationCanvas.addEventListener('pointerup', handlePointerUp);
     annotationCanvas.addEventListener('dblclick', handleDblClick);
   }
 
-  // Catch mouseup outside canvas to stop stuck drawing/shape state
-  document.addEventListener('mouseup', handleMouseUp);
+  // Catch pointerup outside canvas to stop stuck drawing/shape state
+  document.addEventListener('pointerup', handlePointerUp);
 
   initKeyboardHandlers();
   setupDragDrop();

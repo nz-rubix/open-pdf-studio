@@ -23,6 +23,8 @@ export function handlePanEnd(e) {
   pdfContainer.style.cursor = '';
   if (annotationCanvas) annotationCanvas.style.cursor = 'grab';
   document.querySelectorAll('.annotation-canvas').forEach(c => c.style.cursor = 'grab');
+  document.removeEventListener('pointermove', handlePanMove);
+  document.removeEventListener('pointerup', handlePanEnd);
   document.removeEventListener('mousemove', handlePanMove);
   document.removeEventListener('mouseup', handlePanEnd);
 }
@@ -36,6 +38,8 @@ export function handleMiddleButtonPanEnd(e) {
   pdfContainer.style.cursor = '';
   if (annotationCanvas) annotationCanvas.style.cursor = '';
   document.querySelectorAll('.annotation-canvas').forEach(c => c.style.cursor = '');
+  document.removeEventListener('pointermove', handlePanMove);
+  document.removeEventListener('pointerup', handleMiddleButtonPanEnd);
   document.removeEventListener('mousemove', handlePanMove);
   document.removeEventListener('mouseup', handleMiddleButtonPanEnd);
 }
@@ -53,8 +57,8 @@ export function startPan(e, isMiddleButton) {
   pdfContainer.style.cursor = 'grabbing';
   if (annotationCanvas) annotationCanvas.style.cursor = 'grabbing';
   document.querySelectorAll('.annotation-canvas').forEach(c => c.style.cursor = 'grabbing');
-  document.addEventListener('mousemove', handlePanMove);
-  document.addEventListener('mouseup', isMiddleButton ? handleMiddleButtonPanEnd : handlePanEnd);
+  document.addEventListener('pointermove', handlePanMove);
+  document.addEventListener('pointerup', isMiddleButton ? handleMiddleButtonPanEnd : handlePanEnd);
   e.preventDefault();
 }
 
@@ -69,7 +73,7 @@ export function startContinuousPan(e, isMiddleButton) {
   document.body.style.cursor = 'grabbing';
   pdfContainer.style.cursor = 'grabbing';
   document.querySelectorAll('.annotation-canvas').forEach(c => c.style.cursor = 'grabbing');
-  document.addEventListener('mousemove', handlePanMove);
-  document.addEventListener('mouseup', isMiddleButton ? handleMiddleButtonPanEnd : handlePanEnd);
+  document.addEventListener('pointermove', handlePanMove);
+  document.addEventListener('pointerup', isMiddleButton ? handleMiddleButtonPanEnd : handlePanEnd);
   e.preventDefault();
 }

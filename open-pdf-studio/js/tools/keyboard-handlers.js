@@ -5,7 +5,6 @@ import { showPreferencesDialog } from '../core/preferences.js';
 import { showDocPropertiesDialog, showNewDocDialog } from '../ui/chrome/dialogs.js';
 import { copyAnnotation, copyAnnotations } from '../annotations/clipboard.js';
 import { redrawAnnotations, redrawContinuous } from '../annotations/rendering.js';
-// Properties panel managed by Solid.js — imports below are bridge functions
 import { applyMove } from '../annotations/transforms.js';
 import { createMeasureAreaAnnotation, createMeasurePerimeterAnnotation } from './annotation-creators.js';
 import { openPDFFile, isPdfAReadOnly } from '../pdf/loader.js';
@@ -18,6 +17,7 @@ import { openFindBar, closeFindBar, onFindNext } from '../search/find-bar.js';
 import { closeActiveTab } from '../ui/chrome/tabs.js';
 import { hideProperties, showProperties, showMultiSelectionProperties, togglePropertiesPanel } from '../ui/panels/properties-panel.js';
 import { openDialog } from '../bridge.js';
+import { getTool } from './tool-registry.js';
 
 function redraw() {
   if (state.viewMode === 'continuous') redrawContinuous();

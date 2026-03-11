@@ -1,0 +1,56 @@
+/**
+ * Tool registration — imports all tools and registers them in the tool-registry
+ */
+import { registerTool } from '../tool-registry.js';
+import { handTool } from './hand-tool.js';
+import { selectTool } from './select-tool.js';
+import { drawTool } from './draw-tool.js';
+import { shapeTool } from './shape-tool.js';
+import { lineTool } from './line-tool.js';
+import { polylineTool, cloudPolylineTool } from './polyline-tool.js';
+import { measureDistanceTool, measureAreaTool, measurePerimeterTool } from './measurement-tool.js';
+import { commentTool, textTool, stampTool, signatureTool, editTextTool } from './text-tool.js';
+import { pluginClickTool } from './plugin-tool.js';
+
+export function registerAllTools() {
+  // Navigation / selection
+  registerTool('hand', handTool);
+  registerTool('select', selectTool);
+  registerTool('selectComments', selectTool);
+
+  // Freehand
+  registerTool('draw', drawTool);
+
+  // Shapes (all use the same drag-to-create pattern)
+  registerTool('box', shapeTool);
+  registerTool('circle', shapeTool);
+  registerTool('highlight', shapeTool);
+  registerTool('cloud', shapeTool);
+  registerTool('polygon', shapeTool);
+  registerTool('redaction', shapeTool);
+  registerTool('textbox', shapeTool);
+  registerTool('callout', shapeTool);
+
+  // Lines
+  registerTool('line', lineTool);
+  registerTool('arrow', lineTool);
+
+  // Multi-click tools
+  registerTool('polyline', polylineTool);
+  registerTool('cloudPolyline', cloudPolylineTool);
+
+  // Measurements
+  registerTool('measureDistance', measureDistanceTool);
+  registerTool('measureArea', measureAreaTool);
+  registerTool('measurePerimeter', measurePerimeterTool);
+
+  // Single-click placement
+  registerTool('comment', commentTool);
+  registerTool('text', textTool);
+  registerTool('stamp', stampTool);
+  registerTool('signature', signatureTool);
+  registerTool('editText', editTextTool);
+
+  // Plugin fallback
+  registerTool('_plugin_click', pluginClickTool);
+}
