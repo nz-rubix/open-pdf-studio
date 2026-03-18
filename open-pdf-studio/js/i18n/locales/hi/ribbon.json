@@ -250,6 +250,9 @@
     "dark": "गहरा",
     "blue": "नीला",
     "highContrast": "उच्च कंट्रास्ट",
-    "label": "थीम"
+    "label": "थीम",
+    "default": "डिफ़ॉल्ट",
+    "amberNavy": "एम्बर नेवी",
+    "deepForge": "डीप फोर्ज"
   }
 }

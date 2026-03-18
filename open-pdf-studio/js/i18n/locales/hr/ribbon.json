@@ -250,6 +250,9 @@
     "dark": "Tamna",
     "blue": "Plava",
     "highContrast": "Visoki kontrast",
-    "label": "Tema"
+    "label": "Tema",
+    "default": "Zadano",
+    "amberNavy": "Jantarno tamnoplava",
+    "deepForge": "Duboka kovačnica"
   }
 }

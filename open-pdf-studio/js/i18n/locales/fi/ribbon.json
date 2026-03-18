@@ -250,6 +250,9 @@
     "dark": "Tumma",
     "blue": "Sininen",
     "highContrast": "Suuri kontrasti",
-    "label": "Teema"
+    "label": "Teema",
+    "default": "Oletus",
+    "amberNavy": "Meripihka tumma",
+    "deepForge": "Syvä paja"
   }
 }

@@ -250,6 +250,9 @@
     "dark": "Dunkel",
     "blue": "Blau",
     "highContrast": "Hoher Kontrast",
-    "label": "Design"
+    "label": "Design",
+    "default": "Standard",
+    "amberNavy": "Bernstein Dunkel",
+    "deepForge": "Tiefschmiede"
   }
 }

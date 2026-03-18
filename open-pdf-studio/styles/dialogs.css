@@ -563,6 +563,7 @@
   cursor: pointer;
   color: var(--theme-text, #333);
   text-align: left;
+  white-space: nowrap;
 }
 
 .pref-combo-option:hover {
@@ -579,6 +580,37 @@
 .pref-combo-option.selected:hover {
   background: var(--theme-active, #0078d7);
   color: #fff;
+}
+
+.lang-select-dropdown {
+  display: none;
+  flex-direction: column;
+}
+.lang-select-dropdown.show {
+  display: flex;
+}
+.lang-select-search {
+  padding: 4px;
+  border-bottom: 1px solid var(--theme-border, #acacac);
+  flex-shrink: 0;
+}
+.lang-select-search input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 3px 6px;
+  font-size: 11px;
+  font-family: inherit;
+  border: 1px solid var(--theme-border, #acacac);
+  background: var(--theme-surface, #fff);
+  color: var(--theme-text, #333);
+  outline: none;
+}
+.lang-select-search input:focus {
+  border-color: var(--theme-active, #0078d7);
+}
+.lang-select-list {
+  overflow-y: auto;
+  flex: 1;
 }
 
 .modal-footer.preferences-footer {

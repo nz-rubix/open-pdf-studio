@@ -250,6 +250,9 @@
     "dark": "Ciemny",
     "blue": "Niebieski",
     "highContrast": "Wysoki kontrast",
-    "label": "Motyw"
+    "label": "Motyw",
+    "default": "Domyślny",
+    "amberNavy": "Bursztynowo-granatowy",
+    "deepForge": "Głęboka kuźnia"
   }
 }

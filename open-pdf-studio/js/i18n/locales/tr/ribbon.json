@@ -250,6 +250,9 @@
     "dark": "Koyu",
     "blue": "Mavi",
     "highContrast": "Yüksek Kontrast",
-    "label": "Tema"
+    "label": "Tema",
+    "default": "Varsayılan",
+    "amberNavy": "Kehribar Koyu",
+    "deepForge": "Derin Dövme"
   }
 }

@@ -250,6 +250,9 @@
     "dark": "Tmavý",
     "blue": "Modrý",
     "highContrast": "Vysoký kontrast",
-    "label": "Motiv"
+    "label": "Motiv",
+    "default": "Výchozí",
+    "amberNavy": "Jantarově námořní",
+    "deepForge": "Hluboká kovárna"
   }
 }

@@ -250,6 +250,9 @@
     "dark": "Tối",
     "blue": "Xanh dương",
     "highContrast": "Tương phản cao",
-    "label": "Giao diện"
+    "label": "Giao diện",
+    "default": "Mặc định",
+    "amberNavy": "Hổ phách tối",
+    "deepForge": "Lò rèn sâu"
   }
 }

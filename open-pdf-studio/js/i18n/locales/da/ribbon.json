@@ -250,6 +250,9 @@
     "dark": "Mørk",
     "blue": "Blå",
     "highContrast": "Høj kontrast",
-    "label": "Tema"
+    "label": "Tema",
+    "default": "Standard",
+    "amberNavy": "Ravgul marine",
+    "deepForge": "Dyb smedje"
   }
 }

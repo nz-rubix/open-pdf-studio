@@ -250,6 +250,9 @@
     "dark": "Donker",
     "blue": "Blauw",
     "highContrast": "Hoog contrast",
-    "label": "Thema"
+    "label": "Thema",
+    "default": "Standaard",
+    "amberNavy": "Amber donker",
+    "deepForge": "Diepe smederij"
   }
 }

@@ -250,6 +250,9 @@
     "dark": "گہرا",
     "blue": "نیلا",
     "highContrast": "اعلیٰ تضاد",
-    "label": "تھیم"
+    "label": "تھیم",
+    "default": "پہلے سے طے شدہ",
+    "amberNavy": "عنبر گہرا",
+    "deepForge": "گہری بھٹی"
   }
 }

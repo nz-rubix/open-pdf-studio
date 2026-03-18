@@ -250,6 +250,9 @@
     "dark": "Intunecat",
     "blue": "Albastru",
     "highContrast": "Contrast ridicat",
-    "label": "Tema"
+    "label": "Tema",
+    "default": "Implicit",
+    "amberNavy": "Chihlimbar închis",
+    "deepForge": "Forjă adâncă"
   }
 }

@@ -250,6 +250,9 @@
     "dark": "Mörkt",
     "blue": "Blått",
     "highContrast": "Hög kontrast",
-    "label": "Tema"
+    "label": "Tema",
+    "default": "Standard",
+    "amberNavy": "Bärnsten mörk",
+    "deepForge": "Djup smedja"
   }
 }

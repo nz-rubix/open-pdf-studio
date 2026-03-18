@@ -250,6 +250,9 @@
     "dark": "Mørk",
     "blue": "Blå",
     "highContrast": "Høy kontrast",
-    "label": "Tema"
+    "label": "Tema",
+    "default": "Standard",
+    "amberNavy": "Ravgul mørk",
+    "deepForge": "Dyp smie"
   }
 }

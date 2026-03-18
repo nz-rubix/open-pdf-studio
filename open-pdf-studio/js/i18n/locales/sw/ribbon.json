@@ -250,6 +250,9 @@
     "dark": "Giza",
     "blue": "Bluu",
     "highContrast": "Tofauti Kubwa",
-    "label": "Mandhari"
+    "label": "Mandhari",
+    "default": "Chaguo-msingi",
+    "amberNavy": "Amber Giza",
+    "deepForge": "Chuma Kirefu"
   }
 }

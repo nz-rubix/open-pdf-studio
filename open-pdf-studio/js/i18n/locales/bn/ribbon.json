@@ -250,6 +250,9 @@
     "dark": "গাঢ়",
     "blue": "নীল",
     "highContrast": "উচ্চ বৈসাদৃশ্য",
-    "label": "থিম"
+    "label": "থিম",
+    "default": "ডিফল্ট",
+    "amberNavy": "অ্যাম্বার নেভি",
+    "deepForge": "ডিপ ফোর্জ"
   }
 }

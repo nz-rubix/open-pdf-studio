@@ -250,6 +250,9 @@
     "dark": "Gelap",
     "blue": "Biru",
     "highContrast": "Kontras Tinggi",
-    "label": "Tema"
+    "label": "Tema",
+    "default": "Lalai",
+    "amberNavy": "Ambar Gelap",
+    "deepForge": "Tempa Dalam"
   }
 }

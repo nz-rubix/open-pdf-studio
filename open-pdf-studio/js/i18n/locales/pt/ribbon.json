@@ -250,6 +250,9 @@
     "dark": "Escuro",
     "blue": "Azul",
     "highContrast": "Alto contraste",
-    "label": "Tema"
+    "label": "Tema",
+    "default": "Padrão",
+    "amberNavy": "Âmbar escuro",
+    "deepForge": "Forja profunda"
   }
 }

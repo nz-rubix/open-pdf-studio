@@ -1,35 +1,42 @@
-import { For } from 'solid-js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
 import { LANGUAGES } from '../../../i18n/config.js';
+import PrefSelect from './PrefSelect.jsx';
+import LanguageSelect from './LanguageSelect.jsx';
 
 export default function GeneralTab(props) {
   const { t } = useTranslation('preferences');
   const { t: tRibbon } = useTranslation('ribbon');
   const p = props.prefs;
+
+  const languageOptions = LANGUAGES.map(lang => ({
+    value: lang.code,
+    label: lang.code === 'auto' ? 'Auto-detect' : `${lang.englishName} (${lang.name})`
+  }));
+
+  const themeOptions = [
+    { value: 'openaec-brown', label: tRibbon('theme.default') },
+    { value: 'light', label: tRibbon('theme.light') },
+    { value: 'dark', label: tRibbon('theme.dark') },
+    { value: 'blue', label: tRibbon('theme.blue') },
+    { value: 'openaec-dark', label: tRibbon('theme.amberNavy') },
+    { value: 'deep-forge', label: tRibbon('theme.deepForge') },
+    { value: 'highContrast', label: tRibbon('theme.highContrast') },
+  ];
+
   return (
     <>
       <fieldset class="pref-fieldset">
         <legend>{t('general.language')}</legend>
         <div class="pref-row">
           <label>{t('general.interfaceLanguage')}</label>
-          <select style="width:180px;" value={p.language[0]()} onChange={e => p.language[1](e.target.value)}>
-            <For each={LANGUAGES}>
-              {(lang) => <option value={lang.code}>{lang.code === 'auto' ? 'Auto-detect' : `${lang.englishName} (${lang.name})`}</option>}
-            </For>
-          </select>
+          <LanguageSelect value={p.language[0]} setValue={p.language[1]} options={languageOptions} style={{ width: '220px' }} />
         </div>
       </fieldset>
       <fieldset class="pref-fieldset">
         <legend>{t('general.theme')}</legend>
         <div class="pref-row">
           <label>{t('general.applicationTheme')}</label>
-          <select style="width:120px;" value={p.theme[0]()} onChange={e => p.theme[1](e.target.value)}>
-            <option value="system">{tRibbon('theme.system')}</option>
-            <option value="light">{tRibbon('theme.light')}</option>
-            <option value="dark">{tRibbon('theme.dark')}</option>
-            <option value="blue">{tRibbon('theme.blue')}</option>
-            <option value="highContrast">{tRibbon('theme.highContrast')}</option>
-          </select>
+          <PrefSelect value={p.theme[0]} setValue={p.theme[1]} options={themeOptions} style={{ width: '140px' }} />
         </div>
       </fieldset>
       <fieldset class="pref-fieldset">

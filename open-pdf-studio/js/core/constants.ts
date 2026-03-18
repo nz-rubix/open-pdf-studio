@@ -28,7 +28,7 @@ export const HANDLE_TYPES = {
 // Default application preferences
 export const DEFAULT_PREFERENCES: Preferences = {
   // Theme
-  theme: 'system',
+  theme: 'openaec-brown',
 
   // General — authorName defaults to '' (resolved to OS username at load time)
   authorName: '',

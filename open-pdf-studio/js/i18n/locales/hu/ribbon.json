@@ -250,6 +250,9 @@
     "dark": "Sötét",
     "blue": "Kék",
     "highContrast": "Magas kontraszt",
-    "label": "Téma"
+    "label": "Téma",
+    "default": "Alapértelmezett",
+    "amberNavy": "Borostyán sötét",
+    "deepForge": "Mély kovácsolás"
   }
 }

@@ -250,6 +250,9 @@
     "dark": "ダーク",
     "blue": "ブルー",
     "highContrast": "ハイコントラスト",
-    "label": "テーマ"
+    "label": "テーマ",
+    "default": "デフォルト",
+    "amberNavy": "アンバーネイビー",
+    "deepForge": "ディープフォージ"
   }
 }

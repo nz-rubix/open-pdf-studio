@@ -250,6 +250,9 @@
     "dark": "تاریک",
     "blue": "آبی",
     "highContrast": "کنتراست بالا",
-    "label": "پوسته"
+    "label": "پوسته",
+    "default": "پیش‌فرض",
+    "amberNavy": "کهربایی تیره",
+    "deepForge": "کوره عمیق"
   }
 }

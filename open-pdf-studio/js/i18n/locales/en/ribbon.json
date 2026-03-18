@@ -260,10 +260,13 @@
   },
   "theme": {
     "system": "System (Auto Detect)",
+    "default": "Default",
     "light": "Light",
     "dark": "Dark",
     "blue": "Blue",
+    "amberNavy": "Amber Navy",
     "highContrast": "High Contrast",
-    "label": "Theme"
+    "label": "Theme",
+    "deepForge": "Deep Forge"
   }
 }

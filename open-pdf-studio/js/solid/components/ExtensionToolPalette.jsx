@@ -213,7 +213,7 @@ export function DockedExtPalette(props) {
 
   return (
     <Show when={shouldShow()}>
-      <div class={`tp-docked tp-docked-${side()}${paletteIconSize() === 'large' ? ' tp-large' : ''}`} onContextMenu={showPaletteCtxMenu}>
+      <div class={`tp-docked tp-ext tp-docked-${side()}${paletteIconSize() === 'large' ? ' tp-large' : ''}`} onContextMenu={showPaletteCtxMenu}>
         <div class="tp-grip" onMouseDown={(e) => startExtDrag(id(), e, true)}>
           <GripIcon />
         </div>
@@ -253,7 +253,7 @@ export function FloatingExtPalette(props) {
   return (
     <Show when={shouldShow()}>
       <div
-        class={`tp-float${paletteIconSize() === 'large' ? ' tp-large' : ''}`}
+        class={`tp-float tp-ext${paletteIconSize() === 'large' ? ' tp-large' : ''}`}
         style={`left:${ps().floatPos[0]().x}px; top:${ps().floatPos[0]().y}px`}
         onContextMenu={showPaletteCtxMenu}
       >

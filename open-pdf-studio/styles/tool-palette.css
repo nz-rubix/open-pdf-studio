@@ -44,11 +44,12 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: #ffffff;
+  background: var(--theme-surface, #ffffff);
   padding: 0 0 2px;
   user-select: none;
   overflow: hidden;
 }
+.tp-ext.tp-docked, .tp-ext.tp-float { background: #ffffff; }
 
 .tp-docked-tools {
   display: flex;
@@ -122,7 +123,7 @@
 .tp-float {
   position: fixed;
   z-index: 950;
-  background: #ffffff;
+  background: var(--theme-surface, #ffffff);
   border: 1px solid var(--theme-border);
   box-shadow: 0 4px 16px rgba(0,0,0,0.22), 0 1px 4px rgba(0,0,0,0.12);
   user-select: none;

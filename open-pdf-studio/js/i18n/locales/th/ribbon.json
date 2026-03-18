@@ -250,6 +250,9 @@
     "dark": "มืด",
     "blue": "น้ำเงิน",
     "highContrast": "คอนทราสต์สูง",
-    "label": "ธีม"
+    "label": "ธีม",
+    "default": "ค่าเริ่มต้น",
+    "amberNavy": "อำพันเข้ม",
+    "deepForge": "ดีพฟอร์จ"
   }
 }
