@@ -43,7 +43,6 @@ export async function savePDF(saveAsPath = null) {
     const pdfDocLib = await PDFDocument.load(existingPdfBytes);
 
     // Strip PDF/A metadata — saved file no longer conforms to PDF/A
-    const activeDoc = getActiveDocument();
     if (activeDoc && activeDoc.pdfaCompliance) {
       stripPdfAMetadata(pdfDocLib);
       activeDoc.pdfaCompliance = null;

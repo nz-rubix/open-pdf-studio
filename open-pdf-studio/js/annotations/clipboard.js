@@ -10,6 +10,26 @@ import { recordAdd, recordBulkAdd } from '../core/undo-manager.js';
 // Copy annotation to internal clipboard
 export function copyAnnotation(annotation) {
   state.clipboardAnnotation = cloneAnnotation(annotation);
+
+  // Also copy image data to system clipboard so other apps can paste it
+  if ((annotation.type === 'image' || annotation.type === 'signature' || annotation.type === 'stamp') && annotation.imageData) {
+    try {
+      const img = state.imageCache.get(annotation.imageId);
+      if (img && img.complete) {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || annotation.width;
+        canvas.height = img.naturalHeight || annotation.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).catch(() => {});
+          }
+        }, 'image/png');
+      }
+    } catch (_) {}
+  }
+
   updateStatusMessage('Annotation copied');
 }
 
@@ -47,6 +67,13 @@ export async function pasteImageFromBlob(blob) {
     img.onerror = reject;
   });
 
+  // Convert blob URL to data URL for serialization/saving
+  const dataUrl = await new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
+
   // Store in cache
   state.imageCache.set(imageId, img);
 
@@ -80,7 +107,7 @@ export async function pasteImageFromBlob(blob) {
     height: height,
     rotation: 0,
     imageId: imageId,
-    imageData: url, // Keep URL for potential serialization
+    imageData: dataUrl, // data:image/... URL for PDF embedding
     originalWidth: img.naturalWidth,
     originalHeight: img.naturalHeight,
     opacity: 1,

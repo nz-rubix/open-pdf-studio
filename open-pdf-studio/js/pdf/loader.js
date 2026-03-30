@@ -428,10 +428,10 @@ async function loadAnnotationsForSinglePage(doc, pageNum, waitForColors = false)
     pdfLibDoc = await getSharedPdfLibDoc(doc);
   }
 
-  if (stampAnnots.length > 0) {
-    // Use PDF.js rendering fallback — renders page with annotations and crops each stamp region
-    // This correctly handles nested Form XObjects, transparency groups, and complex color spaces
-    stampImageMap = await extractStampImagesViaPdfJs(page, viewport, stampAnnots);
+  if (stampAnnots.length > 0 && pdfLibDoc) {
+    // Extract images directly from AP stream XObjects via pdf-lib
+    // (avoids rendering whole page with annotationMode:1 which bakes other annotations into stamp images)
+    stampImageMap = await extractStampImages(pageNum, pdfLibDoc);
   }
 
   if (needsExtraData) {
@@ -522,8 +522,8 @@ export async function loadExistingAnnotations(doc) {
       const pdfLibDoc = await getSharedPdfLibDoc(doc);
       if (loadId !== doc._annotationLoadId || !state.documents.includes(doc)) return;
 
-      if (stampAnnots.length > 0) {
-        stampImageMap = await extractStampImagesViaPdfJs(page, viewport, stampAnnots);
+      if (stampAnnots.length > 0 && pdfLibDoc) {
+        stampImageMap = await extractStampImages(pageNum, pdfLibDoc);
         if (loadId !== doc._annotationLoadId || !state.documents.includes(doc)) return;
       }
 
@@ -566,8 +566,8 @@ export async function loadExistingAnnotations(doc) {
         let stampImageMap = null;
         let annotColorMap = null;
 
-        if (stampAnnots.length > 0) {
-          stampImageMap = await extractStampImagesViaPdfJs(page, viewport, stampAnnots);
+        if (stampAnnots.length > 0 && pdfLibDoc) {
+          stampImageMap = await extractStampImages(pageNum, pdfLibDoc);
         }
         if (needsExtraData) {
           annotColorMap = await extractAnnotationColors(pageNum, pdfLibDoc);
