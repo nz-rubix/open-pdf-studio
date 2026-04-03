@@ -196,16 +196,21 @@ export async function renderPage(pageNum) {
       if (vr.hasCachedCommands(doc.filePath, pageNum)) {
         const t0v = performance.now();
         const dims = vr.getCachedPageDimensions(doc.filePath, pageNum);
-        pdfCanvas.width = Math.ceil(dims.w * scale * dpr);
-        pdfCanvas.height = Math.ceil(dims.h * scale * dpr);
-        pdfCanvas.style.width = Math.floor(dims.w * scale) + 'px';
-        pdfCanvas.style.height = Math.floor(dims.h * scale) + 'px';
+        // Vector mode: render at CSS pixel size only (NOT × DPR)
+        // Vectors are resolution-independent — no need for hi-DPI buffer
+        // This keeps canvas size manageable (max ~50MB instead of 1GB+)
+        const cssW = Math.ceil(dims.w * scale);
+        const cssH = Math.ceil(dims.h * scale);
+        pdfCanvas.width = cssW;
+        pdfCanvas.height = cssH;
+        pdfCanvas.style.width = cssW + 'px';
+        pdfCanvas.style.height = cssH + 'px';
 
         const ctx = pdfCanvas.getContext('2d');
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, pdfCanvas.width, pdfCanvas.height);
+        ctx.fillRect(0, 0, cssW, cssH);
 
-        const transform = { a: scale * dpr, b: 0, c: 0, d: scale * dpr, e: 0, f: 0 };
+        const transform = { a: scale, b: 0, c: 0, d: scale, e: 0, f: 0 };
         vr.renderVectorPage(ctx, doc.filePath, pageNum, transform);
 
         const elapsed = Math.round(performance.now() - t0v);

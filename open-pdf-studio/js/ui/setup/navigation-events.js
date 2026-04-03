@@ -40,7 +40,7 @@ export function setupWheelZoom() {
       if (!doc) return;
 
       const minZoom = 0.25;
-      const maxZoom = 10.0;
+      const maxZoom = 5.0; // Capped to prevent canvas OOM (A3 at 5x = ~140MB)
       const oldScale = doc.scale;
 
       // Multiplicative zoom: smooth at all levels, works with trackpad pinch too
@@ -110,20 +110,21 @@ export function setupWheelZoom() {
 
           const pdfCanvas = document.getElementById('pdf-canvas');
           if (!pdfCanvas) return;
-          const _dpr = window.devicePixelRatio || 1;
           const dims = _vectorRenderer.getCachedPageDimensions(doc.filePath, doc.currentPage);
           if (!dims) return;
 
-          // Now resize + redraw (only once after zoom stops)
-          pdfCanvas.width = Math.ceil(dims.w * doc.scale * _dpr);
-          pdfCanvas.height = Math.ceil(dims.h * doc.scale * _dpr);
-          pdfCanvas.style.width = Math.floor(dims.w * doc.scale) + 'px';
-          pdfCanvas.style.height = Math.floor(dims.h * doc.scale) + 'px';
+          // Vector mode: CSS pixel size only (no DPR multiplication)
+          const cssW = Math.ceil(dims.w * doc.scale);
+          const cssH = Math.ceil(dims.h * doc.scale);
+          pdfCanvas.width = cssW;
+          pdfCanvas.height = cssH;
+          pdfCanvas.style.width = cssW + 'px';
+          pdfCanvas.style.height = cssH + 'px';
           const ctx = pdfCanvas.getContext('2d');
           ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, pdfCanvas.width, pdfCanvas.height);
+          ctx.fillRect(0, 0, cssW, cssH);
           _vectorRenderer.renderVectorPage(ctx, doc.filePath, doc.currentPage,
-            { a: doc.scale * _dpr, b: 0, c: 0, d: doc.scale * _dpr, e: 0, f: 0 });
+            { a: doc.scale, b: 0, c: 0, d: doc.scale, e: 0, f: 0 });
 
           // Annotation canvas
           const annCanvas = document.getElementById('annotation-canvas');
