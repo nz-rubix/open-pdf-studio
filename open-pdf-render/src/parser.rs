@@ -194,7 +194,8 @@ impl DocumentHandle {
         let mut state = crate::graphics_state::GraphicsStateStack::new();
         let mut cmds = crate::draw_commands::DrawCommandBuffer::new();
         let resources = self.get_page_resources(page_id)?;
-        crate::interpreter::Interpreter::extract_commands(&content_bytes, &mut cmds, &mut state, &self.doc, &resources)?;
+        let mut font_registry = crate::fonts::FontRegistry::new();
+        crate::interpreter::Interpreter::extract_commands(&content_bytes, &mut cmds, &mut state, &self.doc, &resources, &mut font_registry)?;
 
         // Prepend 16-byte header: x0, y0, width, height (all f32 LE)
         let cmd_bytes = cmds.into_bytes();

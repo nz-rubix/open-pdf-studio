@@ -5,6 +5,10 @@ mod renderer;
 mod color;
 mod image_decode;
 pub mod draw_commands;
+pub mod encoding;
+pub mod font_parser;
+pub mod fonts;
+pub mod text_renderer;
 
 pub use parser::DocumentHandle;
 pub use draw_commands::DrawCommandBuffer;
