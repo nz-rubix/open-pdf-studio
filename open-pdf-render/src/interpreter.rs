@@ -630,9 +630,10 @@ impl Interpreter {
                         if !bytes.is_empty() {
                             let (r, g, b, a) = state.current.fill_color;
                             let rgba = Self::color_to_u32(r, g, b, a);
-                            if let Some(font_entry) = font_registry.get_font(
+                            let font_entry_opt = font_registry.get_font(
                                 &text_state.current_font_name, doc, resources,
-                            ) {
+                            );
+                            if let Some(font_entry) = font_entry_opt {
                                 if font_entry.is_cid && font_entry.parsed.is_some() {
                                     crate::text_renderer::render_cid_text_glyphs(
                                         bytes, font_entry, text_state.font_size,

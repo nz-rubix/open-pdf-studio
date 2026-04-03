@@ -104,7 +104,18 @@ impl FontRegistry {
     pub fn char_to_glyph_id(entry: &FontEntry, char_code: u8) -> Option<u16> {
         let parsed = entry.parsed.as_ref()?;
 
-        // Resolve byte to Unicode character
+        // For embedded subset fonts without explicit encoding:
+        // Character codes map directly to glyph indices in the font subset.
+        // These fonts have names like "PZNDHJ+SegoeUI" (6-letter subset prefix + '+').
+        if entry.encoding_name.is_none() && entry.differences.is_empty() {
+            // No encoding specified — try direct glyph index mapping first
+            let gid = char_code as u16;
+            if parsed.glyphs.contains_key(&gid) {
+                return Some(gid);
+            }
+        }
+
+        // Standard path: resolve via encoding tables + cmap
         let ch = encoding::resolve_char_code(
             entry.encoding_name.as_deref(),
             &entry.differences,
