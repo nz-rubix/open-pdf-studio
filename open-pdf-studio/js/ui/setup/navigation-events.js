@@ -113,24 +113,32 @@ export function setupWheelZoom() {
           const dims = _vectorRenderer.getCachedPageDimensions(doc.filePath, doc.currentPage);
           if (!dims) return;
 
-          // Vector mode: CSS pixel size only (no DPR multiplication)
-          const cssW = Math.ceil(dims.w * doc.scale);
-          const cssH = Math.ceil(dims.h * doc.scale);
-          pdfCanvas.width = cssW;
-          pdfCanvas.height = cssH;
-          pdfCanvas.style.width = cssW + 'px';
-          pdfCanvas.style.height = cssH + 'px';
+          // Fixed viewport canvas — NO resize on zoom (like Open2D Studio)
+          const scrollCont = document.getElementById('pdf-container');
+          const vpW = scrollCont ? scrollCont.clientWidth : 1280;
+          const vpH = scrollCont ? scrollCont.clientHeight : 800;
+          if (pdfCanvas.width !== vpW || pdfCanvas.height !== vpH) {
+            pdfCanvas.width = vpW;
+            pdfCanvas.height = vpH;
+          }
+          pdfCanvas.style.width = Math.ceil(dims.w * doc.scale) + 'px';
+          pdfCanvas.style.height = Math.ceil(dims.h * doc.scale) + 'px';
+          const scrollX = scrollCont ? scrollCont.scrollLeft : 0;
+          const scrollY = scrollCont ? scrollCont.scrollTop : 0;
           const ctx = pdfCanvas.getContext('2d');
+          ctx.clearRect(0, 0, vpW, vpH);
           ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, cssW, cssH);
+          ctx.fillRect(0, 0, vpW, vpH);
           _vectorRenderer.renderVectorPage(ctx, doc.filePath, doc.currentPage,
-            { a: doc.scale, b: 0, c: 0, d: doc.scale, e: 0, f: 0 });
+            { a: doc.scale, b: 0, c: 0, d: doc.scale, e: -scrollX, f: -scrollY });
 
-          // Annotation canvas
+          // Annotation canvas — same viewport size
           const annCanvas = document.getElementById('annotation-canvas');
           if (annCanvas) {
-            annCanvas.width = pdfCanvas.width;
-            annCanvas.height = pdfCanvas.height;
+            if (annCanvas.width !== vpW || annCanvas.height !== vpH) {
+              annCanvas.width = vpW;
+              annCanvas.height = vpH;
+            }
             annCanvas.style.width = pdfCanvas.style.width;
             annCanvas.style.height = pdfCanvas.style.height;
           }

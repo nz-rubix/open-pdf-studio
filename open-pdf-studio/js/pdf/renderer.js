@@ -196,27 +196,40 @@ export async function renderPage(pageNum) {
       if (vr.hasCachedCommands(doc.filePath, pageNum)) {
         const t0v = performance.now();
         const dims = vr.getCachedPageDimensions(doc.filePath, pageNum);
-        // Vector mode: render at CSS pixel size only (NOT × DPR)
-        // Vectors are resolution-independent — no need for hi-DPI buffer
-        // This keeps canvas size manageable (max ~50MB instead of 1GB+)
-        const cssW = Math.ceil(dims.w * scale);
-        const cssH = Math.ceil(dims.h * scale);
-        pdfCanvas.width = cssW;
-        pdfCanvas.height = cssH;
-        pdfCanvas.style.width = cssW + 'px';
-        pdfCanvas.style.height = cssH + 'px';
+
+        // FIXED CANVAS SIZE = viewport dimensions (like Open2D Studio)
+        // Canvas NEVER resizes on zoom — only the transform matrix changes.
+        // This makes zoom/pan O(1) regardless of zoom level.
+        const scrollContainer = document.getElementById('pdf-container');
+        const vpW = scrollContainer ? scrollContainer.clientWidth : 1280;
+        const vpH = scrollContainer ? scrollContainer.clientHeight : 800;
+
+        // Only resize canvas if viewport changed (window resize), not on zoom
+        if (pdfCanvas.width !== vpW || pdfCanvas.height !== vpH) {
+          pdfCanvas.width = vpW;
+          pdfCanvas.height = vpH;
+        }
+        // CSS size = scaled page size (for scroll area calculation)
+        pdfCanvas.style.width = Math.ceil(dims.w * scale) + 'px';
+        pdfCanvas.style.height = Math.ceil(dims.h * scale) + 'px';
 
         const ctx = pdfCanvas.getContext('2d');
+        ctx.clearRect(0, 0, vpW, vpH);
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, cssW, cssH);
+        ctx.fillRect(0, 0, vpW, vpH);
 
-        const transform = { a: scale, b: 0, c: 0, d: scale, e: 0, f: 0 };
+        // Calculate scroll offset for viewport clipping
+        const scrollX = scrollContainer ? scrollContainer.scrollLeft : 0;
+        const scrollY = scrollContainer ? scrollContainer.scrollTop : 0;
+
+        // Transform: scale + translate to show the correct viewport portion
+        const transform = { a: scale, b: 0, c: 0, d: scale, e: -scrollX, f: -scrollY };
         vr.renderVectorPage(ctx, doc.filePath, pageNum, transform);
 
         const elapsed = Math.round(performance.now() - t0v);
         state.renderEngine = 'Vector';
         state.renderTiming = elapsed + 'ms';
-        console.log(`[render] Vector: ${pdfCanvas.width}x${pdfCanvas.height}, ${elapsed}ms`);
+        console.log(`[render] ✅ Vector: viewport ${vpW}x${vpH}, scale=${scale}, ${elapsed}ms`);
 
         _skipBitmapRender = true;
       }
