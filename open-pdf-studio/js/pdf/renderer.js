@@ -289,45 +289,46 @@ export async function renderPage(pageNum) {
     container.style.setProperty('--total-scale-factor', viewport.scale);
   }
 
-  // Create text layer for text selection
-  try {
-    await createSinglePageTextLayer(page, viewport);
-  } catch (e) {
-    console.warn('Failed to create text layer:', e);
-  }
+  // Text/link/form layers: skip during vector zoom (expensive PDF.js operations)
+  // Only create on first load or page change, not on every zoom
+  if (!_skipBitmapRender || !document.querySelector('.textLayer')) {
+    try {
+      await createSinglePageTextLayer(page, viewport);
+    } catch (e) {
+      console.warn('Failed to create text layer:', e);
+    }
 
-  // Create link layer for clickable links
-  try {
-    await createSinglePageLinkLayer(page, viewport);
-  } catch (e) {
-    console.warn('Failed to create link layer:', e);
-  }
+    try {
+      await createSinglePageLinkLayer(page, viewport);
+    } catch (e) {
+      console.warn('Failed to create link layer:', e);
+    }
 
-  // Create form layer for interactive form fields
-  try {
-    await createSinglePageFormLayer(page, viewport);
-  } catch (e) {
-    console.warn('Failed to create form layer:', e);
-  }
+    try {
+      await createSinglePageFormLayer(page, viewport);
+    } catch (e) {
+      console.warn('Failed to create form layer:', e);
+    }
 
-  // Re-apply overlay state for newly created layers (setTool may not have run yet)
-  if (state.currentTool === 'select' || state.currentTool === 'editText') {
-    annotationCanvas.style.zIndex = '2';
-    annotationCanvas.style.pointerEvents = 'none';
-    const container = document.getElementById('canvas-container');
-    if (container) {
-      container.querySelectorAll('.formLayer section, .linkLayer .pdf-link').forEach(el => {
-        el.style.pointerEvents = 'none';
-      });
+    if (state.currentTool === 'select' || state.currentTool === 'editText') {
+      annotationCanvas.style.zIndex = '2';
+      annotationCanvas.style.pointerEvents = 'none';
+      const container = document.getElementById('canvas-container');
+      if (container) {
+        container.querySelectorAll('.formLayer section, .linkLayer .pdf-link').forEach(el => {
+          el.style.pointerEvents = 'none';
+        });
+      }
     }
   }
 
   // Ensure annotations for this page are loaded (on-demand if background hasn't reached it yet)
-  await ensureAnnotationsForPage(pageNum);
-
-  // Prefetch PDF vector geometry for snap-to-drawing (fire-and-forget)
-  if (state.preferences.snapToPdfContent) {
-    prefetchPdfVectorGeometry(pageNum);
+  // Skip heavy operations during vector zoom (only needed on first load / page change)
+  if (!_skipBitmapRender || !document.querySelector('.textLayer')) {
+    await ensureAnnotationsForPage(pageNum);
+    if (state.preferences.snapToPdfContent) {
+      prefetchPdfVectorGeometry(pageNum);
+    }
   }
 
   // Resize annotation canvas and redraw in one synchronous block — no blink

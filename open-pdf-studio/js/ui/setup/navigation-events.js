@@ -5,6 +5,10 @@ import { showLoading, hideLoading } from '../chrome/dialogs.js';
 import { clearHighlights } from '../../search/find-bar.js';
 import { getTool } from '../../tools/tool-registry.js';
 
+// Cached vector renderer module (loaded once, avoids dynamic import per zoom event)
+let _vectorRenderer = null;
+import('../../pdf/vector-renderer.js').then(m => { _vectorRenderer = m; }).catch(() => {});
+
 // Setup wheel zoom
 let _zoomRenderTimer = null;
 let _zoomBaseScale = null; // scale at which the canvas was last truly rendered
@@ -94,20 +98,44 @@ export function setupWheelZoom() {
       scrollContainer.scrollLeft += newPointViewportX - e.clientX;
       scrollContainer.scrollTop += newPointViewportY - e.clientY;
 
-      // Vector mode: instant redraw, no debounce needed
-      if (!isContinuous) {
-        try {
-          const vr = await import('../../pdf/vector-renderer.js');
-          if (vr.hasCachedCommands(doc.filePath, doc.currentPage)) {
-            if (_zoomRenderTimer) clearTimeout(_zoomRenderTimer);
-            _zoomRenderTimer = null;
-            _zoomBaseScale = null;
-            document.querySelectorAll(canvasSelector).forEach(c => { c.style.width = ''; c.style.height = ''; });
-            const { renderPage } = await import('../../pdf/renderer.js');
-            renderPage(doc.currentPage);
-            return;
+      // Vector mode: use CSS scale for instant feedback, debounced vector redraw
+      // CSS scale is 0ms — no canvas resize, no redraw, just CSS transform
+      // After 150ms idle: do the actual vector redraw (crisp, <20ms)
+      if (!isContinuous && _vectorRenderer && _vectorRenderer.hasCachedCommands(doc.filePath, doc.currentPage)) {
+        // CSS-scale is already applied above — just debounce the vector redraw
+        if (_zoomRenderTimer) clearTimeout(_zoomRenderTimer);
+        _zoomRenderTimer = setTimeout(() => {
+          _zoomRenderTimer = null;
+          _zoomBaseScale = null;
+
+          const pdfCanvas = document.getElementById('pdf-canvas');
+          if (!pdfCanvas) return;
+          const _dpr = window.devicePixelRatio || 1;
+          const dims = _vectorRenderer.getCachedPageDimensions(doc.filePath, doc.currentPage);
+          if (!dims) return;
+
+          // Now resize + redraw (only once after zoom stops)
+          pdfCanvas.width = Math.ceil(dims.w * doc.scale * _dpr);
+          pdfCanvas.height = Math.ceil(dims.h * doc.scale * _dpr);
+          pdfCanvas.style.width = Math.floor(dims.w * doc.scale) + 'px';
+          pdfCanvas.style.height = Math.floor(dims.h * doc.scale) + 'px';
+          const ctx = pdfCanvas.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, pdfCanvas.width, pdfCanvas.height);
+          _vectorRenderer.renderVectorPage(ctx, doc.filePath, doc.currentPage,
+            { a: doc.scale * _dpr, b: 0, c: 0, d: doc.scale * _dpr, e: 0, f: 0 });
+
+          // Annotation canvas
+          const annCanvas = document.getElementById('annotation-canvas');
+          if (annCanvas) {
+            annCanvas.width = pdfCanvas.width;
+            annCanvas.height = pdfCanvas.height;
+            annCanvas.style.width = pdfCanvas.style.width;
+            annCanvas.style.height = pdfCanvas.style.height;
           }
-        } catch (_e) { /* vector-renderer not available, fall through to debounce */ }
+          import('../../annotations/rendering.js').then(m => m.redrawAnnotations());
+        }, 150);
+        return;
       }
 
       // Debounce: only re-render after user STOPS zooming (500ms idle).
