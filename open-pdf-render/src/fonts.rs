@@ -13,6 +13,8 @@ pub struct FontEntry {
     pub is_cid: bool,
     /// True when CIDToGIDMap is Identity (CID values = glyph IDs directly)
     pub cid_to_gid_identity: bool,
+    /// ToUnicode mapping: char_code → Unicode codepoint (from PDF ToUnicode CMap)
+    pub to_unicode: HashMap<u8, char>,
 }
 
 /// Registry that caches font lookups per font name.
@@ -74,12 +76,29 @@ impl FontRegistry {
         // Extract encoding info
         let (encoding_name, differences) = Self::extract_encoding(&font_dict, doc);
 
+        // Extract ToUnicode CMap (maps char codes to Unicode codepoints)
+        let to_unicode = Self::extract_to_unicode(&font_dict, doc);
+
         // Try to extract and parse embedded font data
         let mut parsed = Self::extract_and_parse_font(&font_dict, doc);
 
-        // Fallback: if no embedded font, try loading the system font
-        if parsed.is_none() {
-            parsed = Self::try_system_font(&base_font);
+        // Check if the embedded font has usable glyph outlines for common character codes.
+        // Some PDFs embed fonts with empty glyph entries for subset codes — fall back
+        // to system font when most glyphs used by the document are empty.
+        let embedded_usable = parsed.as_ref().map(|p| {
+            // Check first 10 glyph IDs (common subset range) for actual outlines
+            let check_range = 1u16..=10;
+            let with_outlines = check_range.clone().filter(|gid| {
+                p.glyphs.get(gid).map(|g| !g.commands.is_empty()).unwrap_or(false)
+            }).count();
+            // If less than half of checked glyphs have outlines, the font is likely broken
+            with_outlines > check_range.count() / 2
+        }).unwrap_or(false);
+
+        if parsed.is_none() || !embedded_usable {
+            if let Some(sys_font) = Self::try_system_font(&base_font) {
+                parsed = Some(sys_font);
+            }
         }
 
         // For Type0 fonts with DescendantFonts, also check the descendant for embedded data
@@ -94,6 +113,7 @@ impl FontRegistry {
             base_font,
             is_cid,
             cid_to_gid_identity,
+            to_unicode,
         };
 
         self.fonts.insert(name.to_string(), entry);
@@ -104,27 +124,34 @@ impl FontRegistry {
     pub fn char_to_glyph_id(entry: &FontEntry, char_code: u8) -> Option<u16> {
         let parsed = entry.parsed.as_ref()?;
 
-        // For embedded subset fonts without explicit encoding:
-        // Character codes map directly to glyph indices in the font subset.
-        // These fonts have names like "PZNDHJ+SegoeUI" (6-letter subset prefix + '+').
-        if entry.encoding_name.is_none() && entry.differences.is_empty() {
-            // No encoding specified — try direct glyph index mapping first
-            let gid = char_code as u16;
-            if parsed.glyphs.contains_key(&gid) {
+        // Priority 1: ToUnicode → font cmap (works when cmap is populated)
+        if let Some(&unicode_char) = entry.to_unicode.get(&char_code) {
+            if let Some(&gid) = parsed.cmap.get(&(unicode_char as u32)) {
                 return Some(gid);
             }
         }
 
-        // Standard path: resolve via encoding tables + cmap
-        let ch = encoding::resolve_char_code(
-            entry.encoding_name.as_deref(),
-            &entry.differences,
-            char_code,
-        );
+        // Priority 2: Encoding + Differences → Unicode → cmap
+        if entry.encoding_name.is_some() || !entry.differences.is_empty() {
+            let ch = encoding::resolve_char_code(
+                entry.encoding_name.as_deref(),
+                &entry.differences,
+                char_code,
+            );
+            if let Some(&gid) = parsed.cmap.get(&(ch as u32)) {
+                return Some(gid);
+            }
+        }
 
-        // Look up in cmap
-        let codepoint = ch as u32;
-        parsed.cmap.get(&codepoint).copied()
+        // Priority 3: Direct glyph index
+        // For embedded subset TrueType fonts, character codes often map directly
+        // to glyph indices (especially when cmap table is empty or Symbol-encoded)
+        let gid = char_code as u16;
+        if parsed.glyphs.contains_key(&gid) {
+            return Some(gid);
+        }
+
+        None
     }
 
     /// Resolve the Font dictionary for a given font name from resources.
@@ -407,6 +434,68 @@ impl FontRegistry {
         }
     }
 
+    /// Extract ToUnicode CMap from font dictionary.
+    /// Parses beginbfchar/beginbfrange entries: <srcCode> <dstUnicode>
+    fn extract_to_unicode(font_dict: &Dictionary, doc: &Document) -> HashMap<u8, char> {
+        let mut map = HashMap::new();
+        let tu_obj = match font_dict.get(b"ToUnicode") {
+            Ok(o) => Self::resolve_obj(o, doc),
+            _ => return map,
+        };
+        let cmap_data = match tu_obj {
+            Some(Object::Stream(stream)) => {
+                stream.decompressed_content().unwrap_or_default()
+            }
+            _ => return map,
+        };
+
+        let cmap_str = String::from_utf8_lossy(&cmap_data);
+
+        // Parse beginbfchar: <src> <dst> pairs
+        // Parse beginbfrange: <srcLo> <srcHi> <dstStart> ranges
+        let mut in_bfchar = false;
+        let mut in_bfrange = false;
+
+        for line in cmap_str.lines() {
+            let line = line.trim();
+            if line.contains("beginbfchar") { in_bfchar = true; continue; }
+            if line.contains("endbfchar") { in_bfchar = false; continue; }
+            if line.contains("beginbfrange") { in_bfrange = true; continue; }
+            if line.contains("endbfrange") { in_bfrange = false; continue; }
+
+            if (in_bfchar || in_bfrange) && line.starts_with('<') {
+                // Parse hex values between < >
+                let hex_values: Vec<u32> = line
+                    .split('>')
+                    .filter_map(|part| {
+                        let hex = part.trim().trim_start_matches('<');
+                        if hex.is_empty() { return None; }
+                        u32::from_str_radix(hex, 16).ok()
+                    })
+                    .collect();
+
+                if in_bfchar && hex_values.len() >= 2 {
+                    let code = hex_values[0] as u8;
+                    if let Some(ch) = char::from_u32(hex_values[1]) {
+                        map.insert(code, ch);
+                    }
+                } else if in_bfrange && hex_values.len() >= 3 {
+                    let lo = hex_values[0] as u8;
+                    let hi = hex_values[1] as u8;
+                    let dst_start = hex_values[2];
+                    for code in lo..=hi {
+                        let unicode = dst_start + (code - lo) as u32;
+                        if let Some(ch) = char::from_u32(unicode) {
+                            map.insert(code, ch);
+                        }
+                    }
+                }
+            }
+        }
+
+        map
+    }
+
     /// Get decompressed stream data from an object (possibly a reference).
     fn get_stream_data(obj: &Object, doc: &Document) -> Option<Vec<u8>> {
         let resolved = Self::resolve_obj(obj, doc)?;
@@ -444,6 +533,7 @@ mod tests {
             base_font: "TestFont".to_string(),
             is_cid: false,
             cid_to_gid_identity: false,
+            to_unicode: HashMap::new(),
         };
         assert_eq!(FontRegistry::char_to_glyph_id(&entry, b'A'), None);
     }
