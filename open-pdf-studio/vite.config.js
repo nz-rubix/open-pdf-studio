@@ -31,8 +31,24 @@ export default defineConfig({
     chunkSizeWarningLimit: 6000,
     rollupOptions: {
       output: {
+        // Force .js extensions on entry chunks and dynamic-import chunks
+        // so the web host serves them with the correct MIME type
+        // (some hosts return application/octet-stream for .mjs).
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',
+        // Same treatment for assets, but ONLY for .mjs files (don't touch
+        // CSS, images, fonts, etc). PDF.js's worker is loaded via
+        //   new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url)
+        // which Vite handles as an asset import — without this, the
+        // worker is emitted as `pdf.worker-HASH.mjs` and the web build
+        // can't fetch it.
+        assetFileNames: (assetInfo) => {
+          const name = assetInfo.name || '';
+          if (name.endsWith('.mjs')) {
+            return 'assets/[name]-[hash].js';
+          }
+          return 'assets/[name]-[hash][extname]';
+        },
       },
     },
   },
