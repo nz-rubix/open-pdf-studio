@@ -520,11 +520,17 @@ export async function loadExistingAnnotations(doc) {
   const loadId = ++doc._annotationLoadId;
   const pdfDoc = doc.pdfDoc;
   const numPages = pdfDoc.numPages;
-  const BATCH_SIZE = 50;
+  const BATCH_SIZE = 10;
 
   for (let batchStart = 1; batchStart <= numPages; batchStart += BATCH_SIZE) {
     if (loadId !== doc._annotationLoadId) return;
     if (!state.documents.includes(doc)) return;
+
+    // Yield to the browser between batches so the UI stays responsive
+    if (batchStart > 1) {
+      await new Promise(r => setTimeout(r, 0));
+      if (loadId !== doc._annotationLoadId || !state.documents.includes(doc)) return;
+    }
 
     const batchEnd = Math.min(batchStart + BATCH_SIZE - 1, numPages);
 
