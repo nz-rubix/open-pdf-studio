@@ -1136,8 +1136,34 @@ fn get_page_dimensions(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Check for PDF files in command line arguments
     let args: Vec<String> = std::env::args().collect();
+
+    // Handle --version / --help before Tauri::Builder::default().run() so these
+    // flags print and exit instead of hanging in the event loop. Running the
+    // full builder also squats the single-instance DBus name, which blocks
+    // subsequent normal launches until the name is released.
+    for arg in args.iter().skip(1) {
+        match arg.as_str() {
+            "--version" | "-V" => {
+                println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+                std::process::exit(0);
+            }
+            "--help" | "-h" => {
+                println!("Usage: {} [OPTIONS] [FILE...]", env!("CARGO_PKG_NAME"));
+                println!();
+                println!("Options:");
+                println!("  -h, --help       Print this help and exit");
+                println!("  -V, --version    Print version and exit");
+                println!();
+                println!("Files:");
+                println!("  One or more .pdf files to open.");
+                std::process::exit(0);
+            }
+            _ => {}
+        }
+    }
+
+    // Collect any PDF file paths passed on the command line (for file associations)
     let opened_files: Vec<String> = args.iter()
         .skip(1)
         .filter(|arg| arg.to_lowercase().ends_with(".pdf") && !arg.starts_with('-'))
