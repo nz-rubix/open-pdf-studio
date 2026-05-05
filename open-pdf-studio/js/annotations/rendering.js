@@ -723,7 +723,7 @@ export function drawAnnotation(ctx, annotation) {
         ctx.lineWidth = coLineWidth;
         if (coBorderStyle === 'dashed') {
           ctx.setLineDash([12, 8]);
-        } else if (tbBorderStyle === 'dotted') {
+        } else if (coBorderStyle === 'dotted') {
           ctx.setLineDash([2, 6]);
         } else {
           ctx.setLineDash([]);
