@@ -115,7 +115,7 @@ export function drawDimensionLineEnding(ctx, x, y, angle, size, style) {
 export function applyBorderStyle(ctx, borderStyle) {
   switch (borderStyle) {
     case 'dashed':
-      ctx.setLineDash([10, 12]);
+      ctx.setLineDash([3, 4]);
       break;
     case 'dotted':
       ctx.setLineDash([2, 8]);

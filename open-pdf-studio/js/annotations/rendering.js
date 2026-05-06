@@ -191,7 +191,7 @@ export function drawAnnotation(ctx, annotation) {
 
     case 'line':
       ctx.strokeStyle = strokeColor;
-      ctx.lineCap = 'round';
+      ctx.lineCap = 'butt';
       applyBorderStyle(ctx, annotation.borderStyle);
       ctx.beginPath();
       ctx.moveTo(annotation.startX, annotation.startY);
@@ -295,8 +295,8 @@ export function drawAnnotation(ctx, annotation) {
         const samples = catmullRomSpline(annotation.controlPoints, 16);
         ctx.strokeStyle = strokeColor;
         ctx.lineWidth = lw;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
+        ctx.lineCap = 'butt';
+        ctx.lineJoin = 'miter';
         applyBorderStyle(ctx, annotation.borderStyle);
         ctx.beginPath();
         ctx.moveTo(samples[0].x, samples[0].y);
@@ -312,8 +312,8 @@ export function drawAnnotation(ctx, annotation) {
     case 'polyline':
       if (annotation.points && annotation.points.length >= 2) {
         ctx.strokeStyle = strokeColor;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
+        ctx.lineCap = 'butt';
+        ctx.lineJoin = 'miter';
         applyBorderStyle(ctx, annotation.borderStyle);
         ctx.beginPath();
         annotation.points.forEach((point, index) => {

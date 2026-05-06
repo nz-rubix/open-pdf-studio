@@ -114,7 +114,7 @@ export function computeTextboxContentHeight(annotation) {
   const fontSize = annotation.fontSize || 14;
   const lineSpacing = annotation.lineSpacing || 1.0;
   const lineHeight = fontSize * lineSpacing;
-  const padding = Math.max((annotation.lineWidth ?? 1), 1) + 1;
+  const padding = Math.max((annotation.lineWidth ?? 1), 1) + 0.5;
   const maxWidth = width - padding * 2;
 
   const fontFamily = annotation.fontFamily || 'Arial';
