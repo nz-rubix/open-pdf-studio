@@ -317,7 +317,66 @@ fn get_printers() -> Result<String, String> {
         }
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    {
+        // Use CUPS `lpstat -p` to list printers. Output format:
+        //   printer NAME is idle. enabled since ...
+        //   printer NAME disabled since ...
+        let output = std::process::Command::new("lpstat")
+            .args(&["-p"])
+            .output()
+            .map_err(|e| format!("Failed to run lpstat (is CUPS installed?): {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            // No printers configured isn't strictly an error; return empty list.
+            if stderr.trim().is_empty() {
+                return Ok("[]".to_string());
+            }
+            return Err(format!("lpstat error: {}", stderr));
+        }
+
+        // Get the system default printer name (if any) via `lpstat -d`.
+        let default_name = std::process::Command::new("lpstat")
+            .args(&["-d"])
+            .output()
+            .ok()
+            .and_then(|o| {
+                let s = String::from_utf8_lossy(&o.stdout).to_string();
+                // "system default destination: NAME" or "no system default destination"
+                s.lines()
+                    .find_map(|line| {
+                        line.split_once(':').and_then(|(_, v)| {
+                            let v = v.trim();
+                            if v.is_empty() || v.starts_with("no ") { None } else { Some(v.to_string()) }
+                        })
+                    })
+            })
+            .unwrap_or_default();
+
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let mut entries: Vec<String> = Vec::new();
+        for line in stdout.lines() {
+            let line = line.trim();
+            if !line.starts_with("printer ") { continue; }
+            let rest = &line["printer ".len()..];
+            let name = rest.split_whitespace().next().unwrap_or("").to_string();
+            if name.is_empty() { continue; }
+            let status_num: i32 = if rest.contains("disabled") { 0 } else { 3 }; // 3 = idle on Win32
+            let is_default = name == default_name;
+            // Match the Windows JSON shape: { Name, DriverName, Default, PrinterStatus }
+            let escaped = name.replace('\\', "\\\\").replace('"', "\\\"");
+            entries.push(format!(
+                "{{\"Name\":\"{}\",\"DriverName\":\"CUPS\",\"Default\":{},\"PrinterStatus\":{}}}",
+                escaped,
+                if is_default { "true" } else { "false" },
+                status_num
+            ));
+        }
+        Ok(format!("[{}]", entries.join(",")))
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     {
         Ok("[]".to_string())
     }
