@@ -17,79 +17,15 @@ import { onPageRendered, clearHighlights } from '../search/find-bar.js';
 // Hi-DPI support: render canvases at device pixel ratio for sharp text
 export function getCanvasDPR() { return window.devicePixelRatio || 1; }
 
-// ─── MuPDF WASM Rendering ─────────────────────────────────────────────────
-// Uses MuPDF compiled to WASM for 50-100x faster PDF rendering than PDF.js.
-// Falls back to PDF.js if mupdf is not available.
+// NOTE: an earlier prototype embedded MuPDF WASM rendering helpers here
+// (loadMupdf / isMupdfAvailable / getMupdfDocument / renderPageWithMupdf).
+// They were never wired up — the active path is the Rust vector renderer
+// via `extract_draw_commands` + `vector-renderer.js`, with PDF.js as the
+// fallback for raster-only pages. The unused helpers have been removed.
+// `mupdf-renderer.js` is still imported once below for `closeDocument()`
+// cleanup (no-op when the runtime never loaded the WASM module).
 
-let _mupdfModule = null;
-let _mupdfAvailable = null;
-let _mupdfDocument = null;
-let _mupdfDocPath = null; // track which file is loaded
-
-async function loadMupdf() {
-  if (_mupdfModule) return _mupdfModule;
-  try {
-    _mupdfModule = await import('mupdf');
-    return _mupdfModule;
-  } catch (e) {
-    console.warn('[mupdf] WASM module not available:', e);
-    return null;
-  }
-}
-
-async function isMupdfAvailable() {
-  if (_mupdfAvailable !== null) return _mupdfAvailable;
-  const mod = await loadMupdf();
-  _mupdfAvailable = mod !== null;
-  return _mupdfAvailable;
-}
-
-// Open or reuse a MuPDF document from cached PDF bytes
-async function getMupdfDocument(pdfBytes) {
-  const mupdf = await loadMupdf();
-  if (!mupdf) return null;
-  // Reuse if same bytes (check by length — imperfect but fast)
-  if (_mupdfDocument && _mupdfDocPath === pdfBytes.length) {
-    return _mupdfDocument;
-  }
-  try {
-    if (_mupdfDocument) { try { _mupdfDocument.destroy(); } catch {} }
-    _mupdfDocument = mupdf.Document.openDocument(pdfBytes, 'application/pdf');
-    _mupdfDocPath = pdfBytes.length;
-    return _mupdfDocument;
-  } catch (e) {
-    console.warn('[mupdf] Failed to open document:', e);
-    return null;
-  }
-}
-
-// Render a page with MuPDF WASM — returns Pixmap as RGBA
-async function renderPageWithMupdf(pdfBytes, pageIndex, scale) {
-  const mupdf = await loadMupdf();
-  if (!mupdf) return null;
-
-  const doc = await getMupdfDocument(pdfBytes);
-  if (!doc) return null;
-
-  const page = doc.loadPage(pageIndex);
-  const dpr = getCanvasDPR();
-  const matrix = mupdf.Matrix.scale(scale * dpr, scale * dpr);
-  const pixmap = page.toPixmap(matrix, mupdf.ColorSpace.DeviceRGB, true, true);
-
-  const w = pixmap.getWidth();
-  const h = pixmap.getHeight();
-  const samples = pixmap.getPixels(); // Uint8ClampedArray RGBA
-
-  // Copy samples before destroying pixmap (pixmap owns the memory)
-  const rgba = new Uint8ClampedArray(samples);
-
-  page.destroy();
-  pixmap.destroy();
-
-  return { rgba, width: w, height: h };
-}
-
-// PDF.js rendering helper — used as fallback when pdfium is not available
+// PDF.js rendering helper — used as fallback when the vector path is unavailable
 async function _renderPageWithPdfJs(page, viewport, pdfCanvas, bufferW, bufferH, dpr) {
   const offscreen = document.createElement('canvas');
   offscreen.width = bufferW;
