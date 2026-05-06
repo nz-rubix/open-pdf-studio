@@ -142,12 +142,19 @@ impl FontRegistry {
         // = GID 46 = 'K' in this PDF). Substituting a system font would invalidate
         // that mapping and produce garbled text (issue #215).
         if !is_cid {
+            // For TrueType embedded subsets, GIDs 1..=10 normally hold real
+            // outlines if the subset is usable. For Type1 fonts parsed via
+            // hayro-font we key glyphs by character code (GIDs ~32..=255), so
+            // additionally check the printable-ASCII range.
             let embedded_usable = parsed.as_ref().map(|p| {
-                let check_range = 1u16..=10;
-                let with_outlines = check_range.clone().filter(|gid| {
-                    p.glyphs.get(gid).map(|g| !g.commands.is_empty()).unwrap_or(false)
-                }).count();
-                with_outlines > check_range.count() / 2
+                let count_outlines = |range: std::ops::RangeInclusive<u16>| -> usize {
+                    range.filter(|gid| {
+                        p.glyphs.get(gid).map(|g| !g.commands.is_empty()).unwrap_or(false)
+                    }).count()
+                };
+                let low = count_outlines(1..=10);
+                let ascii = count_outlines(0x41..=0x5A); // 'A'..'Z'
+                low > 5 || ascii > 5
             }).unwrap_or(false);
 
             if parsed.is_none() || !embedded_usable {
@@ -293,18 +300,76 @@ impl FontRegistry {
             _ => return None,
         };
 
-        // Try FontFile2 (TrueType), then FontFile3 (CFF/OpenType)
-        let font_stream_obj = desc
-            .get(b"FontFile2")
-            .or_else(|_| desc.get(b"FontFile3"))
-            .ok()?;
-
-        let font_data = Self::get_stream_data(font_stream_obj, doc)?;
-
-        match font_parser::parse_truetype(&font_data) {
-            Ok(parsed) => Some(parsed),
-            Err(_) => None,
+        // Try FontFile2 (TrueType) first, then FontFile3 (CFF/OpenType)
+        if let Ok(font_stream_obj) = desc.get(b"FontFile2").or_else(|_| desc.get(b"FontFile3")) {
+            if let Some(font_data) = Self::get_stream_data(font_stream_obj, doc) {
+                if let Ok(parsed) = font_parser::parse_truetype(&font_data) {
+                    return Some(parsed);
+                }
+            }
         }
+
+        // Fall back to FontFile (Type1 binary): use hayro-font to parse the
+        // PostScript Type1 font and decode embedded charstrings into outlines,
+        // so we render the *real* embedded letterforms (e.g. UniviaPro) rather
+        // than substituting a system font.
+        if let Ok(font_stream_obj) = desc.get(b"FontFile") {
+            if let Some(font_data) = Self::get_stream_data(font_stream_obj, doc) {
+                let widths_by_code = Self::extract_widths(font_dict, doc);
+                let (enc_name, diffs) = Self::extract_encoding(font_dict, doc);
+                if let Ok(parsed) = font_parser::parse_type1(
+                    &font_data,
+                    &widths_by_code,
+                    enc_name.as_deref(),
+                    &diffs,
+                ) {
+                    return Some(parsed);
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Extract the per-character advance widths from a simple PDF font dict.
+    /// PDF stores widths in a 1/1000 em unit, indexed FirstChar..=LastChar.
+    fn extract_widths(font_dict: &Dictionary, doc: &Document) -> HashMap<u8, f32> {
+        let mut out = HashMap::new();
+
+        let first_char = font_dict
+            .get(b"FirstChar")
+            .ok()
+            .and_then(|o| Self::resolve_obj(o, doc))
+            .and_then(|o| match o {
+                Object::Integer(i) => Some(i as i64),
+                _ => None,
+            })
+            .unwrap_or(0);
+
+        let widths_arr = font_dict
+            .get(b"Widths")
+            .ok()
+            .and_then(|o| Self::resolve_obj(o, doc))
+            .and_then(|o| match o {
+                Object::Array(a) => Some(a),
+                _ => None,
+            });
+
+        if let Some(arr) = widths_arr {
+            for (i, w_obj) in arr.iter().enumerate() {
+                let w = match Self::resolve_obj(w_obj, doc) {
+                    Some(Object::Integer(n)) => n as f32,
+                    Some(Object::Real(n)) => n as f32,
+                    _ => continue,
+                };
+                let code = first_char + i as i64;
+                if (0..=255).contains(&code) {
+                    out.insert(code as u8, w);
+                }
+            }
+        }
+
+        out
     }
 
     /// Check if CIDToGIDMap is /Identity in the DescendantFont

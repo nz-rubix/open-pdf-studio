@@ -12,3 +12,4 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png"]
 turbojpeg = { version = "1", default-features = false, features = ["image", "cmake"] }
 ttf-parser = "0.25"
 rayon = "1"
+hayro-font = "0.4.0"
