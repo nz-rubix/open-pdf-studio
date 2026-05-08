@@ -1,4 +1,5 @@
 mod auth;
+pub mod render_to_png;
 
 use std::fs;
 use std::fs::File;
