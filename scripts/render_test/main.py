@@ -56,7 +56,7 @@ def main() -> int:
     out_root = Path(args.out_root)
     out_root.mkdir(parents=True, exist_ok=True)
     sha = _git_sha()
-    run_dir = out_root / f"{datetime.now().strftime('%Y-%m-%d_%H%M')}-{sha}"
+    run_dir = out_root / f"{datetime.now().strftime('%Y-%m-%d_%H%M%S')}-{sha}"
     run_dir.mkdir()
 
     print(f"[render-regression] writing to {run_dir}")

@@ -398,3 +398,41 @@ Per-PDF stats from initial harness run:
 
 **Commit**: 246fd7b4
 
+
+### Iteration 12 — Indexed colour space images (Combinatie Raster v1.4 architectural drawing)
+
+**Iter-11 baseline** (per fresh full-suite run 2026-05-09_180917-2c9a3e8b vs the iter-11 commit 246fd7b4): 57/106 passing. Combinatie Raster, vector, tekening images.pdf was 0/1 PASS at 3.01% diff — the only remaining failure on this single-page PDF.
+
+**Cross-page analysis approach (per iter-12 prompt)**:
+- Built a python operator-histogram + resource-keys harness comparing failing vs passing pages within Text pdf gecombineerd / rapport-constructie. Found that failing pages had per-page extra fonts (F4 SymbolMT, F5 Calibri-LightItalic, F6 Type0/Calibri-Light) that passing pages didn't, but spot inspection showed these fonts were correctly handled and not the dominant failure cause.
+- Repeated for Zware vector PDF (cluster B): failing pages had 80x more `cm` and `Do` operators than passing pages, confirming iter-9's diagnosis that the residual failure is JPEG-decoder colour-drift quality on the tile-grid pages — not a feature gap.
+- Repeated for Combinatie Raster (cluster C, single page failing). Resources analysis revealed the page has a `/ColorSpace` resource dictionary entry — the only PDF in the corpus with one. Inspection showed two image XObjects (R49, R51) carry inline `[/Indexed /DeviceRGB 255 <palette>]` colour-space arrays. NO other PDF in the corpus uses indexed colour-space images. This was the cleanest "feature only on failing pages" signal of the cross-page analysis.
+
+**Hypothesis**: Indexed colour space (PDF spec §8.6.6.3) was unimplemented. The renderer treated `/ColorSpace` as `Object::Array(arr)` and only inspected `arr.first()` to extract the head Name, then defaulted to "3 components / DeviceRGB" — for an indexed image, this caused 1-byte-per-pixel palette-index data to be parsed as 3-byte-per-pixel RGB, producing garbled output (wrong dimensions consumed, wrong colours).
+
+**Investigation findings**:
+- pikepdf decode of R49: `/ColorSpace = [/Indexed /DeviceRGB 255 <768-byte palette string>]`, 1428×232 pixels at 8 BPC, FlateDecode → 331296 raw bytes (= W×H, confirming 1 byte per pixel). All 1000 sampled bytes = 36; palette[36*3..36*3+3] = (255, 255, 255) → image is mostly white. Same shape on R51 (1429×305, also indexed).
+- Source-of-truth code: `Interpreter::decode_raw_image` (server-side render path used by the harness) and `Interpreter::handle_image_xobject` (browser-side draw-command path) both extracted only the first array element of the colour space and selected `components` from a small set (DeviceCMYK=4, DeviceGray/CalGray=1, default=3). Neither recognised /Indexed; neither read the palette.
+
+**Fix** — `open-pdf-render/src/interpreter.rs`:
+- New helper `Interpreter::resolve_color_space(dict, doc) -> (stream_components, output_components, palette: Option<Vec<u8>>)`.
+  - Direct names (DeviceRGB / DeviceGray / DeviceCMYK / CalGray / CalRGB) return `(N, N, None)` per existing logic.
+  - `[/Indexed base hival lookup]` returns `(1, base_components, Some(palette_bytes))`. Reads `base` (the second array slot, supporting Name or nested Array forms), determines `base_components` (1/3/4 by base name), reads `lookup` from slot 3 — handling both `Object::String(bytes, _)` (literal/hex string palette) and `Object::Stream(s)` (decompresses via existing `decompress_image_stream` helper).
+  - `[/ICCBased <stream>]` reads `/N` from the stream dict to determine channel count.
+  - `[/CalCMYK]`, `[/DeviceCMYK]`, `[/DeviceGray]`, `[/CalGray]` array forms also handled.
+- `decode_raw_image` rewrite: instead of computing `components` directly from a name match, now calls `resolve_color_space` to get `(stream_components, output_components, palette)`. The decoded raw-pixel buffer is read at `stream_components` bytes per pixel (= 1 for indexed). For the per-pixel RGBA conversion, when `palette` is `Some`, the byte at `idx` is treated as a palette index, expanded to `output_components` bytes via the lookup table, and then routed through the same RGBA conversion path as direct DeviceRGB/Gray/CMYK pixels.
+- `handle_image_xobject` rewrite: same refactor — drops the inlined `cs_name` extraction and `components` match, uses `resolve_color_space` instead. Per-pixel loop expands palette indices into a small `[u8; 4]` buffer (covers up to CMYK base) and feeds the same RGBA + premultiplication code that already supported the non-indexed cases.
+- Behaviour preserved when colour space is direct (no palette): the `if let Some(pal) = palette.as_ref()` guard simply takes the else branch and the byte slice flows through unchanged. SMask premultiplication / box-filter downsample stay in place.
+
+**Verification** (full suite run 2026-05-09_180917-2c9a3e8b vs iter-11 baseline run 2026-05-09_1748-461175c4):
+- **Combinatie Raster, vector, tekening images.pdf p0: 3.01% → 1.38% (FAIL → PASS)** — the targeted -1.63pp recovery. Visual inspection confirms the small indexed-colour images at the top of the page now render correctly; previously they were either missing or rendered with garbled colours.
+- **Total passing: 57/106 → 58/106 (+1 net)**. Zero regressions; every previously-passing page still passes byte-for-byte (Tekst 3/5, Technische 3/4, 2885 12/14, Text/rapport 11/28 each, Zware vector 13/19, Barn Relocation 4/7).
+- All other PDFs unchanged page-by-page — the change is bounded entirely to indexed-colour-space-bearing images, which only Combinatie has in the corpus.
+
+**Concerns / next ideas**:
+- This fix is a strict spec-compliance correctness improvement. The +1 page is small because only one PDF in the corpus uses indexed colour spaces, but the feature gap was real and Combinatie has been the worst-of-its-cluster page for several iterations. Future PDFs with indexed colour images (common for paletted illustrations, screenshots, or PNG-style content embedded in PDF) will now render correctly.
+- The `resolve_color_space` helper also added structured handling for /ICCBased and array-form Cal* colour spaces; these aren't exercised by the current corpus but should not regress on future PDFs.
+- Cross-page analysis remains worthwhile: iter-10 incorrectly concluded "pure architectural AA" and iter-12 found another concrete spec-compliance gap by comparing resource shapes across passing vs failing pages. The remaining 48 failures cluster around (a) Text/rapport text-AA differences (iter-7/8/10/11 territory), (b) Zware vector JPEG-decoder colour drift (iter-9 territory), (c) Tekst.pdf p2/p3 small text-AA residuals, (d) Technische tekening p1 (~3% — close to threshold). None of those are clear feature gaps from one-pass cross-page analysis; they are rasterizer-quality / library-tuning territory.
+
+**Commit**: <pending>
+

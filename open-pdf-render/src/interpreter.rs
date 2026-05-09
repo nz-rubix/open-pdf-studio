@@ -788,6 +788,122 @@ impl Interpreter {
         (nw, nh, small)
     }
 
+    /// Resolve an Image XObject's `/ColorSpace` entry into per-pixel
+    /// component count and (for /Indexed) the lookup palette.
+    ///
+    /// Returns `(components_per_pixel_in_stream, base_components, palette)`:
+    ///   - `components_per_pixel_in_stream`: bytes consumed per pixel from the
+    ///     decoded stream. For Indexed this is 1; for Device* it equals the
+    ///     base channel count.
+    ///   - `base_components`: number of channels in the OUTPUT colour after
+    ///     palette lookup (3 for /Indexed /DeviceRGB, 1 for /Indexed
+    ///     /DeviceGray, 4 for /Indexed /DeviceCMYK, otherwise same as
+    ///     `components_per_pixel_in_stream`).
+    ///   - `palette`: when `Some`, the indexed lookup table — a vector of
+    ///     `(hival + 1) * base_components` bytes. Each input pixel byte is an
+    ///     index into this table.
+    ///
+    /// Per ISO 32000-1 §8.6.6.3, /Indexed colour spaces have the form
+    /// `[/Indexed base hival lookup]` where `lookup` is either a hex/literal
+    /// string of `(hival+1) * N` bytes (N = base channels) or a stream.
+    fn resolve_color_space(
+        dict: &Dictionary,
+        doc: &Document,
+    ) -> (usize, usize, Option<Vec<u8>>) {
+        let cs_obj = match dict.get(b"ColorSpace").ok() {
+            Some(o) => o,
+            None => return (3, 3, None),
+        };
+        // Resolve indirect reference to its target object once.
+        let resolved: Object = match cs_obj {
+            Object::Reference(id) => match doc.get_object(*id) {
+                Ok(o) => o.clone(),
+                _ => return (3, 3, None),
+            },
+            other => other.clone(),
+        };
+
+        match resolved {
+            Object::Name(n) => {
+                let comps = match n.as_slice() {
+                    b"DeviceCMYK" => 4,
+                    b"DeviceGray" | b"CalGray" => 1,
+                    _ => 3, // DeviceRGB, CalRGB, default
+                };
+                (comps, comps, None)
+            }
+            Object::Array(arr) => {
+                let head = arr.first().and_then(|o| {
+                    if let Object::Name(n) = o {
+                        Some(n.clone())
+                    } else {
+                        None
+                    }
+                });
+                match head.as_deref() {
+                    Some(b"Indexed") => {
+                        // [/Indexed base hival lookup]
+                        // Determine base channel count.
+                        let base = arr.get(1).cloned().and_then(|o| match o {
+                            Object::Reference(id) => doc.get_object(id).ok().cloned(),
+                            other => Some(other),
+                        });
+                        let base_components: usize = match base {
+                            Some(Object::Name(n)) => match n.as_slice() {
+                                b"DeviceCMYK" => 4,
+                                b"DeviceGray" | b"CalGray" => 1,
+                                _ => 3,
+                            },
+                            Some(Object::Array(ref ba)) => {
+                                // e.g. [/CalRGB <<...>>] or [/ICCBased N]
+                                ba.first().and_then(|o| match o {
+                                    Object::Name(bn) => Some(match bn.as_slice() {
+                                        b"DeviceCMYK" | b"CalCMYK" => 4,
+                                        b"DeviceGray" | b"CalGray" => 1,
+                                        _ => 3,
+                                    }),
+                                    _ => None,
+                                }).unwrap_or(3)
+                            }
+                            _ => 3,
+                        };
+                        // Lookup is either Object::String(_) or Object::Stream(_)
+                        let lookup = arr.get(3).cloned().and_then(|o| match o {
+                            Object::Reference(id) => doc.get_object(id).ok().cloned(),
+                            other => Some(other),
+                        });
+                        let palette: Option<Vec<u8>> = match lookup {
+                            Some(Object::String(bytes, _)) => Some(bytes),
+                            Some(Object::Stream(s)) => Self::decompress_image_stream(&s),
+                            _ => None,
+                        };
+                        // Indexed images store 1 byte (palette index) per pixel
+                        // when /BitsPerComponent is 8.
+                        (1, base_components, palette)
+                    }
+                    Some(b"CalCMYK") => (4, 4, None),
+                    Some(b"DeviceCMYK") => (4, 4, None),
+                    Some(b"CalGray") | Some(b"DeviceGray") => (1, 1, None),
+                    Some(b"ICCBased") => {
+                        // [/ICCBased <stream>] — read /N from the stream dict.
+                        let n_chans = arr.get(1).cloned().and_then(|o| match o {
+                            Object::Reference(id) => doc.get_object(id).ok().cloned(),
+                            other => Some(other),
+                        }).and_then(|o| match o {
+                            Object::Stream(s) => s.dict.get(b"N").ok().and_then(|n| {
+                                if let Object::Integer(i) = n { Some(*i as usize) } else { None }
+                            }),
+                            _ => None,
+                        }).unwrap_or(3);
+                        (n_chans, n_chans, None)
+                    }
+                    _ => (3, 3, None),
+                }
+            }
+            _ => (3, 3, None),
+        }
+    }
+
     /// Decode a non-JPEG image (raw/deflated pixel data) with optional
     /// box-filter downsampling when exceeding the pixel budget.
     fn decode_raw_image(
@@ -803,28 +919,17 @@ impl Interpreter {
             .unwrap_or(8);
         if bits != 8 { return None; }
 
-        let cs_name = dict.get(b"ColorSpace").ok().and_then(|o| match o {
-            Object::Name(n) => Some(n.clone()),
-            Object::Reference(id) => doc.get_object(*id).ok().and_then(|o| {
-                if let Object::Name(n) = o { Some(n.clone()) } else { None }
-            }),
-            Object::Array(arr) => arr.first().and_then(|o| match o {
-                Object::Name(n) => Some(n.clone()),
-                _ => None,
-            }),
-            _ => None,
-        });
-        let components: usize = match cs_name.as_deref() {
-            Some(b"DeviceCMYK") => 4,
-            Some(b"DeviceGray") | Some(b"CalGray") => 1,
-            _ => 3,
-        };
+        // Resolve colour space — either direct (DeviceRGB/Gray/CMYK) or an
+        // [/Indexed base hival lookup] palette wrapper.
+        let (stream_components, output_components, palette) =
+            Self::resolve_color_space(dict, doc);
+        let components: usize = output_components;
 
         // lopdf 0.34's decompressed_content() returns Err(Type) for /Image
         // streams, so we go through our own decompress_image_stream helper
         // (handles FlateDecode + PNG predictor, raw passthrough otherwise).
         let raw_pixels = Self::decompress_image_stream(stream)?;
-        let expected = width as usize * height as usize * components;
+        let expected = width as usize * height as usize * stream_components;
         if raw_pixels.len() < expected { return None; }
 
         // Resolve and decode an /SMask soft-alpha mask if present. We only
@@ -863,30 +968,50 @@ impl Interpreter {
                 let src_x = (dx as f64 * step_x) as usize;
                 let src_y = (dy as f64 * step_y) as usize;
                 let src_idx = src_y * width as usize + src_x;
-                let idx = src_idx * components;
+                let idx = src_idx * stream_components;
                 let alpha = smask_alpha
                     .as_ref()
                     .and_then(|a| a.get(src_idx).copied())
                     .unwrap_or(255);
+
+                // For Indexed colour spaces, expand the palette index into a
+                // base-colour-space tuple before the same RGBA conversion path
+                // that direct DeviceRGB/Gray/CMYK pixels go through.
+                let mut buf: [u8; 4] = [0; 4];
+                let comp_slice: &[u8] = if let Some(pal) = palette.as_ref() {
+                    let pi = raw_pixels[idx] as usize;
+                    let p_off = pi * components;
+                    if p_off + components <= pal.len() {
+                        for i in 0..components { buf[i] = pal[p_off + i]; }
+                        &buf[..components]
+                    } else {
+                        // Palette too short — fall back to opaque-grey on miss.
+                        for i in 0..components { buf[i] = 0; }
+                        &buf[..components]
+                    }
+                } else {
+                    &raw_pixels[idx .. idx + stream_components]
+                };
+
                 match components {
                     1 => {
-                        let g = raw_pixels[idx];
+                        let g = comp_slice[0];
                         let g2 = pm(g, alpha);
                         rgba.extend_from_slice(&[g2, g2, g2, alpha]);
                     }
                     3 => {
                         rgba.extend_from_slice(&[
-                            pm(raw_pixels[idx],     alpha),
-                            pm(raw_pixels[idx + 1], alpha),
-                            pm(raw_pixels[idx + 2], alpha),
+                            pm(comp_slice[0], alpha),
+                            pm(comp_slice[1], alpha),
+                            pm(comp_slice[2], alpha),
                             alpha,
                         ]);
                     }
                     4 => {
-                        let c = raw_pixels[idx] as f32 / 255.0;
-                        let m = raw_pixels[idx+1] as f32 / 255.0;
-                        let y = raw_pixels[idx+2] as f32 / 255.0;
-                        let k = raw_pixels[idx+3] as f32 / 255.0;
+                        let c = comp_slice[0] as f32 / 255.0;
+                        let m = comp_slice[1] as f32 / 255.0;
+                        let y = comp_slice[2] as f32 / 255.0;
+                        let k = comp_slice[3] as f32 / 255.0;
                         let r = (255.0 * (1.0 - c) * (1.0 - k)) as u8;
                         let g = (255.0 * (1.0 - m) * (1.0 - k)) as u8;
                         let b = (255.0 * (1.0 - y) * (1.0 - k)) as u8;
@@ -1989,30 +2114,12 @@ impl Interpreter {
             })
             .unwrap_or(8);
 
-        let cs_name = dict.get(b"ColorSpace")
-            .ok()
-            .and_then(|o| match o {
-                Object::Name(n) => Some(n.clone()),
-                Object::Reference(id) => doc.get_object(*id).ok().and_then(|o| {
-                    if let Object::Name(n) = o { Some(n.clone()) } else { None }
-                }),
-                Object::Array(arr) => {
-                    arr.first().and_then(|o| match o {
-                        Object::Name(n) => Some(n.clone()),
-                        _ => None,
-                    })
-                }
-                _ => None,
-            });
-
-        let components: u8 = match cs_name.as_deref() {
-            Some(b"DeviceRGB") => 3,
-            Some(b"DeviceCMYK") => 4,
-            Some(b"DeviceGray") => 1,
-            Some(b"CalRGB") => 3,
-            Some(b"CalGray") => 1,
-            _ => 3, // default RGB
-        };
+        // Resolve colour space — direct names or /Indexed palettes per
+        // PDF spec §8.6.6.3 (see resolve_color_space helper).
+        let (stream_components_us, output_components_us, palette) =
+            Self::resolve_color_space(dict, doc);
+        let stream_components: u8 = stream_components_us as u8;
+        let components: u8 = output_components_us as u8;
 
         // NOTE: must NOT call stream.decompressed_content() here — lopdf 0.34
         // explicitly returns Err(Type) for streams whose Subtype is /Image,
@@ -2022,7 +2129,7 @@ impl Interpreter {
         if let Some(raw_pixels) = Self::decompress_image_stream(stream) {
             if bits == 8 {
                 // Convert raw pixels to RGBA and encode as simple bitmap
-                let expected_len = width as usize * height as usize * components as usize;
+                let expected_len = width as usize * height as usize * stream_components as usize;
                 if raw_pixels.len() >= expected_len {
                     // Build RGBA buffer. When an /SMask supplied per-pixel
                     // alpha, plug those bytes into the `a` slot so transparent
@@ -2045,40 +2152,58 @@ impl Interpreter {
                     let pm = |c: u8, a: u8| -> u8 {
                         ((c as u16 * a as u16 + 127) / 255) as u8
                     };
+                    let pal_chunk = components as usize;
+                    let mut pal_buf: [u8; 4] = [0; 4];
                     for px in 0..n_pixels {
                         let alpha = smask_alpha
                             .as_ref()
                             .and_then(|a| a.get(px).copied())
                             .unwrap_or(255);
+
+                        // For Indexed colour spaces, expand the palette index
+                        // (1 byte per pixel in stream) into a base-colour-
+                        // space tuple before the existing RGBA conversion.
+                        let comp_slice: &[u8] = if let Some(pal) = palette.as_ref() {
+                            let pi = raw_pixels.get(i).copied().unwrap_or(0) as usize;
+                            let p_off = pi * pal_chunk;
+                            if p_off + pal_chunk <= pal.len() {
+                                for j in 0..pal_chunk { pal_buf[j] = pal[p_off + j]; }
+                            } else {
+                                for j in 0..pal_chunk { pal_buf[j] = 0; }
+                            }
+                            i += stream_components as usize;
+                            &pal_buf[..pal_chunk]
+                        } else {
+                            let s = &raw_pixels[i .. i + stream_components as usize];
+                            i += stream_components as usize;
+                            s
+                        };
+
                         match components {
                             1 => {
-                                let g = raw_pixels.get(i).copied().unwrap_or(0);
+                                let g = comp_slice[0];
                                 let g2 = pm(g, alpha);
                                 rgba.extend_from_slice(&[g2, g2, g2, alpha]);
-                                i += 1;
                             }
                             3 => {
-                                let r = raw_pixels.get(i).copied().unwrap_or(0);
-                                let g = raw_pixels.get(i + 1).copied().unwrap_or(0);
-                                let b = raw_pixels.get(i + 2).copied().unwrap_or(0);
+                                let r = comp_slice[0];
+                                let g = comp_slice[1];
+                                let b = comp_slice[2];
                                 rgba.extend_from_slice(&[pm(r, alpha), pm(g, alpha), pm(b, alpha), alpha]);
-                                i += 3;
                             }
                             4 => {
                                 // CMYK → RGB (simple conversion)
-                                let c = raw_pixels.get(i).copied().unwrap_or(0) as f32 / 255.0;
-                                let m = raw_pixels.get(i + 1).copied().unwrap_or(0) as f32 / 255.0;
-                                let y = raw_pixels.get(i + 2).copied().unwrap_or(0) as f32 / 255.0;
-                                let k = raw_pixels.get(i + 3).copied().unwrap_or(0) as f32 / 255.0;
+                                let c = comp_slice[0] as f32 / 255.0;
+                                let m = comp_slice[1] as f32 / 255.0;
+                                let y = comp_slice[2] as f32 / 255.0;
+                                let k = comp_slice[3] as f32 / 255.0;
                                 let r = (255.0 * (1.0 - c) * (1.0 - k)) as u8;
                                 let g = (255.0 * (1.0 - m) * (1.0 - k)) as u8;
                                 let b = (255.0 * (1.0 - y) * (1.0 - k)) as u8;
                                 rgba.extend_from_slice(&[pm(r, alpha), pm(g, alpha), pm(b, alpha), alpha]);
-                                i += 4;
                             }
                             _ => {
                                 rgba.extend_from_slice(&[0, 0, 0, alpha]);
-                                i += components as usize;
                             }
                         }
                     }
