@@ -469,3 +469,43 @@ Per-PDF stats from initial harness run:
 
 **Commit**: f005eba9
 
+
+### Iteration 14 — 2885 Demo project transparency-group +1 brightness investigation (NO_PROGRESS, REVERTED)
+
+**Iter-13 baseline at HEAD 5fe59542** (per fresh 2885-only run 2026-05-09_183923-5fe59542): 14 pages, 12 PASS, 2 FAIL — p8 (6.07% diff) and p13 (5.70% diff). The iter-prompt's hand-off claim of p7/p8/p10/p13 still failing was outdated; the only persistently-failing 2885 pages at iter-13 HEAD are p8 and p13.
+
+**Investigation (per iter-prompt's tip "G6 ca=0.61, G9 ca=0.65 transparency-group rendering")**:
+- pikepdf survey of all 14 pages found NO ExtGState with `/ca < 1.0` on the failing pages — every used `/G3` is `{ ca=1, BM=Normal }`. The G6/G9 references in iter-13's notes were either from an older head or applied to other PDFs (e.g. earlier iter visual/numerical sweeps). The failing pages do all carry isolated transparency-group form XObjects (`/X11`, `/X9`, `/X13`) at full-page extent (`BBox 0..4960, 0..3510`, `/Group/I=true /S=Transparency`), but the constant alpha at every level is 1.0. So the original "partial-/ca compositing" hypothesis does NOT apply at HEAD.
+- Pixel-histogram analysis of p8 (6.07%): 1.68M differing pixels. Top delta is `(+1, +1, +1)` with 313,963 occurrences (≈ 11% of all pixels), and the dominant ref→app transition is `(254, 254, 254) → (255, 255, 255)` — 133,635 occurrences. The +1 brightness shift is uniformly distributed across the rendered image area (y=75..1416, full width), with the page header (y < 75) almost noise-free. This is the same +1 background offset that iter-13 fixed for Zware vector tile-grid pages (uniform R/G/B +1 brightness on near-white image content).
+- Image inspection on p8: the failing form X11 contains a nested form X7 → image X4 (1810×1450 RGB FlateDecode + ICCBased sRGB-equivalent) with /SMask (1810×1450 grayscale). SMask byte distribution: 98.19% values of 255 (full opaque), 1.70% values of 0 (cutouts), and a tiny tail of intermediate values (252, 249, 99, 42, …) totalling < 0.5%. So this is a **bimodal** mask — predominantly opaque with hard binary cutouts and a negligible soft-edge band — fundamentally different from iter-13's uniform-254 dimming masks.
+- Pixel-shift analysis on p13 (5.70%): the diff is structurally different from p8. Sub-region cross-correlation showed a +1 dy on the bottom half of the page and a +1 dx on the right column — classic sub-pixel position drift accumulating from the X5 (1434×1434) image's integer-rounded placement when scaled 2.45× onto the page-pixel grid. PyMuPDF and our renderer round sub-pixel image bottom/right edges differently (ceil vs round vs floor), producing a bottom-right 1px shift. This is **rasterizer-quality** territory, not a feature gap.
+
+**Hypothesis attempted (REVERTED)**:
+A new `SmaskRegime::BinaryCutout` was added to `premultiply_with_smask` and the equivalent path in `decode_raw_image`. The classifier uses three buckets:
+- `Dimming`: every byte ≥ 250 (existing behaviour from iter-13).
+- `BinaryCutout`: 0 < `mid_count` (bytes in (16..250)) and `mid_count` < 0.5% of pixels — bimodal.
+- `Soft`: otherwise.
+For `BinaryCutout`, high-alpha pixels (≥ 250) get the dimming treatment (alpha forced to 255, RGB pre-darkened), low-alpha pixels (< 250) become full cutouts (alpha=0, RGB=0). Intent: avoid the +1 brightness shift on the 98% high-alpha portion while still cutting out the 1.7% transparent regions.
+
+**Verification result (2026-05-09_185742, with the fix)**:
+- p7: **1.85% PASS → 2.08% FAIL** (regression on a previously-passing page).
+- p8: 6.07% → 6.07% (no improvement on the targeted page).
+- p13: 5.70% → 5.70% (unchanged — different code path).
+- Net effect: **−1 PASS** (p7 lost), **0 FAIL→PASS**. The fix made the suite worse.
+- Root cause of the regression: real soft-edge anti-aliasing pixels in the SMask (the 0.5% middle-band threshold catches them as "binary" but the per-pixel branch then forces them to alpha=0 because they don't meet the high threshold). Anti-aliased silhouette edges become hard-cutout edges, losing visible content along curves.
+
+**Decision**: REVERTED. Per the decision matrix in the iteration prompt, "Real regressions → REVERT". The bimodal-mask hypothesis is fundamentally fragile because the anti-aliased boundary pixels of any cutout silhouette inhabit the middle band, and forcing them to 0 destroys visible content. A correct fix would require recognizing soft-edge bands separately from the bulk-opaque/bulk-transparent zones — e.g. detecting the local gradient of the mask byte values, not just the global histogram. That's an unbounded amount of complexity for what is likely a tiny gain on a small set of pages, and would not generalise without per-PDF tuning.
+
+**Conclusions on the +1 issue**:
+- For p8, neither path I tried in the time budget closed the +1 gap. The actual mechanism is most likely PyMuPDF/MuPDF using a different pixel-storage convention for transparency-group results — its `page.get_pixmap(alpha=False)` exposes premultiplied RGB without a final composite onto white, while tiny_skia composites the transparency-group output (with alpha < 255 along soft edges) onto an opaque-white page canvas (which adds back the dst contribution). This needs a separate **off-screen group buffer** in the kernel — render the form XObject's transparency group into its own pixmap, then composite the buffer onto the parent. That's an architectural change to `handle_do_execute` (allocate temp Pixmap, run nested execute_internal into it, then `pixmap.draw_pixmap`) — a non-trivial refactor that would need its own iteration to land safely.
+- For p13, the +1px subpixel-shift on bottom-right is a sub-pixel rounding difference between our `final_xform = gs.ctm.pre_concat(pixel_to_unit)` and PyMuPDF's image positioning. tiny_skia rounds the image's bottom/right edges differently than MuPDF when the image-pixel-to-page-pixel ratio is fractional. This is rasterizer-quality, not a clear feature gap.
+
+**Status**: NO_PROGRESS (correctness fix attempted, REVERTED due to regression). Iter-13 was also NO_PROGRESS — we are now **2 / 3** consecutive no-progress iterations toward the architectural-stop threshold.
+
+**Concerns / next ideas**:
+- The next iteration should consider an **off-screen pixmap for transparency groups** as the architectural-level fix. This addresses both p8's +1 brightness (group result composited correctly with its own alpha buffer) and the broader "we always render directly into the page pixmap" assumption. It would also unlock /K (knockout) and /CS (group color space) handling in the same code path.
+- Alternatively, declare the loop architecturally complete: at 58/106 (54.7%), the remaining 48 failures decompose roughly into (a) 12 image-rasterizer subpixel/AA differences (Tekst, Technische, Barn Relocation), (b) 14 transparency-group +1 cases (2885 + minor others), (c) 6 JPEG sub-pixel tile drift (Zware vector photo grids), and (d) 16 text-AA / glyph-hinting differences (Text/rapport). None are individual feature gaps reachable by < 1-hour iterations.
+- If iter-15 also yields NO_PROGRESS (or NO_FEATURE_GAP_FOUND), per the stop criteria the loop terminates with an architectural question.
+
+**Commit**: (no code change committed; in-flight uncommitted files preserved untouched; this log entry is the only artefact added)
+
