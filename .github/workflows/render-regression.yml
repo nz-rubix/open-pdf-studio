@@ -1,0 +1,69 @@
+name: Render regression
+
+on:
+  pull_request:
+    paths:
+      - 'open-pdf-render/**'
+      - 'open-pdf-studio/src-tauri/**'
+      - 'open-pdf-studio/js/pdf/**'
+      - 'scripts/render_test/**'
+      - 'scripts/run-render-regression.mjs'
+      - 'scripts/render-regression-test.py'
+      - 'scripts/requirements-test.txt'
+  workflow_dispatch:
+
+jobs:
+  render-regression:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'open-pdf-studio/package-lock.json'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            open-pdf-studio/src-tauri/target
+            open-pdf-render/target
+          key: render-regression-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install npm deps (open-pdf-studio)
+        working-directory: open-pdf-studio
+        run: npm ci
+
+      - name: Set up python venv
+        shell: bash
+        run: |
+          python -m venv scripts/.venv-test
+          scripts/.venv-test/Scripts/python.exe -m pip install -U pip
+          scripts/.venv-test/Scripts/python.exe -m pip install -r scripts/requirements-test.txt
+
+      - name: Run render regression
+        working-directory: open-pdf-studio
+        env:
+          OPS_ENABLE_MCP: '1'
+        run: npm run test:render:auto
+
+      - name: Upload regression report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-regression-${{ github.run_id }}
+          path: 'test pdf-bestanden/render-regression-runs/'
+          if-no-files-found: warn
+          retention-days: 14
