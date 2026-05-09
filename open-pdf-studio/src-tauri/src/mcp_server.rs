@@ -124,6 +124,16 @@ fn handle_tools_list() -> Value {
                     "required": ["path", "page_index"],
                     "additionalProperties": false
                 }
+            },
+            {
+                "name": "get_pdf_metadata",
+                "description": "Read PDF version, producer, and per-page metadata.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": { "path": { "type": "string" } },
+                    "required": ["path"],
+                    "additionalProperties": false
+                }
             }
         ]
     })
@@ -142,6 +152,7 @@ async fn handle_tools_call(state: &AppState, params: &Value) -> Result<Value, (i
     match name {
         "list_test_pdfs" => tool_list_test_pdfs(state).await,
         "screenshot_page" => tool_screenshot_page(state, &arguments).await,
+        "get_pdf_metadata" => tool_get_pdf_metadata(state, &arguments).await,
         other => Err((
             jsonrpc_error::METHOD_NOT_FOUND,
             format!("method not found: {other}"),
@@ -278,6 +289,109 @@ async fn tool_screenshot_page(
             "text": payload.to_string(),
         }],
         "isError": false,
+    }))
+}
+
+/// `get_pdf_metadata` tool — reads the PDF version, producer/creator metadata,
+/// and per-page MediaBox + rotation directly from the PDF structure via
+/// `lopdf`. Used by the regression harness to confirm the rendered output
+/// matches the source document's declared geometry.
+///
+/// In lopdf 0.34 `Document.version` is a plain `String` (e.g. `"1.4"`), so it
+/// is returned verbatim as `pdf_version`. Producer/Creator are read from
+/// `/Info`, which may be either a direct dict or an indirect reference; both
+/// shapes are handled. MediaBox values may be PDF Integer or Real, and both
+/// are coerced to `f32`.
+async fn tool_get_pdf_metadata(
+    _state: &AppState,
+    arguments: &Value,
+) -> Result<Value, (i32, String)> {
+    let path = arguments
+        .get("path")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| (jsonrpc_error::INVALID_PARAMS, "missing 'path'".to_string()))?
+        .to_string();
+
+    // lopdf is sync; offload to spawn_blocking so we don't stall the runtime.
+    let payload = tokio::task::spawn_blocking(move || -> Result<Value, String> {
+        let bytes = std::fs::read(&path).map_err(|e| format!("read {}: {e}", path))?;
+        let doc = lopdf::Document::load_mem(&bytes).map_err(|e| format!("parse: {e}"))?;
+
+        // lopdf 0.34: `Document.version` is `pub version: String` (e.g. "1.4").
+        let pdf_version = doc.version.clone();
+
+        // Producer / Creator from /Info
+        let mut producer = String::new();
+        let mut creator = String::new();
+        if let Ok(info_ref) = doc.trailer.get(b"Info") {
+            // /Info can be a direct dict OR an indirect reference. Resolve both.
+            let info_dict_opt = if let Ok(reference) = info_ref.as_reference() {
+                doc.get_object(reference).ok().and_then(|o| o.as_dict().ok())
+            } else {
+                info_ref.as_dict().ok()
+            };
+            if let Some(info) = info_dict_opt {
+                let read_str = |key: &[u8]| -> String {
+                    info.get(key)
+                        .ok()
+                        .and_then(|o| match o {
+                            lopdf::Object::String(s, _) => {
+                                Some(String::from_utf8_lossy(s).into_owned())
+                            }
+                            _ => None,
+                        })
+                        .unwrap_or_default()
+                };
+                producer = read_str(b"Producer");
+                creator = read_str(b"Creator");
+            }
+        }
+
+        // Per-page: index, mediabox, rotation
+        let pages_map = doc.get_pages(); // BTreeMap<u32 page_num, ObjectId>
+        let mut pages_json = Vec::with_capacity(pages_map.len());
+        for (idx, (_page_num, page_id)) in pages_map.iter().enumerate() {
+            let mut mediabox: Vec<f32> = Vec::new();
+            let mut rotation: i64 = 0;
+            if let Ok(p_dict) = doc.get_object(*page_id).and_then(|o| o.as_dict()) {
+                if let Ok(arr) = p_dict.get(b"MediaBox").and_then(|o| o.as_array()) {
+                    mediabox = arr
+                        .iter()
+                        .filter_map(|o| match o {
+                            lopdf::Object::Integer(i) => Some(*i as f32),
+                            lopdf::Object::Real(r) => Some(*r),
+                            _ => None,
+                        })
+                        .collect();
+                }
+                rotation = p_dict
+                    .get(b"Rotate")
+                    .ok()
+                    .and_then(|o| o.as_i64().ok())
+                    .unwrap_or(0);
+            }
+            pages_json.push(json!({
+                "index":    idx,
+                "mediabox": mediabox,
+                "rotation": rotation
+            }));
+        }
+
+        Ok(json!({
+            "pdf_version": pdf_version,
+            "page_count":  pages_map.len(),
+            "producer":    producer,
+            "creator":     creator,
+            "pages":       pages_json
+        }))
+    })
+    .await
+    .map_err(|e| (jsonrpc_error::INTERNAL_ERROR, format!("metadata task panic: {e}")))?
+    .map_err(|e| (jsonrpc_error::INTERNAL_ERROR, e))?;
+
+    Ok(json!({
+        "content": [{ "type": "text", "text": payload.to_string() }],
+        "isError": false
     }))
 }
 
@@ -505,5 +619,59 @@ mod tests {
         let b64 = body["png_base64"].as_str().unwrap();
         assert!(b64.starts_with("iVBORw0KGgo"), "expected png magic; got {}", &b64[..20]);
         assert!(body["width"].as_u64().unwrap() > 0);
+    }
+
+    #[test]
+    fn tools_list_advertises_get_pdf_metadata() {
+        let v = handle_tools_list();
+        let names: Vec<&str> = v["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["name"].as_str().unwrap())
+            .collect();
+        assert!(names.contains(&"get_pdf_metadata"));
+    }
+
+    #[tokio::test]
+    async fn tool_get_pdf_metadata_returns_version_and_pages() {
+        use std::path::PathBuf;
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let corpus = manifest_dir
+            .ancestors()
+            .nth(2)
+            .unwrap()
+            .join("test pdf-bestanden")
+            .join("Originele bestanden");
+        if !corpus.exists() {
+            eprintln!("[skip] corpus dir missing at {:?}", corpus);
+            return;
+        }
+        // Pick "Technische tekening.pdf" — a known /Rotate=90 file with multi-page content.
+        let pdf = corpus.join("Technische tekening.pdf");
+        if !pdf.exists() {
+            eprintln!("[skip] expected test pdf missing: {:?}", pdf);
+            return;
+        }
+
+        let state = AppState {
+            test_pdfs_dir: std::sync::Arc::new(corpus),
+        };
+        let args = serde_json::json!({ "path": pdf.to_string_lossy() });
+        let result = tool_get_pdf_metadata(&state, &args).await.expect("metadata ok");
+        assert_eq!(result["isError"], serde_json::Value::Bool(false));
+
+        let text = result["content"][0]["text"].as_str().unwrap();
+        let body: serde_json::Value = serde_json::from_str(text).unwrap();
+        assert!(body["pdf_version"].as_str().unwrap().starts_with("1."));
+        let page_count = body["page_count"].as_u64().unwrap();
+        assert!(page_count >= 1, "expected at least 1 page");
+        let pages = body["pages"].as_array().unwrap();
+        assert_eq!(pages.len() as u64, page_count);
+        // Page 0 of Technische tekening.pdf has /Rotate 90 in the source PDF.
+        let rot0 = pages[0]["rotation"].as_i64().unwrap();
+        assert_eq!(rot0, 90, "Technische tekening.pdf page 0 should have /Rotate 90");
+        let mediabox = pages[0]["mediabox"].as_array().unwrap();
+        assert_eq!(mediabox.len(), 4, "MediaBox should be 4 numbers");
     }
 }
