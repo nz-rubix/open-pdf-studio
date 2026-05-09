@@ -7,6 +7,68 @@ use crate::fonts::FontRegistry;
 use crate::color;
 use crate::RenderError;
 
+// Per-stage image timing accumulators (microseconds). Enabled by setting
+// OPSR_PROFILE_IMAGES=1; otherwise the time-checking code is hot-path-cheap
+// (one atomic load + one branch). Speed iter-24 instrumentation.
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+static PROF_FLATE_US: AtomicU64 = AtomicU64::new(0);
+static PROF_PREDICTOR_US: AtomicU64 = AtomicU64::new(0);
+static PROF_JPEG_US: AtomicU64 = AtomicU64::new(0);
+static PROF_RAW_DECODE_US: AtomicU64 = AtomicU64::new(0);
+static PROF_PREMUL_US: AtomicU64 = AtomicU64::new(0);
+static PROF_DRAW_US: AtomicU64 = AtomicU64::new(0);
+static PROF_DEREF_US: AtomicU64 = AtomicU64::new(0);
+static PROF_IMG_COUNT: AtomicUsize = AtomicUsize::new(0);
+static PROF_SEEN_XOBJ: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<lopdf::ObjectId, u32>>> = std::sync::OnceLock::new();
+
+#[inline(always)]
+fn profile_enabled() -> bool {
+    static FLAG: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *FLAG.get_or_init(|| std::env::var_os("OPSR_PROFILE_IMAGES").is_some())
+}
+
+fn profile_reset() {
+    PROF_FLATE_US.store(0, Ordering::Relaxed);
+    PROF_PREDICTOR_US.store(0, Ordering::Relaxed);
+    PROF_JPEG_US.store(0, Ordering::Relaxed);
+    PROF_RAW_DECODE_US.store(0, Ordering::Relaxed);
+    PROF_PREMUL_US.store(0, Ordering::Relaxed);
+    PROF_DRAW_US.store(0, Ordering::Relaxed);
+    PROF_DEREF_US.store(0, Ordering::Relaxed);
+    PROF_IMG_COUNT.store(0, Ordering::Relaxed);
+    if let Some(m) = PROF_SEEN_XOBJ.get() {
+        if let Ok(mut g) = m.lock() {
+            g.clear();
+        }
+    }
+}
+
+fn profile_dump() {
+    let n = PROF_IMG_COUNT.load(Ordering::Relaxed);
+    if n == 0 { return; }
+    eprintln!(
+        "  [img-stages n={n}] deref={:>5}us flate={:>5}us predictor={:>5}us jpeg={:>5}us raw={:>5}us premul={:>5}us draw={:>5}us",
+        PROF_DEREF_US.load(Ordering::Relaxed),
+        PROF_FLATE_US.load(Ordering::Relaxed),
+        PROF_PREDICTOR_US.load(Ordering::Relaxed),
+        PROF_JPEG_US.load(Ordering::Relaxed),
+        PROF_RAW_DECODE_US.load(Ordering::Relaxed),
+        PROF_PREMUL_US.load(Ordering::Relaxed),
+        PROF_DRAW_US.load(Ordering::Relaxed),
+    );
+}
+
+// Dump unique-image diagnostic when profiling.
+pub(crate) fn profile_dump_uniq(seen: &std::collections::HashMap<lopdf::ObjectId, u32>) {
+    if seen.is_empty() { return; }
+    let total: u32 = seen.values().sum();
+    let unique = seen.len();
+    let max_reuse = seen.values().max().copied().unwrap_or(0);
+    eprintln!(
+        "  [img-uniq] total_refs={total} unique_xobj={unique} max_reuse={max_reuse}"
+    );
+}
+
 /// A text span with position, size, and Unicode text content.
 /// Used to build a synthetic text selection layer in the frontend.
 #[derive(Clone, Debug)]
@@ -109,6 +171,25 @@ impl TextState {
     }
 }
 
+/// A decoded RGBA buffer for an Image XObject, sized to the chosen output
+/// resolution (after JPEG scale-DCT or box downsample). Wrapped in Arc so
+/// the per-page cache can hand back the same pixels for repeated /Do refs
+/// without copying.
+pub(crate) struct CachedDecodedImage {
+    w: u32,
+    h: u32,
+    rgba: std::sync::Arc<Vec<u8>>,
+}
+
+/// Per-page cache for decoded image XObjects, keyed by lopdf::ObjectId.
+/// Speed iter-24: tiled-photo-grid PDFs (Zware vector PDF p2-p6) reference
+/// the same XObject up to 68 times each — caching the post-decode RGBA
+/// buffer means we pay the JPEG-decode + SMask-premul cost ONCE per unique
+/// image instead of per /Do reference. The cache is dropped at the end of
+/// each render_page invocation so per-page memory stays bounded by the
+/// distinct-image count (~60 unique on the worst page).
+pub(crate) type ImageCache = std::collections::HashMap<lopdf::ObjectId, CachedDecodedImage>;
+
 pub struct Interpreter;
 
 impl Interpreter {
@@ -148,6 +229,10 @@ impl Interpreter {
         font_registry: &mut FontRegistry,
         max_image_pixels: u32,
     ) -> Result<(), RenderError> {
+        let prof = profile_enabled();
+        if prof { profile_reset(); }
+        // Per-page decoded-image cache. See `ImageCache` doc.
+        let mut img_cache: ImageCache = std::collections::HashMap::new();
         let content = Content::decode(content_bytes)
             .map_err(|e| RenderError::ParseError(format!("Content decode: {}", e)))?;
 
@@ -338,13 +423,21 @@ impl Interpreter {
                     }
                 }
                 "Do" => {
-                    Self::handle_do_execute(&op.operands, renderer, state, doc, resources, font_registry, max_image_pixels);
+                    Self::handle_do_execute(&op.operands, renderer, state, doc, resources, font_registry, max_image_pixels, &mut img_cache);
                 }
                 "gs" => {
                     Self::apply_ext_gstate(&op.operands, state, doc, resources);
                 }
                 "ri" | "i" => {}
                 _ => {}
+            }
+        }
+        if prof {
+            profile_dump();
+            if let Some(m) = PROF_SEEN_XOBJ.get() {
+                if let Ok(g) = m.lock() {
+                    profile_dump_uniq(&g);
+                }
             }
         }
         Ok(())
@@ -358,6 +451,7 @@ impl Interpreter {
         resources: &Dictionary,
         font_registry: &mut FontRegistry,
         max_image_pixels: u32,
+        img_cache: &mut ImageCache,
     ) {
         let name = match operands.first() {
             Some(Object::Name(n)) => n,
@@ -385,7 +479,13 @@ impl Interpreter {
         };
         let subtype = stream.dict.get(b"Subtype").ok().and_then(|s| s.as_name().ok());
         if subtype == Some(b"Image" as &[u8]) {
-            Self::handle_image_execute(stream, renderer, state, doc, max_image_pixels);
+            if profile_enabled() {
+                let m = PROF_SEEN_XOBJ.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+                if let Ok(mut g) = m.lock() {
+                    *g.entry(resolved_id).or_insert(0) += 1;
+                }
+            }
+            Self::handle_image_execute(stream, renderer, state, doc, max_image_pixels, resolved_id, img_cache);
             return;
         }
         if subtype != Some(b"Form" as &[u8]) {
@@ -627,12 +727,36 @@ impl Interpreter {
         state: &mut GraphicsStateStack,
         doc: &Document,
         max_decode_pixels: u32,
+        xobj_id: lopdf::ObjectId,
+        img_cache: &mut ImageCache,
     ) {
+        let prof = profile_enabled();
         let dict = &stream.dict;
         let width = Self::read_int(dict, b"Width", doc).unwrap_or(0);
         let height = Self::read_int(dict, b"Height", doc).unwrap_or(0);
         if width == 0 || height == 0 { return; }
 
+        // ─── Cache lookup ────────────────────────────────────────────────
+        // Speed iter-24: tiled photo-grid PDFs reuse the same XObject many
+        // times per page (Zware vector PDF p5 has 171 /Do refs against just
+        // 61 unique image XObjects). Decoded RGBA buffers are stored in
+        // Arc<Vec<u8>> so the second-and-subsequent paint of the same
+        // XObject is a free clone of the Arc handle — no JPEG re-decode,
+        // no SMask premul, no allocation.
+        if let Some(cached) = img_cache.get(&xobj_id) {
+            let t_draw = if prof { Some(std::time::Instant::now()) } else { None };
+            state.save();
+            state.concat_matrix(1.0, 0.0, 0.0, -1.0, 0.0, 1.0);
+            renderer.draw_image(cached.w, cached.h, cached.rgba.as_slice(), &state.current);
+            state.restore();
+            if let Some(t) = t_draw {
+                PROF_DRAW_US.fetch_add(t.elapsed().as_micros() as u64, Ordering::Relaxed);
+                PROF_IMG_COUNT.fetch_add(1, Ordering::Relaxed);
+            }
+            return;
+        }
+
+        let t_deref = if prof { Some(std::time::Instant::now()) } else { None };
         let filter = dict.get(b"Filter").ok().and_then(|o| match o {
             Object::Name(n) => Some(n.clone()),
             Object::Reference(id) => doc.get_object(*id).ok().and_then(|o| {
@@ -644,19 +768,32 @@ impl Interpreter {
             }),
             _ => None,
         });
+        if let Some(t) = t_deref {
+            PROF_DEREF_US.fetch_add(t.elapsed().as_micros() as u64, Ordering::Relaxed);
+        }
         let filter_name = filter.as_deref().unwrap_or(b"");
         let is_jpeg = filter_name == b"DCTDecode";
 
         // ─── JPEG: use turbojpeg with native scaled DCT decoding ─────────
         let (img_w, img_h, mut rgba) = if is_jpeg {
             let raw = &stream.content;
-            match Self::decode_jpeg_scaled(raw, max_decode_pixels) {
+            let t = if prof { Some(std::time::Instant::now()) } else { None };
+            let res = Self::decode_jpeg_scaled(raw, max_decode_pixels);
+            if let Some(t) = t {
+                PROF_JPEG_US.fetch_add(t.elapsed().as_micros() as u64, Ordering::Relaxed);
+            }
+            match res {
                 Some(result) => result,
                 None => return,
             }
         } else {
             // ─── Non-JPEG: raw pixel decode + optional box downsample ────
-            match Self::decode_raw_image(dict, stream, doc, width, height, max_decode_pixels) {
+            let t = if prof { Some(std::time::Instant::now()) } else { None };
+            let res = Self::decode_raw_image(dict, stream, doc, width, height, max_decode_pixels);
+            if let Some(t) = t {
+                PROF_RAW_DECODE_US.fetch_add(t.elapsed().as_micros() as u64, Ordering::Relaxed);
+            }
+            match res {
                 Some(result) => result,
                 None => return,
             }
@@ -673,14 +810,27 @@ impl Interpreter {
         // through transparent edge pixels.
         if is_jpeg {
             if let Some((sm_w, sm_h, alpha_bytes)) = Self::read_smask_alpha(dict, doc) {
+                let t = if prof { Some(std::time::Instant::now()) } else { None };
                 Self::premultiply_with_smask(&mut rgba, img_w, img_h, &alpha_bytes, sm_w, sm_h);
+                if let Some(t) = t {
+                    PROF_PREMUL_US.fetch_add(t.elapsed().as_micros() as u64, Ordering::Relaxed);
+                }
             }
         }
 
+        // Cache the decoded buffer for any subsequent /Do refs on this page.
+        let rgba_arc = std::sync::Arc::new(rgba);
+        img_cache.insert(xobj_id, CachedDecodedImage { w: img_w, h: img_h, rgba: rgba_arc.clone() });
+
+        let t_draw = if prof { Some(std::time::Instant::now()) } else { None };
         state.save();
         state.concat_matrix(1.0, 0.0, 0.0, -1.0, 0.0, 1.0);
-        renderer.draw_image(img_w, img_h, &rgba, &state.current);
+        renderer.draw_image(img_w, img_h, rgba_arc.as_slice(), &state.current);
         state.restore();
+        if let Some(t) = t_draw {
+            PROF_DRAW_US.fetch_add(t.elapsed().as_micros() as u64, Ordering::Relaxed);
+            PROF_IMG_COUNT.fetch_add(1, Ordering::Relaxed);
+        }
     }
 
     /// Resolve and decode an Image XObject's `/SMask` soft-alpha mask.
@@ -2063,6 +2213,7 @@ impl Interpreter {
     /// separately by the callers — this helper is only for raw/Flate streams.
     fn decompress_image_stream(stream: &lopdf::Stream) -> Option<Vec<u8>> {
         use std::io::Read;
+        let prof = profile_enabled();
         let dict = &stream.dict;
         let filters: Vec<String> = match dict.get(b"Filter").ok() {
             Some(Object::Name(n)) => vec![String::from_utf8_lossy(n).into_owned()],
@@ -2084,10 +2235,14 @@ impl Interpreter {
             return None;
         }
 
+        let t_flate = if prof { Some(std::time::Instant::now()) } else { None };
         let mut decoder = flate2::read::ZlibDecoder::new(stream.content.as_slice());
         let mut decoded = Vec::with_capacity(stream.content.len() * 4);
         if decoder.read_to_end(&mut decoded).is_err() {
             return None;
+        }
+        if let Some(t) = t_flate {
+            PROF_FLATE_US.fetch_add(t.elapsed().as_micros() as u64, Ordering::Relaxed);
         }
 
         // Apply PNG predictor (DecodeParms /Predictor >= 10).
@@ -2101,6 +2256,7 @@ impl Interpreter {
             .unwrap_or(1);
 
         if (10..=15).contains(&predictor) {
+            let t_pred = if prof { Some(std::time::Instant::now()) } else { None };
             let columns = params
                 .and_then(|p| p.get(b"Columns").ok())
                 .and_then(|o| if let Object::Integer(i) = o { Some(*i as usize) } else { None })
@@ -2171,6 +2327,9 @@ impl Interpreter {
                 }
                 out.extend_from_slice(&current);
                 prev_row = current;
+            }
+            if let Some(t) = t_pred {
+                PROF_PREDICTOR_US.fetch_add(t.elapsed().as_micros() as u64, Ordering::Relaxed);
             }
             return Some(out);
         }
