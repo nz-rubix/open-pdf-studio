@@ -549,5 +549,5 @@ For `BinaryCutout`, high-alpha pixels (≥ 250) get the dimming treatment (alpha
 
 **Status**: NO_PROGRESS (correctness fix landed, no net pass change → 3/3 architectural stop).
 
-**Commit**: (added below)
+**Commit**: aa76e874
 
