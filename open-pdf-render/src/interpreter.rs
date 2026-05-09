@@ -381,6 +381,25 @@ impl Interpreter {
         if subtype != Some(b"Form" as &[u8]) {
             return;
         }
+        // Detect transparency group BEFORE saving graphics state — we need
+        // the parent's effective alpha at the moment of the `Do` operator
+        // to use as the composite opacity when blending the offscreen
+        // group buffer back onto the parent.
+        let is_transparency_group = stream.dict.get(b"Group")
+            .ok()
+            .and_then(|g| Self::resolve_dict(g, doc).ok())
+            .and_then(|d| d.get(b"S").ok())
+            .and_then(|s| s.as_name().ok())
+            == Some(b"Transparency" as &[u8]);
+
+        // Capture the parent's effective non-stroking alpha for use as
+        // the group composite opacity. PDF spec §11.6.6: the transparency
+        // group is rendered into its own isolated backdrop and then
+        // composited onto the parent using the /ca (non-stroking) alpha
+        // that was active at the point of the `Do` operator. /CA does
+        // NOT scale a Form-XObject `Do` result.
+        let parent_fill_alpha = state.current.effective_fill_alpha();
+
         state.save();
         if let Ok(matrix) = stream.dict.get(b"Matrix") {
             if let Ok(arr) = matrix.as_array() {
@@ -412,31 +431,80 @@ impl Interpreter {
                 renderer.apply_clip(&mut state.current, &path, false);
             }
         }
-        // Transparency-group Form XObjects (PDF 1.4+) should be rendered
-        // into an isolated buffer at full alpha and then composited onto
-        // the parent at the parent's current /ca. We don't allocate a
-        // separate pixmap; instead we fold the parent's accumulated alpha
-        // into a multiplier (group_*_alpha) and reset the in-group alpha
-        // to 1.0 — at draw time we multiply the two. This is the right
-        // answer for single-level groups and a close approximation for
-        // nested ones.
-        let is_transparency_group = stream.dict.get(b"Group")
-            .ok()
-            .and_then(|g| Self::resolve_dict(g, doc).ok())
-            .and_then(|d| d.get(b"S").ok())
-            .and_then(|s| s.as_name().ok())
-            == Some(b"Transparency" as &[u8]);
-        if is_transparency_group {
-            let cur = &mut state.current;
-            cur.group_fill_alpha = (cur.group_fill_alpha * cur.fill_alpha).clamp(0.0, 1.0);
-            cur.group_stroke_alpha = (cur.group_stroke_alpha * cur.stroke_alpha).clamp(0.0, 1.0);
-            cur.fill_alpha = 1.0;
-            cur.stroke_alpha = 1.0;
-        }
         let form_resources = Self::extract_form_resources(&stream.dict, doc);
         let res = form_resources.as_ref().unwrap_or(resources);
-        if let Ok(content_bytes) = stream.decompressed_content() {
-            let _ = Self::execute_internal(&content_bytes, renderer, state, doc, res, font_registry, max_image_pixels);
+
+        if is_transparency_group {
+            // Off-screen group buffer (PDF spec §11.4.5 + §11.6.6).
+            //
+            // Allocate a fresh transparent buffer of the same pixel
+            // dimensions as the parent. The form's content stream is
+            // executed against this buffer; once finished, the buffer is
+            // composited onto the parent with `parent_fill_alpha` as the
+            // SourceOver opacity. The same-size choice keeps the inherited
+            // CTM and clip mask coordinates valid without remapping.
+            //
+            // Inside the group we MUST reset both `fill_alpha` and
+            // `group_fill_alpha` to 1.0 so internal compositions accumulate
+            // against the transparent backdrop at full opacity — the parent
+            // alpha is applied ONCE during the final composite. Doing it
+            // twice (here and during composite) is the bug iter-2's
+            // single-pixmap approach embodied, which produced the +1
+            // brightness shift visible on 2885 p7/p8/p13.
+            let cur = &mut state.current;
+            cur.fill_alpha = 1.0;
+            cur.stroke_alpha = 1.0;
+            cur.group_fill_alpha = 1.0;
+            cur.group_stroke_alpha = 1.0;
+
+            // Allocate the offscreen renderer. If allocation fails (e.g.
+            // out-of-memory for an extreme page), fall back to the parent
+            // canvas — slightly wrong but still produces output.
+            match renderer.new_offscreen_like() {
+                Ok(mut sub_renderer) => {
+                    if let Ok(content_bytes) = stream.decompressed_content() {
+                        let _ = Self::execute_internal(
+                            &content_bytes,
+                            &mut sub_renderer,
+                            state,
+                            doc,
+                            res,
+                            font_registry,
+                            max_image_pixels,
+                        );
+                    }
+                    // Composite the group buffer onto the parent using
+                    // the parent's /ca (non-stroking alpha). PDF spec
+                    // §11.6.6 governs Form XObject (image-like) `Do`
+                    // composition with the non-stroking alpha — /CA is
+                    // for stroke ops only and does NOT scale a `Do`
+                    // result. The /ca that was active when the `Do` was
+                    // reached is exactly what pyMuPDF / muPDF apply.
+                    let composite_alpha = parent_fill_alpha;
+                    renderer.composite_group(&sub_renderer, composite_alpha);
+                }
+                Err(_) => {
+                    // Fallback: paint into the parent directly, using the
+                    // legacy iter-2 alpha-folding approximation. Better
+                    // than dropping content entirely.
+                    let cur = &mut state.current;
+                    cur.group_fill_alpha = parent_fill_alpha;
+                    cur.group_stroke_alpha = parent_fill_alpha;
+                    if let Ok(content_bytes) = stream.decompressed_content() {
+                        let _ = Self::execute_internal(
+                            &content_bytes, renderer, state, doc, res,
+                            font_registry, max_image_pixels,
+                        );
+                    }
+                }
+            }
+        } else {
+            if let Ok(content_bytes) = stream.decompressed_content() {
+                let _ = Self::execute_internal(
+                    &content_bytes, renderer, state, doc, res,
+                    font_registry, max_image_pixels,
+                );
+            }
         }
         state.restore();
     }

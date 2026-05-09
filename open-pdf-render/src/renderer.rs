@@ -16,6 +16,49 @@ impl SkiaRenderer {
         Ok(SkiaRenderer { pixmap, path_builder: None, width, height })
     }
 
+    /// Allocate an off-screen renderer of the SAME pixel dimensions as
+    /// `self`, initialised to fully-transparent black. Used by the
+    /// transparency-group code path: a Form XObject with `/Group /S
+    /// /Transparency` must paint its contents into an isolated buffer that
+    /// is then composited onto the parent at the parent's current /ca.
+    /// Same-size guarantees that the inherited CTM and clip mask continue
+    /// to address the same device-space pixel grid without remapping.
+    pub fn new_offscreen_like(&self) -> Result<Self, String> {
+        let pixmap = Pixmap::new(self.width, self.height)
+            .ok_or_else(|| "Failed to create offscreen pixmap".to_string())?;
+        // Pixmap::new initialises to all-zero (transparent black); leave it.
+        Ok(SkiaRenderer {
+            pixmap,
+            path_builder: None,
+            width: self.width,
+            height: self.height,
+        })
+    }
+
+    /// Composite an offscreen group buffer back onto `self` using
+    /// PDF transparency-group semantics: full SourceOver blend at the
+    /// captured group constant alpha. This is the painted-on-the-parent
+    /// step described in PDF spec §11.6.6.
+    pub fn composite_group(&mut self, sub: &SkiaRenderer, group_alpha: f32) {
+        let paint = PixmapPaint {
+            opacity: group_alpha.clamp(0.0, 1.0),
+            blend_mode: BlendMode::SourceOver,
+            quality: FilterQuality::Nearest,
+        };
+        // No clip is applied here on purpose: the inner draws have ALREADY
+        // honoured the parent's clip mask (the same `gs.clip_path` was
+        // shared via the GraphicsStateStack). Re-applying it here would
+        // double-clip and produce nothing different at best, garbage at
+        // worst — leave it alone.
+        self.pixmap.draw_pixmap(
+            0, 0,
+            sub.pixmap.as_ref(),
+            &paint,
+            Transform::identity(),
+            None,
+        );
+    }
+
     /// Snapshot the current path-builder contents into a finished Path
     /// without consuming the builder. Used by the clipping operator (`W` /
     /// `W*`), which needs to apply the same path to the GraphicsState clip
