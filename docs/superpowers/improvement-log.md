@@ -1165,3 +1165,106 @@ The brief allowed `wide` or hand-rolled `_mm_*` intrinsics. After integer math r
 **Continue**: PAUSE — the per-pixel inner loop is no longer the wall-time bottleneck after iter-25's parallelism plus iter-26's integer math. Future rounds should profile what's filling the remaining ~100 ms wall on p3 (page setup, single-thread serial draw, smask sampling). SIMD on top would yield <2 ms wall savings — not worth complexity.
 
 **Status**: **DONE_WITH_CONCERNS** — 32% per-loop speedup (≥30% target met on inner loops), but only 20-26% wall on the heaviest CMYK pages (Amdahl). 58/106 PASS preserved. All 8 PDFs render correctly. No memory, panic, or quality regressions.
+
+---
+
+## Speed iter 27 — single-thread serial profile + ceiling reached (REVERTED, PERF_CEILING_REACHED)
+
+**Date**: 2026-05-08. Builds on iter-26.
+
+**Goal**: Find and shrink the ~100 ms wall on Barn Relocation p3 NOT covered by rayon-parallel image decode (iter-25 saturated cores; iter-26 saturated per-loop integer math). Target: ≥20% wall speedup.
+
+### Profile breakdown (added wall-time instrumentation, both `interpreter.rs` and `renderer.rs`):
+
+For Barn Relocation p3 (118 ms wall, 2000×1295):
+
+```
+[wall] decode=1.4ms  predecode=80ms  walk=35ms
+       draw_pixmap=15ms  fill_path=0.7ms(n=2)  stroke_path=0.3ms(n=1282)  clip_intersect=0.9ms(n=11)
+[img-stages n=14]
+       deref=0.3ms  flate=160ms  predictor=75ms  raw=275ms  draw=19ms   (sums across cores)
+```
+
+**Decomposition**:
+- `decode` (Content::decode parsing) = 1.4 ms — negligible
+- `predecode` (parallel image decode wall, rayon par_iter join) = **80 ms (68% of wall)**
+- `walk` (serial content-stream loop after predecode) = 35 ms (30%):
+  - `draw_pixmap` calls (sum) = 15 ms
+  - `fill_path`/`stroke_path` paint calls = 1 ms
+  - `apply_clip` mask intersect = 0.9 ms
+  - Untraced (Form XObject Do dispatch, state.save/restore, matrix concat, path-builder) = ~17 ms
+
+### Per-image timing inside predecode (Barn p3, 14 images):
+
+```
+3 small images          1-3 ms each
+3 medium tiles          3-5 ms each
+4 large RGB+predictor   50, 53, 72, 80 ms  ← these dominate
+```
+
+The largest single image (xref=133, 4257×2348 RGB+PNG-predictor = 10 MP) takes **80 ms by itself**. The next largest is 72 ms. Both run on independent rayon threads. Wall-time floor = max single-image time = 80 ms.
+
+### Bottleneck identified
+
+**Per-image flate decompression is single-threaded** (flate2 = miniz_oxide backend). Within a single 80 ms image: ~40 ms flate + ~19 ms predictor + ~12 ms per-pixel + ~9 ms allocation/dispatch. The flate stage cannot be split because RFC 1950 zlib decoding is inherently sequential. The predictor stage's "Up" filter rows depend on the previous row → also serial.
+
+The serial walk (35 ms) is dominated by content-stream operator dispatch through the giant `match op.operator.as_str()` plus per-image `state.save/restore` + `Transform::pre_concat` overhead — already extremely tight tiny_skia / lopdf code, no obvious wasted CPU.
+
+### Hypothesis tested + result
+
+**Predictor optimisation**: replaced per-row `prev_row.copy_from_slice(cur)` (30 MB extra memcpy on the 10 MP image) with `out.split_at_mut(r * row_bytes)` so `prev` reads directly from the previously-written row in `out`. Implementation correct, verified on the regression suite (58/106 PASS preserved, bit-perfect parity on all diffed pages).
+
+| Page | Before iter-27 (iter-26 baseline) | With predictor fix | Δ |
+|------|--------------------------------|------------|---|
+| Barn p3 | 118 ms | 123 ms | flat (within noise) |
+| Barn p5 | 117 ms | 117 ms | flat |
+| Barn predictor sum (Σ across cores) | 75 ms | 71 ms | −5% |
+
+The 5% reduction in per-image-stage CPU **does not translate to wall** because the slowest single image's flate stage (40 ms, single-thread) still gates predecode wall at ~75-80 ms.
+
+### Other architectural options considered + rejected
+
+| Option | Expected wall savings | Why rejected |
+|--------|----------------------|---------------|
+| Predecode + walk overlap (run concurrently) | 0-30 ms (depends on image encounter order in walk) | Walk is 35 ms vs predecode 80 ms — walk finishes BEFORE most images decode, so it would block at first `Do`. Worst case = no win. Best case ≈ 30%. Implementation needs per-image condvar — high complexity for uncertain gain. |
+| Parallelise predictor inside one image | 0 ms | "Up" filter has row-to-row dependency. Can't break. |
+| Parallelise per-pixel CMYK→RGB inside one image | 1-3 ms wall | Per-pixel stage is only ~12 ms on 10 MP image; rayon overhead would eat most of the savings. |
+| Pre-size flate Vec exactly (avoid reallocs) | 1-2 ms | Vec geometric growth already amortises; reallocs are ~5% of flate time. |
+| Switch flate2 backend to zlib-ng / zlib-rs | 30-40% on flate stage = 12-16 ms wall | **Requires Cargo.toml change — explicitly forbidden by iter-27 hygiene rule.** |
+| Switch to libdeflater | 50% on flate = 20 ms wall | Same Cargo.toml restriction. |
+| Cache clip mask between identical-path `W` calls | 0-2 ms on Barn p3 (only 11 clips) | Negligible win on the target page; would help different PDFs (p6 has 2108 clips → 18 ms — but iter-27 target is p3). |
+
+### Decision
+
+Per the iter-27 brief decision matrix:
+> ≥20% wall speedup on Barn p3 → keep
+> <20% wall speedup → REVERT
+> If 2 consecutive iters at <20% wall (iter-26 was 20-26%, near threshold), report **PERF_CEILING_REACHED**.
+
+The predictor fix delivered <5% wall on Barn p3. **Reverted** (interpreter.rs, renderer.rs back to iter-26 state). No code changes shipped this iter.
+
+### Conclusion: architectural ceiling reached
+
+Two consecutive iters (26 at threshold, 27 below) confirm the speed-iter loop has hit the architectural ceiling for Barn-style PDFs **within the constraint of no Cargo.toml changes**. The remaining wall is split between:
+
+1. **Single-thread flate decompression** of the largest image (~40 ms wall, gated by miniz_oxide). To go further would require switching flate backends (zlib-ng / libdeflater) — needs `Cargo.toml`.
+2. **Serial content-stream walk** (~35 ms wall on p3, 165 ms on p6) — already tight tiny_skia + lopdf dispatch. Future architectural wins would need:
+   - Pre-compiled draw-command IR (skip operator dispatch in hot loop) — would benefit ALL pages but is a major refactor.
+   - Predecode/walk pipelining with per-image condvar — moderate refactor, only helps image-bound pages.
+
+### Files touched (NOT committed — all reverted)
+
+- `open-pdf-render/src/interpreter.rs` — added `PROF_PREDECODE_WALL_US`, `PROF_WALK_WALL_US`, `PROF_DECODE_WALL_US` atomic counters and wall-time wrappers; tested predictor refactor that eliminated `prev_row.copy_from_slice`. **Reverted**.
+- `open-pdf-render/src/renderer.rs` — added `PROF_DRAW_PIXMAP_US`, `PROF_CLIP_INTERSECT_US`, `PROF_FILL_PATH_US`, `PROF_STROKE_PATH_US` atomics and timing wrappers around `draw_pixmap`, `apply_clip`, `fill_path`, `stroke_path`. **Reverted**.
+- `docs/superpowers/improvement-log.md` — this entry.
+
+### Files explicitly NOT touched (in-flight per hygiene rule)
+
+`saver.js`, `manager.js`, `hand-tool.js`, `vector-renderer.js`, `left-panel.js`, `font_parser.rs`, `fonts.rs`, `mcp_server.rs`, `Cargo.lock` (both), `Cargo.toml`. Iter-23/24/25/26 wins all preserved untouched.
+
+**Continue**: NO — speed-iter loop ceiling reached. Future rounds should pivot to either:
+1. Lifting the no-Cargo.toml constraint (one targeted dependency swap to libdeflater would unlock another 15-20% wall on Barn-style PDFs).
+2. Moving from per-iter micro-optimisation to architectural refactors (draw-command IR, page-level pipelining).
+3. Quality-focused iters (the 48/106 fail rate from iter-23 is the bigger user-visible problem — none of iters 24-27 moved the PASS count beyond 58-59).
+
+**Status**: **PERF_CEILING_REACHED** — no commit, all changes reverted, 58/106 PASS preserved, baseline render times unchanged.
