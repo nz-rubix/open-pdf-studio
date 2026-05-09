@@ -58,4 +58,4 @@ Per-PDF stats from initial harness run:
   - 2885 Demo project: 54.89 → 22.34
 - Two pages regressed visually (rapport-constructie p0: 32.84→50.47, p27: 13.56→61.84). Both previously rendered ENTIRELY BLANK; my fix now correctly draws everything except a JPEG image with `/SMask` (soft alpha mask). The renderer doesn't honor SMask, so the image draws fully opaque (a black rectangle) where the reference shows it composited with transparency. This is a separate, pre-existing image-decoding gap that my fix exposed but did not introduce — the previous "lower" diff number on those pages came from the page being mostly white-on-white instead of actually correct rendering. Recommend tackling SMask in a follow-up iteration.
 
-**Commit**: TBD (set after `git commit`)
+**Commit**: c4b940b4
