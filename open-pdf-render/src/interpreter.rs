@@ -1414,69 +1414,172 @@ impl Interpreter {
         // baking the per-pixel alpha so transparent regions of the SMask
         // (alpha == 0) become fully transparent black instead of being
         // rejected by the pixmap loader.
-        let pm = |c: u8, a: u8| -> u8 { ((c as u16 * a as u16 + 127) / 255) as u8 };
+        //
+        // Speed iter-26: switched from f32-per-pixel CMYK conversion
+        // (4× divides + 4× multiplies + 4× casts per pixel) to integer
+        // (255 - c) * (255 - k) / 255 with rounding bias. Branched
+        // identity-mapping fast path (no downsample, no SMask) writes
+        // directly into a pre-sized `out` buffer using chunks_exact_mut(4)
+        // so the inner loop has zero bounds checks. This was the dominant
+        // cost on Barn Relocation pages (14 unique CMYK images per page).
+        let mut rgba: Vec<u8> = vec![0u8; (out_w as usize) * (out_h as usize) * 4];
+        let downsample = step_x != 1.0 || step_y != 1.0;
 
-        let mut rgba = Vec::with_capacity((out_w * out_h * 4) as usize);
+        // Inlined u8 premultiply: rounded c × (a/255).
+        #[inline(always)]
+        fn pm(c: u8, a: u8) -> u8 {
+            ((c as u16 * a as u16 + 127) / 255) as u8
+        }
+        // Integer CMYK → RGB with rounding bias, equivalent to:
+        //   r = (1-c)(1-k) * 255 = ((255-c)(255-k) + 127) / 255
+        // Rounding bias guarantees parity with the f32 path within ±1 LSB.
+        #[inline(always)]
+        fn cmyk_r(c: u8, k: u8) -> u8 {
+            (((255 - c) as u16 * (255 - k) as u16 + 127) / 255) as u8
+        }
+
+        if !downsample && palette.is_none() {
+            // Identity-mapping fast path: src pixel index == dst pixel index.
+            let n_pixels = (out_w as usize) * (out_h as usize);
+            let alpha_bytes = smask_alpha.as_deref();
+            let chunks = rgba.chunks_exact_mut(4);
+            match components {
+                1 => {
+                    if let Some(amask) = alpha_bytes {
+                        for ((px, &g), &a) in chunks
+                            .zip(raw_pixels.iter().take(n_pixels))
+                            .zip(amask.iter().take(n_pixels))
+                        {
+                            let g2 = pm(g, a);
+                            px[0] = g2; px[1] = g2; px[2] = g2; px[3] = a;
+                        }
+                    } else {
+                        for (px, &g) in chunks.zip(raw_pixels.iter().take(n_pixels)) {
+                            px[0] = g; px[1] = g; px[2] = g; px[3] = 255;
+                        }
+                    }
+                }
+                3 => {
+                    let src = &raw_pixels[..n_pixels * 3];
+                    if let Some(amask) = alpha_bytes {
+                        for (px_chunk, (src3, &a)) in chunks
+                            .zip(src.chunks_exact(3).zip(amask.iter().take(n_pixels)))
+                        {
+                            px_chunk[0] = pm(src3[0], a);
+                            px_chunk[1] = pm(src3[1], a);
+                            px_chunk[2] = pm(src3[2], a);
+                            px_chunk[3] = a;
+                        }
+                    } else {
+                        for (px_chunk, src3) in chunks.zip(src.chunks_exact(3)) {
+                            px_chunk[0] = src3[0];
+                            px_chunk[1] = src3[1];
+                            px_chunk[2] = src3[2];
+                            px_chunk[3] = 255;
+                        }
+                    }
+                }
+                4 => {
+                    let src = &raw_pixels[..n_pixels * 4];
+                    if let Some(amask) = alpha_bytes {
+                        for (px_chunk, (src4, &a)) in chunks
+                            .zip(src.chunks_exact(4).zip(amask.iter().take(n_pixels)))
+                        {
+                            let c = src4[0]; let m = src4[1];
+                            let y = src4[2]; let k = src4[3];
+                            let r = cmyk_r(c, k);
+                            let g = cmyk_r(m, k);
+                            let b = cmyk_r(y, k);
+                            px_chunk[0] = pm(r, a);
+                            px_chunk[1] = pm(g, a);
+                            px_chunk[2] = pm(b, a);
+                            px_chunk[3] = a;
+                        }
+                    } else {
+                        for (px_chunk, src4) in chunks.zip(src.chunks_exact(4)) {
+                            let c = src4[0]; let m = src4[1];
+                            let y = src4[2]; let k = src4[3];
+                            px_chunk[0] = cmyk_r(c, k);
+                            px_chunk[1] = cmyk_r(m, k);
+                            px_chunk[2] = cmyk_r(y, k);
+                            px_chunk[3] = 255;
+                        }
+                    }
+                }
+                _ => {
+                    if let Some(amask) = alpha_bytes {
+                        for (px, &a) in chunks.zip(amask.iter().take(n_pixels)) {
+                            px[0] = 0; px[1] = 0; px[2] = 0; px[3] = a;
+                        }
+                    } else {
+                        for px in chunks {
+                            px[0] = 0; px[1] = 0; px[2] = 0; px[3] = 255;
+                        }
+                    }
+                }
+            }
+            return Some((out_w, out_h, rgba));
+        }
+
+        // General path: downsampling and/or Indexed palette. Less common, but
+        // needs to handle the src_x/src_y stepped sample and palette lookup.
+        let stream_comp = stream_components;
+        let comp_count = components;
+        let mut buf: [u8; 4] = [0; 4];
         for dy in 0..out_h {
             for dx in 0..out_w {
                 let src_x = (dx as f64 * step_x) as usize;
                 let src_y = (dy as f64 * step_y) as usize;
                 let src_idx = src_y * width as usize + src_x;
-                let idx = src_idx * stream_components;
+                let idx = src_idx * stream_comp;
                 let alpha = smask_alpha
                     .as_ref()
                     .and_then(|a| a.get(src_idx).copied())
                     .unwrap_or(255);
 
-                // For Indexed colour spaces, expand the palette index into a
-                // base-colour-space tuple before the same RGBA conversion path
-                // that direct DeviceRGB/Gray/CMYK pixels go through.
-                let mut buf: [u8; 4] = [0; 4];
                 let comp_slice: &[u8] = if let Some(pal) = palette.as_ref() {
                     let pi = raw_pixels[idx] as usize;
-                    let p_off = pi * components;
-                    if p_off + components <= pal.len() {
-                        for i in 0..components { buf[i] = pal[p_off + i]; }
-                        &buf[..components]
+                    let p_off = pi * comp_count;
+                    if p_off + comp_count <= pal.len() {
+                        for i in 0..comp_count { buf[i] = pal[p_off + i]; }
+                        &buf[..comp_count]
                     } else {
-                        // Palette too short — fall back to opaque-grey on miss.
-                        for i in 0..components { buf[i] = 0; }
-                        &buf[..components]
+                        for i in 0..comp_count { buf[i] = 0; }
+                        &buf[..comp_count]
                     }
                 } else {
-                    &raw_pixels[idx .. idx + stream_components]
+                    &raw_pixels[idx .. idx + stream_comp]
                 };
 
-                match components {
+                let dst_off = ((dy as usize) * (out_w as usize) + dx as usize) * 4;
+                match comp_count {
                     1 => {
-                        let g = comp_slice[0];
-                        let g2 = pm(g, alpha);
-                        rgba.extend_from_slice(&[g2, g2, g2, alpha]);
+                        let g2 = pm(comp_slice[0], alpha);
+                        rgba[dst_off] = g2;
+                        rgba[dst_off + 1] = g2;
+                        rgba[dst_off + 2] = g2;
+                        rgba[dst_off + 3] = alpha;
                     }
                     3 => {
-                        rgba.extend_from_slice(&[
-                            pm(comp_slice[0], alpha),
-                            pm(comp_slice[1], alpha),
-                            pm(comp_slice[2], alpha),
-                            alpha,
-                        ]);
+                        rgba[dst_off] = pm(comp_slice[0], alpha);
+                        rgba[dst_off + 1] = pm(comp_slice[1], alpha);
+                        rgba[dst_off + 2] = pm(comp_slice[2], alpha);
+                        rgba[dst_off + 3] = alpha;
                     }
                     4 => {
-                        let c = comp_slice[0] as f32 / 255.0;
-                        let m = comp_slice[1] as f32 / 255.0;
-                        let y = comp_slice[2] as f32 / 255.0;
-                        let k = comp_slice[3] as f32 / 255.0;
-                        let r = (255.0 * (1.0 - c) * (1.0 - k)) as u8;
-                        let g = (255.0 * (1.0 - m) * (1.0 - k)) as u8;
-                        let b = (255.0 * (1.0 - y) * (1.0 - k)) as u8;
-                        rgba.extend_from_slice(&[
-                            pm(r, alpha),
-                            pm(g, alpha),
-                            pm(b, alpha),
-                            alpha,
-                        ]);
+                        let c = comp_slice[0]; let m = comp_slice[1];
+                        let y = comp_slice[2]; let k = comp_slice[3];
+                        let r = cmyk_r(c, k);
+                        let g = cmyk_r(m, k);
+                        let b = cmyk_r(y, k);
+                        rgba[dst_off] = pm(r, alpha);
+                        rgba[dst_off + 1] = pm(g, alpha);
+                        rgba[dst_off + 2] = pm(b, alpha);
+                        rgba[dst_off + 3] = alpha;
                     }
-                    _ => { rgba.extend_from_slice(&[0, 0, 0, alpha]); }
+                    _ => {
+                        rgba[dst_off + 3] = alpha;
+                    }
                 }
             }
         }
@@ -2400,43 +2503,74 @@ impl Interpreter {
             let row_bytes = columns * bytes_per_pixel;
             let stride = row_bytes + 1; // +1 filter tag per row
             let n_rows = decoded.len() / stride;
-            let mut out = Vec::with_capacity(n_rows * row_bytes);
+            // Speed iter-26: write the unfiltered output directly into a single
+            // Vec, walking row windows via split_at_mut. This eliminates the
+            // per-row `vec![0u8; row_bytes]` allocation (n_rows allocs were
+            // the dominant cost of "Up"-only filtered streams) and lets the
+            // inner loops operate on naked &mut [u8] without intermediate
+            // copies. `prev_row` is a fixed-size scratch buffer reused across
+            // rows; the active row is written in-place, then copied into
+            // prev_row once per row.
+            let mut out = vec![0u8; n_rows * row_bytes];
             let mut prev_row = vec![0u8; row_bytes];
+            let bpp = bytes_per_pixel;
             for r in 0..n_rows {
                 let row_start = r * stride;
                 if row_start + stride > decoded.len() { break; }
                 let filter_tag = decoded[row_start];
                 let row = &decoded[row_start + 1 .. row_start + stride];
-                let mut current = vec![0u8; row_bytes];
+                let cur = &mut out[r * row_bytes .. r * row_bytes + row_bytes];
                 match filter_tag {
-                    0 => { current.copy_from_slice(row); }
+                    0 => {
+                        cur.copy_from_slice(row);
+                    }
                     1 => {
-                        // Sub: each byte = row[i] + current[i - bpp]
-                        for i in 0..row_bytes {
-                            let left = if i >= bytes_per_pixel { current[i - bytes_per_pixel] } else { 0 };
-                            current[i] = row[i].wrapping_add(left);
+                        // Sub: cur[i] = row[i] + cur[i - bpp]
+                        cur[..bpp].copy_from_slice(&row[..bpp]);
+                        for i in bpp..row_bytes {
+                            cur[i] = row[i].wrapping_add(cur[i - bpp]);
                         }
                     }
                     2 => {
-                        // Up: each byte = row[i] + prev_row[i]
-                        for i in 0..row_bytes {
-                            current[i] = row[i].wrapping_add(prev_row[i]);
+                        // Up: cur[i] = row[i] + prev_row[i]
+                        // This pattern auto-vectorizes well — LLVM emits
+                        // 16-byte adds when bounds-check is hoisted by chunks.
+                        let prev = &prev_row[..row_bytes];
+                        let mut i = 0;
+                        // Unrolled 16-byte chunks (LLVM lifts to a single SIMD
+                        // wide_add when the slices align).
+                        while i + 16 <= row_bytes {
+                            for j in 0..16 {
+                                cur[i + j] = row[i + j].wrapping_add(prev[i + j]);
+                            }
+                            i += 16;
+                        }
+                        while i < row_bytes {
+                            cur[i] = row[i].wrapping_add(prev[i]);
+                            i += 1;
                         }
                     }
                     3 => {
                         // Average: row[i] + floor((left + up) / 2)
-                        for i in 0..row_bytes {
-                            let left = if i >= bytes_per_pixel { current[i - bytes_per_pixel] as u16 } else { 0 };
+                        for i in 0..bpp {
                             let up = prev_row[i] as u16;
-                            current[i] = row[i].wrapping_add(((left + up) / 2) as u8);
+                            cur[i] = row[i].wrapping_add((up / 2) as u8);
+                        }
+                        for i in bpp..row_bytes {
+                            let left = cur[i - bpp] as u16;
+                            let up = prev_row[i] as u16;
+                            cur[i] = row[i].wrapping_add(((left + up) / 2) as u8);
                         }
                     }
                     4 => {
                         // Paeth
-                        for i in 0..row_bytes {
-                            let left = if i >= bytes_per_pixel { current[i - bytes_per_pixel] as i32 } else { 0 };
+                        for i in 0..bpp {
+                            cur[i] = row[i].wrapping_add(prev_row[i]);
+                        }
+                        for i in bpp..row_bytes {
+                            let left = cur[i - bpp] as i32;
                             let up = prev_row[i] as i32;
-                            let upleft = if i >= bytes_per_pixel { prev_row[i - bytes_per_pixel] as i32 } else { 0 };
+                            let upleft = prev_row[i - bpp] as i32;
                             let p = left + up - upleft;
                             let pa = (p - left).abs();
                             let pb = (p - up).abs();
@@ -2444,13 +2578,12 @@ impl Interpreter {
                             let pred = if pa <= pb && pa <= pc { left }
                                        else if pb <= pc { up }
                                        else { upleft };
-                            current[i] = row[i].wrapping_add(pred as u8);
+                            cur[i] = row[i].wrapping_add(pred as u8);
                         }
                     }
-                    _ => { current.copy_from_slice(row); }
+                    _ => { cur.copy_from_slice(row); }
                 }
-                out.extend_from_slice(&current);
-                prev_row = current;
+                prev_row.copy_from_slice(cur);
             }
             if let Some(t) = t_pred {
                 PROF_PREDICTOR_US.fetch_add(t.elapsed().as_micros() as u64, Ordering::Relaxed);
