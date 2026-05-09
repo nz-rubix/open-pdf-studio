@@ -118,3 +118,31 @@ Per-PDF stats from initial harness run:
 **Total passing**: 26/106 → 31/106 (+5)
 
 **Commit**: a21a869e
+
+### Iteration 4 — `w 0` zero-width strokes (Technische tekening v1.7 engineering drawings)
+
+**Iter-3 baseline** (run 2026-05-09_1429-a25d336e): 31/106 passing. Technische tekening 0/4 pass with avg 14.65% (p0 12.82, p1 18.42, p2 15.90, p3 11.48). Iter-1, -2, -3 barely moved this PDF (15.97 → 14.65 across 3 iterations).
+
+**Investigation findings**:
+- Resource inventory (pikepdf): all 4 pages are A1 landscape (`/MediaBox [0 0 1684 2384]` plus `/Rotate 90`); single `/GT255` ExtGState with `/ca=1, /CA=1` (no transparency); fonts are `/Type0 /Identity-H` with `/CIDFontType2` descendants pointing at embedded ArialMT/Arial-Bold/Arial-Black/ArialNova-Light TrueType subsets. No images, no shadings, no patterns. Just heavy linework.
+- Content-stream operator profile (PyMuPDF `read_contents`): on page 0, `l` (line-to) 2424×, `m` (move-to) 2155×, `w` (set-width) 1857×, `S` (stroke) 1692×, `c` (curve) 472×, `b` (close+fill+stroke) 243×, `j`/`M` 229×/225×. Pages 1-3 are similar but heavier (4898/3943/2303 `w` ops).
+- **Critical**: regex `(\\d+\\.?\\d*)\\s+w` extraction shows **every single `w` operator across all 4 pages uses width 0** (page 0: 1857/1857 = 100%; pages 1-3: same 100%). This is an AutoCAD-exported PDF — AutoCAD writes `0 w` for "thinnest line" per PDF spec §8.4.3.2.
+- Visual symptom: app render shows the floor-plan heating coils as bold, fully-opaque colored polylines (red/green/blue zigzags), text labels are missing or buried, dark-pixel count is 2.0-2.8× the reference. Reference render shows the same coils as faint, almost ghostly thin lines, with text labels clearly readable above the floor plan.
+- Root cause: `tiny_skia::Stroke::width = 0.0` triggers `treat_as_hairline` → returns `Some(1.0)` (full-coverage 1-pixel hairline) per `painter.rs:553`. PyMuPDF/MuPDF render the same width-0 strokes as faint sub-pixel hairlines (per the spec's note that on high-resolution devices, width-0 lines are "nearly invisible"). The 1.0-coverage hairline is 2-3× heavier than the reference.
+
+**Fix** — `open-pdf-render/src/renderer.rs`:
+- New helper `SkiaRenderer::resolve_stroke_width(gs)` that returns `gs.line_width` unchanged when positive, but for `gs.line_width == 0.0` substitutes a tiny user-space width such that the device-space width (after CTM) is `~0.2 px`. Calculation: extract dominant CTM scale via `sqrt(sx*sx + kx*kx) * sqrt(ky*ky + sy*sy)` geometric mean (rotation-invariant), then return `0.2 / scale`. After CTM applies, tiny_skia's `treat_as_hairline` returns `~0.2` coverage — a low-opacity 1px hairline that visually matches the reference.
+- `stroke()` and `fill_and_stroke()` both call the new helper. `fill_and_stroke()` previously also dropped `line_cap`/`line_join`/`miter_limit`/`dash_array` on the floor — fixed those at the same time.
+- Knob-tuning sweep: tried `0.5/0.4/0.3/0.25/0.2/0.18` device pixels. `0.2` is the sweet spot (3 of 4 pages PASS; lower values lose stroke detail, higher leaves them too dark).
+
+**Verification** (run 2026-05-09_1505-a25d336e vs iter-3 baseline):
+- Technische tekening per-page:
+  - p0: 12.82% → **1.95% (PASS)** — -10.87pp
+  - p1: 18.42% → 2.89% (FAIL but very close) — -15.53pp
+  - p2: 15.90% → **0.76% (PASS)** — -15.14pp
+  - p3: 11.48% → **1.03% (PASS)** — -10.45pp
+  - avg: 14.65% → 1.66% — **-12.99pp**
+- Bounded blast radius: only 1 of 8 PDFs (Text pdf gecombineerd) has any `w 0` operators (1 of 16, 6%); the other 6 PDFs have zero `w 0`. Confirmed by re-running the full suite — every page outside Technische tekening has the EXACT same diff% as the iter-3 baseline (`Text pdf gecombineerd: 7/28 4.39%`, `rapport-constructie: 7/28 4.39%`, `2885 Demo project: 2/14 5.80%`, `Zware vector PDF: 12/19 2.15%`, `Barn Relocation: 2/7 4.00%`, `Tekst.pdf: 1/5 3.99%`, `Combinatie: 0/1 3.47%` — all unchanged). Zero regressions.
+- Total passing: 31/106 → **34/106 (+3)**.
+
+**Commit**: TBD

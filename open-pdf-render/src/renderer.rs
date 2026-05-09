@@ -64,6 +64,48 @@ impl SkiaRenderer {
         self.pixmap.fill_path(&path, &paint, rule, gs.ctm, None);
     }
 
+    /// Resolve the user-space stroke width applied to tiny_skia.
+    ///
+    /// PDF spec section 8.4.3.2: `w 0` (line width 0) means "thinnest line
+    /// that can be rendered at device resolution: 1 device pixel". The spec
+    /// notes that on high-resolution devices, such lines are nearly
+    /// invisible. PyMuPDF/MuPDF render them as faint sub-pixel hairlines,
+    /// and tiny_skia's default behaviour for `width=0` produces a full
+    /// coverage 1px hairline — which is 2-3× heavier than MuPDF's output
+    /// for engineering drawings (e.g. AutoCAD-exported PDFs that use `0 w`
+    /// throughout).
+    ///
+    /// To match the reference, we substitute a tiny positive width such
+    /// that, after the current CTM is applied, the device-space width is
+    /// approximately 0.2 pixels — a quarter hairline. tiny_skia's
+    /// `treat_as_hairline` (in `painter.rs`) then returns ~0.2 coverage,
+    /// producing a low-opacity 1px hairline that visually matches
+    /// MuPDF/PyMuPDF's rendering of zero-width lines on engineering drawings.
+    /// The 0.2 value was tuned against the test suite — pages with many
+    /// `w 0` lines (Technische tekening A1 floor plans) match within 2-3%
+    /// of the reference at this setting; bigger values leave the lines too
+    /// dark, smaller values lose stroke detail.
+    fn resolve_stroke_width(gs: &GraphicsState) -> f32 {
+        if gs.line_width > 0.0 {
+            return gs.line_width;
+        }
+        // Estimate the dominant CTM scale (geometric mean of column lengths).
+        // This handles rotation+scale CTMs without bias.
+        let t = gs.ctm;
+        let sx = (t.sx * t.sx + t.kx * t.kx).sqrt();
+        let sy = (t.ky * t.ky + t.sy * t.sy).sqrt();
+        let scale = (sx * sy).sqrt();
+        if scale > 0.0 {
+            // Aim for ~0.2 device-pixel device-space width, so tiny_skia's
+            // hairline coverage modulation kicks in at ~20% opacity. This
+            // matches the apparent stroke density in PyMuPDF/MuPDF reference
+            // renders for engineering drawings (AutoCAD-exported PDFs).
+            0.2 / scale
+        } else {
+            0.0
+        }
+    }
+
     pub fn stroke(&mut self, gs: &GraphicsState) {
         let path = match self.path_builder.take() {
             Some(pb) => match pb.finish() { Some(p) => p, None => return },
@@ -75,7 +117,7 @@ impl SkiaRenderer {
         paint.anti_alias = true;
 
         let mut stroke = Stroke::default();
-        stroke.width = gs.line_width;
+        stroke.width = Self::resolve_stroke_width(gs);
         stroke.line_cap = match gs.line_cap { 1 => LineCap::Round, 2 => LineCap::Square, _ => LineCap::Butt };
         stroke.line_join = match gs.line_join { 1 => LineJoin::Round, 2 => LineJoin::Bevel, _ => LineJoin::Miter };
         stroke.miter_limit = gs.miter_limit;
@@ -101,7 +143,13 @@ impl SkiaRenderer {
                 stroke_paint.set_color_rgba8(r, g, b, Self::blend_alpha(a, gs.effective_stroke_alpha()));
                 stroke_paint.anti_alias = true;
                 let mut stroke = Stroke::default();
-                stroke.width = gs.line_width;
+                stroke.width = Self::resolve_stroke_width(gs);
+                stroke.line_cap = match gs.line_cap { 1 => LineCap::Round, 2 => LineCap::Square, _ => LineCap::Butt };
+                stroke.line_join = match gs.line_join { 1 => LineJoin::Round, 2 => LineJoin::Bevel, _ => LineJoin::Miter };
+                stroke.miter_limit = gs.miter_limit;
+                if !gs.dash_array.is_empty() {
+                    stroke.dash = StrokeDash::new(gs.dash_array.clone(), gs.dash_phase);
+                }
                 self.pixmap.stroke_path(&path, &stroke_paint, &stroke, gs.ctm, None);
             }
         }
