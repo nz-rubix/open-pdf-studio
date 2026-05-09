@@ -40,12 +40,18 @@ function waitForPort(port, timeoutMs) {
 console.log(`[run-render-regression] tauri dir: ${TAURI_DIR}`);
 console.log(`[run-render-regression] spawning tauri dev with --mcp-server`);
 
-// `npm run tauri dev -- --mcp-server` passes --mcp-server through to the binary
-// (tauri-cli forwards everything after the second `--` to the spawned exe).
+// Triple `--`: npm consumes the first, tauri consumes the second, cargo
+// consumes the third — the actual --mcp-server flag must reach our binary.
+// OPS_ENABLE_MCP=1 is required for release builds; debug-build cfg(debug_assertions) bypasses this gate.
 const dev = spawn(
   'npm',
-  ['run', 'tauri', 'dev', '--', '--', '--mcp-server'],
-  { cwd: TAURI_DIR, stdio: 'inherit', shell: true },
+  ['run', 'tauri', 'dev', '--', '--', '--', '--mcp-server'],
+  {
+    cwd: TAURI_DIR,
+    stdio: 'inherit',
+    shell: true,
+    env: { ...process.env, OPS_ENABLE_MCP: '1' },
+  },
 );
 
 let cleaned = false;
