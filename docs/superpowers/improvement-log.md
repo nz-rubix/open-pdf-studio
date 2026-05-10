@@ -1500,3 +1500,44 @@ For whitespace chars the byte_cmap target GID has no outline (advance-only). The
 **Status**: **DONE** — concrete PDF spec gap (TrueType whitespace glyph mapping per ISO 32000-1 §9.6.6.4) closed. The remaining 4.36% diff on Barn p2 is dominated by an unrelated dashed-elevation-line rendering issue (light-gray dashed line in ref drawn as solid black in app at row 419) — that is a separate stroke/dash-array gap, candidate for the next iter.
 
 **Continue**: YES — Barn p2 still has at least one untouched feature gap (dashed elevation line at row 419, also seen as ref=(207,207,207) -> app=(0,0,0) at rows 1145-1156 and 419 in the worst-pixel forensics). Next iter could target either the dashed-line feature or the missing-text glyphs at (942-944, 1168) where ref is fully black and app is fully white.
+
+---
+
+## Quality iter 31 — investigated iter-30's dashed-line hint, no bug found (2026-05-08)
+
+**Target** (from iter-30 hint): Barn p2 row 419 — claimed "dashed elevation line drawn as solid black".
+
+**Investigation**:
+1. **Code audit** of dash-array path: `interpreter.rs` parses `d` operator at lines 311-316 and 1688-1694, stores in `GraphicsState::dash_array` / `dash_phase` (graphics_state.rs:12-13). `renderer.rs` applies `StrokeDash::new(...)` at three stroke sites (lines 200-202, 264-266, 290-292) covering `stroke_cached_path_with_width`, `stroke`, and `fill_and_stroke`. All three correctly populate `tiny_skia::Stroke::dash`. **The dash-array path is fully implemented and applied at every stroke site.**
+
+2. **Content-stream forensics** on Barn Relocation p2 via pikepdf: searched the page content stream AND every Form XObject referenced from page Resources for `[…] N d` patterns. **Result: ZERO `d` operators anywhere in the entire Barn Relocation PDF.** The page does not use the dash-array feature at all; the dashed-looking grid lines are drawn as a sequence of separate short stroked segments.
+
+3. **Pixel forensics** on row 419 (`Image.open(...).convert('RGB')`):
+   - REF row 419 has a single long dark run from x=856 to x=1513 with mean color (37, 59, 74) — a SOLID horizontal beam, slightly bluish-tinted from anti-aliasing.
+   - APP row 419 has the equivalent run from x=854 to x=1605 with mean color (36, 37, 37) — also SOLID, just darker / pure black.
+   - **The line is solid in BOTH renders, not "dashed in REF, solid in APP".** The visible diff at row 419 is a stroke-thickness / anti-aliasing difference where APP renders 1 row of pixels solid black where REF spreads the energy across 2-3 rows of grey.
+
+4. **Vertical-dash columns** (x=320, 372, 410, 489, 708) above row 419: REF dark-cell counts vs APP dark-cell counts match within ±10 pixels — **the genuinely dashed grid lines render correctly**.
+
+**Conclusion**: Iter-30's dashed-line hypothesis was a misobservation. The visible reddish band in the row 415-470 diff comes from anti-aliasing of solid horizontal beam edges (concrete pad bottom, floor line top), not from dashed-vs-solid mismatch.
+
+**Other quality gaps observed but not fixed**:
+- **Bold-weight font selection** (Tekst.pdf p2): "Totaal incl. BTW" reads as bold in REF (PyMuPDF auto-hints embedded `UniviaProRegular` glyphs), reads as regular in APP. Fix would require font-hinting infrastructure — out of scope for one iter.
+- **1-row footer clipping** (Tekst.pdf p2): row 2822 is fully white in APP but green-coloured (164, 194, 184) for cols 4-1500 in REF — the diagonal footer triangle ends one row higher in APP than REF. ~2000 pixels of diff at this single row contribute disproportionately to the 2.49% page diff.
+- **Sub-pixel text glyph rendering** at very small sizes (Barn p3 grid bubbles "5A/A300", "3B/A300"): REF renders cleanly; APP shows sparse pixel coverage. Likely sub-pixel font scaling interaction with `snap_glyph_origin`.
+
+**Result** (no code change):
+- Pass count: 59/106 (unchanged baseline preserved).
+- All 8 PDFs open without panic — confirmed.
+- No new panics — confirmed.
+- Iter 23-30 wins preserved — confirmed (no source files modified).
+
+**Files touched**:
+- `docs/superpowers/improvement-log.md` — this entry.
+
+**Status**: **NO_FEATURE_GAP_FOUND** for the targeted dash-array hypothesis; **DONE** for the investigation. Dash-array implementation is correct and complete; no PDF in the corpus exercises the `d` operator on the rows iter-30 flagged.
+
+**Continue**: YES, but with a different target. Highest-leverage next directions, in order of probable iter-tractability:
+1. **Footer-row clipping** in Tekst.pdf p2 (single row missing at bottom) — investigate the page-bottom clip path / pixmap row indexing. Quick if the bug is a `<` vs `<=` off-by-one.
+2. **Fine-tuning `resolve_stroke_width`** for `w 0` lines (currently `0.2 / scale`): the row-419 forensics show APP renders solid 1px where REF spreads to 2-3px. Increasing the constant slightly (e.g. 0.3 or 0.35) would broaden the anti-aliased halo and could shift Barn p2/3/5 across the 2.0% threshold — but high regression risk for engineering drawings already calibrated against this constant.
+3. **Bold synthesis from font flags**: if `FontDescriptor /Flags` bit 19 (FORCE_BOLD) is set or `/FontWeight ≥ 700`, render glyphs with mode-2 fill+stroke and a small synthetic stroke width. Would close the "Totaal incl. BTW" gap on Tekst.pdf p2/3.
