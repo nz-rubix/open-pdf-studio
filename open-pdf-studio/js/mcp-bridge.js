@@ -182,12 +182,309 @@ async function handleScreenshotView(params) {
   }
 }
 
+// ─── Mouse + keyboard interaction ───────────────────────────────────────
+//
+// All synthetic events use `bubbles: true` and `cancelable: true` so they
+// flow through the standard listener path. Coordinates are CSS pixels in
+// the viewport (top-left origin), matching `MouseEvent.clientX/Y`.
+//
+// Button mapping per the W3C UI Events spec:
+//    left=0, middle=1, right=2 (the `button` field)
+//    left=1, right=2, middle=4 (the `buttons` bitmask sent during
+//    in-flight drags so listeners that gate on `e.buttons` still fire).
+
+const BUTTON_INDEX = { left: 0, middle: 1, right: 2 };
+const BUTTONS_MASK = { left: 1, middle: 4, right: 2 };
+
+function buttonIndexFor(name) {
+  if (name == null) return 0;
+  const v = BUTTON_INDEX[String(name).toLowerCase()];
+  return typeof v === 'number' ? v : 0;
+}
+function buttonsMaskFor(name) {
+  if (name == null) return 1;
+  const v = BUTTONS_MASK[String(name).toLowerCase()];
+  return typeof v === 'number' ? v : 1;
+}
+
+/** Build a MouseEventInit with the standard fields populated. */
+function makeMouseInit(x, y, opts = {}) {
+  return {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    view: window,
+    clientX: x,
+    clientY: y,
+    screenX: x,
+    screenY: y,
+    button: opts.button ?? 0,
+    buttons: opts.buttons ?? 0,
+    ctrlKey: !!opts.ctrlKey,
+    shiftKey: !!opts.shiftKey,
+    altKey: !!opts.altKey,
+    metaKey: !!opts.metaKey,
+    relatedTarget: opts.relatedTarget ?? null,
+  };
+}
+
+/** elementFromPoint can return null if the coords are off-screen — fall
+ *  back to document.body so the dispatch still has a target. */
+function targetAt(x, y) {
+  return document.elementFromPoint(x, y) ?? document.body;
+}
+
+function describeTarget(el) {
+  if (!el) return null;
+  return {
+    tag: el.tagName ? el.tagName.toLowerCase() : null,
+    id: el.id || null,
+    classes: el.className && typeof el.className === 'string'
+      ? el.className.split(/\s+/).filter(Boolean)
+      : [],
+  };
+}
+
+async function handleMouseMove(params) {
+  const x = Number(params?.x);
+  const y = Number(params?.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return { ok: false, error: 'missing or invalid params.x/y' };
+  }
+  const target = targetAt(x, y);
+  const ev = new MouseEvent('mousemove', makeMouseInit(x, y, { buttons: 0 }));
+  target.dispatchEvent(ev);
+  return { ok: true, x, y, target: describeTarget(target) };
+}
+
+async function handleMouseClick(params) {
+  const x = Number(params?.x);
+  const y = Number(params?.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return { ok: false, error: 'missing or invalid params.x/y' };
+  }
+  const buttonName = (params?.button ?? 'left');
+  const button = buttonIndexFor(buttonName);
+  const buttonsMask = buttonsMaskFor(buttonName);
+  const target = targetAt(x, y);
+
+  // Standard sequence: mousemove -> mousedown -> mouseup -> click
+  // (or contextmenu for right button).
+  target.dispatchEvent(new MouseEvent('mousemove',
+    makeMouseInit(x, y, { button: 0, buttons: 0 })));
+  target.dispatchEvent(new MouseEvent('mousedown',
+    makeMouseInit(x, y, { button, buttons: buttonsMask })));
+  target.dispatchEvent(new MouseEvent('mouseup',
+    makeMouseInit(x, y, { button, buttons: 0 })));
+
+  if (buttonName === 'right') {
+    target.dispatchEvent(new MouseEvent('contextmenu',
+      makeMouseInit(x, y, { button, buttons: 0 })));
+  } else {
+    target.dispatchEvent(new MouseEvent('click',
+      makeMouseInit(x, y, { button, buttons: 0 })));
+  }
+  return { ok: true, x, y, button: buttonName, target: describeTarget(target) };
+}
+
+async function handleMouseDrag(params) {
+  const x1 = Number(params?.x1);
+  const y1 = Number(params?.y1);
+  const x2 = Number(params?.x2);
+  const y2 = Number(params?.y2);
+  if (![x1, y1, x2, y2].every(Number.isFinite)) {
+    return { ok: false, error: 'missing or invalid params.x1/y1/x2/y2' };
+  }
+  const buttonName = (params?.button ?? 'left');
+  const button = buttonIndexFor(buttonName);
+  const buttonsMask = buttonsMaskFor(buttonName);
+  const steps = Math.max(1, Math.min(200, Number(params?.steps) || 10));
+
+  const startTarget = targetAt(x1, y1);
+  // mousedown at start
+  startTarget.dispatchEvent(new MouseEvent('mousedown',
+    makeMouseInit(x1, y1, { button, buttons: buttonsMask })));
+
+  // Interpolated mousemoves. We dispatch each move on the element under
+  // that point so hit-testing works as the cursor crosses widgets.
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const x = x1 + (x2 - x1) * t;
+    const y = y1 + (y2 - y1) * t;
+    const t2 = targetAt(x, y);
+    t2.dispatchEvent(new MouseEvent('mousemove',
+      makeMouseInit(x, y, { button, buttons: buttonsMask })));
+    // Yield occasionally so pointer-driven raf loops can keep up.
+    if (i % 4 === 0) await new Promise((r) => setTimeout(r, 0));
+  }
+
+  const endTarget = targetAt(x2, y2);
+  endTarget.dispatchEvent(new MouseEvent('mouseup',
+    makeMouseInit(x2, y2, { button, buttons: 0 })));
+  // Some apps rely on a click after the up. We send it only for left
+  // button to avoid spurious context menus.
+  if (buttonName === 'left' && (x1 === x2 && y1 === y2)) {
+    endTarget.dispatchEvent(new MouseEvent('click',
+      makeMouseInit(x2, y2, { button, buttons: 0 })));
+  }
+  return {
+    ok: true,
+    from: { x: x1, y: y1 },
+    to:   { x: x2, y: y2 },
+    button: buttonName,
+    steps,
+    end_target: describeTarget(endTarget),
+  };
+}
+
+async function handleScroll(params) {
+  const x = Number(params?.x);
+  const y = Number(params?.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return { ok: false, error: 'missing or invalid params.x/y' };
+  }
+  const dx = Number(params?.dx) || 0;
+  const dy = Number(params?.dy) || 0;
+  const target = targetAt(x, y);
+  const ev = new WheelEvent('wheel', {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    view: window,
+    clientX: x,
+    clientY: y,
+    screenX: x,
+    screenY: y,
+    deltaX: dx,
+    deltaY: dy,
+    deltaZ: 0,
+    deltaMode: 0, // DOM_DELTA_PIXEL
+    ctrlKey: !!params?.ctrlKey,
+    shiftKey: !!params?.shiftKey,
+    altKey: !!params?.altKey,
+    metaKey: !!params?.metaKey,
+  });
+  target.dispatchEvent(ev);
+  return {
+    ok: true,
+    x, y, dx, dy,
+    ctrlKey: !!params?.ctrlKey,
+    target: describeTarget(target),
+  };
+}
+
+/** Map a single character to the W3C `KeyboardEvent.code` value (best
+ *  effort — only used as a hint, not gating logic). */
+function codeForChar(ch) {
+  if (!ch) return '';
+  const upper = ch.toUpperCase();
+  if (/^[A-Z]$/.test(upper)) return `Key${upper}`;
+  if (/^[0-9]$/.test(upper)) return `Digit${upper}`;
+  if (ch === ' ') return 'Space';
+  return '';
+}
+
+/** Build a KeyboardEventInit used for both keydown and keyup. */
+function makeKeyInit(key, opts = {}) {
+  return {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    view: window,
+    key,
+    code: opts.code ?? codeForChar(key.length === 1 ? key : ''),
+    location: 0,
+    repeat: false,
+    isComposing: false,
+    ctrlKey: !!opts.ctrlKey,
+    shiftKey: !!opts.shiftKey,
+    altKey: !!opts.altKey,
+    metaKey: !!opts.metaKey,
+  };
+}
+
+async function handleKey(params) {
+  const key = params?.key;
+  if (typeof key !== 'string' || !key) {
+    return { ok: false, error: 'missing or invalid params.key' };
+  }
+  const init = {
+    ctrlKey: !!params?.ctrl,
+    shiftKey: !!params?.shift,
+    altKey: !!params?.alt,
+    metaKey: !!params?.meta,
+  };
+  const target = document.activeElement ?? document.body;
+  target.dispatchEvent(new KeyboardEvent('keydown', makeKeyInit(key, init)));
+  target.dispatchEvent(new KeyboardEvent('keyup',   makeKeyInit(key, init)));
+  return { ok: true, key, modifiers: init, target: describeTarget(target) };
+}
+
+async function handleType(params) {
+  const text = params?.text;
+  if (typeof text !== 'string') {
+    return { ok: false, error: 'missing or invalid params.text' };
+  }
+
+  let typed = 0;
+  for (const ch of text) {
+    const target = document.activeElement ?? document.body;
+    const init = makeKeyInit(ch, {});
+    target.dispatchEvent(new KeyboardEvent('keydown', init));
+
+    // beforeinput + input fire on text inputs so framework controls update.
+    // We only inject text into editable controls — refusing to mangle
+    // arbitrary DOM text content.
+    const tag = target.tagName ? target.tagName.toLowerCase() : '';
+    const isEditable = (tag === 'input' || tag === 'textarea' ||
+                       target.isContentEditable === true);
+    if (isEditable) {
+      try {
+        target.dispatchEvent(new InputEvent('beforeinput', {
+          bubbles: true, cancelable: true,
+          inputType: 'insertText', data: ch,
+        }));
+        if (tag === 'input' || tag === 'textarea') {
+          // Manually splice into value so frameworks observing `value`
+          // (like SolidJS) see the change. For native fields the spec says
+          // the browser maintains value, but synthetic events bypass that.
+          const start = target.selectionStart ?? target.value.length;
+          const end = target.selectionEnd ?? target.value.length;
+          target.value = target.value.slice(0, start) + ch + target.value.slice(end);
+          const pos = start + ch.length;
+          try { target.setSelectionRange(pos, pos); } catch { /* readonly */ }
+        } else {
+          // contentEditable: insert via execCommand fallback.
+          if (typeof document.execCommand === 'function') {
+            document.execCommand('insertText', false, ch);
+          }
+        }
+        target.dispatchEvent(new InputEvent('input', {
+          bubbles: true, cancelable: false,
+          inputType: 'insertText', data: ch,
+        }));
+      } catch (e) {
+        // best-effort: continue typing
+      }
+    }
+    target.dispatchEvent(new KeyboardEvent('keyup', init));
+    typed++;
+  }
+  return { ok: true, typed };
+}
+
 const HANDLERS = {
   'mcp:open-pdf':        handleOpenPdf,
   'mcp:set-zoom':        handleSetZoom,
   'mcp:zoom-in':         handleZoomIn,
   'mcp:zoom-out':        handleZoomOut,
   'mcp:screenshot-view': handleScreenshotView,
+  'mcp:mouse-move':      handleMouseMove,
+  'mcp:mouse-click':     handleMouseClick,
+  'mcp:mouse-drag':      handleMouseDrag,
+  'mcp:scroll':          handleScroll,
+  'mcp:key':             handleKey,
+  'mcp:type':            handleType,
 };
 
 /** Wire up all `mcp:*` listeners. Safe to call once at startup. Becomes

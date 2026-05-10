@@ -1,6 +1,7 @@
 # MCP "live app" tools (`app_*`) — spec
 
-Status: implemented (iter `mcp-app-tools-2026-05-09`)
+Status: implemented (iter `mcp-app-tools-2026-05-09`); extended with mouse
++ keyboard tools (iter `mcp-input-tools`).
 Author: Claude (mcp-app-tools agent)
 
 The existing MCP server (see `2026-05-08-render-regression-test-design.md`)
@@ -11,12 +12,15 @@ for renderer regression testing, useless for reproducing UI bugs that depend
 on the live app's state (zoom, scroll, panel visibility, annotation overlay,
 etc.).
 
-This iter adds five new tools that drive the **live** WebView from outside,
-so a future agent (e.g. the zoom-bug-fix iter) can:
+This iter adds **eleven** tools that drive the **live** WebView from outside,
+so a future agent can:
 
 1. Open a PDF in a fresh tab,
 2. Set or step the zoom,
 3. Capture the resulting canvas + overlays,
+4. Move/click/drag the mouse over CSS pixel coordinates,
+5. Send wheel events (with optional ctrl modifier for zoom-to-cursor),
+6. Press keys and type text,
 
 …all over the same JSON-RPC channel, without ever clicking the GUI.
 
@@ -138,6 +142,148 @@ curl -s -X POST http://127.0.0.1:9224/mcp -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"app_screenshot_view","arguments":{"width":1200}}}'
 ```
 
+### `app_mouse_move`
+
+Dispatch a synthetic `mousemove` at viewport CSS coordinates `(x, y)`
+inside the live WebView. Coordinates are top-left origin, the same as
+`MouseEvent.clientX/Y`.
+
+| param | type    | required |
+|-------|---------|----------|
+| `x`   | integer | yes      |
+| `y`   | integer | yes      |
+
+Returns:
+
+```json
+{ "ok": true, "x": <int>, "y": <int>,
+  "target": { "tag": "canvas", "id": "pdf-canvas", "classes": [] } }
+```
+
+```bash
+curl -s -X POST http://127.0.0.1:9224/mcp -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"app_mouse_move","arguments":{"x":500,"y":300}}}'
+```
+
+### `app_mouse_click`
+
+Click at `(x, y)`. Generates the standard `mousemove → mousedown → mouseup
+→ click` sequence (or `… → contextmenu` for the right button).
+
+| param    | type    | required | default | values                         |
+|----------|---------|----------|---------|--------------------------------|
+| `x`      | integer | yes      |         |                                |
+| `y`      | integer | yes      |         |                                |
+| `button` | string  | no       | `left`  | `"left"` `"middle"` `"right"`  |
+
+Returns: `{ ok: true, x, y, button, target: {...} }`
+
+```bash
+curl -s -X POST http://127.0.0.1:9224/mcp -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"app_mouse_click","arguments":{"x":120,"y":80,"button":"left"}}}'
+```
+
+### `app_mouse_drag`
+
+Drag from `(x1, y1)` to `(x2, y2)` with `steps` interpolated mousemove
+events. Sequence: `mousedown` at start → N × `mousemove` (with `buttons`
+bitmask set) → `mouseup` at end. Used for marquee-select, drag-to-pan,
+drag-to-create-annotation, etc.
+
+| param    | type    | required | default | values                         |
+|----------|---------|----------|---------|--------------------------------|
+| `x1`     | integer | yes      |         |                                |
+| `y1`     | integer | yes      |         |                                |
+| `x2`     | integer | yes      |         |                                |
+| `y2`     | integer | yes      |         |                                |
+| `button` | string  | no       | `left`  | `"left"` `"middle"` `"right"`  |
+| `steps`  | integer | no       | `10`    | `1 … 200`                      |
+
+Returns: `{ ok: true, from: {x,y}, to: {x,y}, button, steps, end_target: {...} }`
+
+```bash
+curl -s -X POST http://127.0.0.1:9224/mcp -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"app_mouse_drag","arguments":{"x1":300,"y1":300,"x2":700,"y2":500,"steps":15}}}'
+```
+
+### `app_scroll`
+
+Send a `wheel` event at `(x, y)` with delta `(dx, dy)` in CSS pixels. Set
+`ctrlKey: true` for ctrl+wheel zoom-to-cursor.
+
+| param      | type    | required | default |
+|------------|---------|----------|---------|
+| `x`        | integer | yes      |         |
+| `y`        | integer | yes      |         |
+| `dx`       | integer | no       | `0`     |
+| `dy`       | integer | no       | `0`     |
+| `ctrlKey`  | boolean | no       | `false` |
+| `shiftKey` | boolean | no       | `false` |
+| `altKey`   | boolean | no       | `false` |
+| `metaKey`  | boolean | no       | `false` |
+
+Negative `dy` scrolls up (zoom in with ctrl), positive scrolls down (zoom
+out with ctrl). `deltaMode` is fixed at `0` (DOM_DELTA_PIXEL).
+
+Returns: `{ ok: true, x, y, dx, dy, ctrlKey, target: {...} }`
+
+```bash
+# ctrl+wheel up over (500, 300) → zoom-to-cursor in
+curl -s -X POST http://127.0.0.1:9224/mcp -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"app_scroll","arguments":{"x":500,"y":300,"dx":0,"dy":-100,"ctrlKey":true}}}'
+```
+
+### `app_key`
+
+Press a single key (with optional modifiers). Dispatches `keydown` then
+`keyup` on `document.activeElement` (or `document.body` if nothing is
+focused). Modern browsers do not synthesize `keypress` for non-printable
+keys, so we omit it.
+
+| param   | type    | required | default |
+|---------|---------|----------|---------|
+| `key`   | string  | yes      |         |
+| `ctrl`  | boolean | no       | `false` |
+| `shift` | boolean | no       | `false` |
+| `alt`   | boolean | no       | `false` |
+| `meta`  | boolean | no       | `false` |
+
+`key` follows the W3C [`KeyboardEvent.key`] vocabulary: `"Escape"`,
+`"Enter"`, `"ArrowLeft"`, `"a"`, `"A"`, `"+"`, etc.
+
+Returns: `{ ok: true, key, modifiers: {...}, target: {...} }`
+
+```bash
+# Ctrl+Z (undo)
+curl -s -X POST http://127.0.0.1:9224/mcp -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"app_key","arguments":{"key":"z","ctrl":true}}}'
+
+# Escape
+curl -s -X POST http://127.0.0.1:9224/mcp -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"app_key","arguments":{"key":"Escape"}}}'
+```
+
+### `app_type`
+
+Type a string of characters into the focused element. Per character:
+`keydown → beforeinput → (value splice) → input → keyup`. For
+`<input>` and `<textarea>` we splice the new character into `.value` and
+update the selection so frameworks watching the field's value (SolidJS
+included) see the change. For `contenteditable` fragments we fall back to
+`document.execCommand('insertText', …)`. For non-editable targets we send
+only the keyboard events.
+
+| param  | type   | required |
+|--------|--------|----------|
+| `text` | string | yes      |
+
+Returns: `{ ok: true, typed: <int> }`
+
+```bash
+curl -s -X POST http://127.0.0.1:9224/mcp -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"app_type","arguments":{"text":"Hello"}}}'
+```
+
 ## Reproducing the zoom-bug (out-of-scope for this iter)
 
 The user-reported bug: "De 1e pagina van een pdf heeft iets geks dat als
@@ -177,5 +323,18 @@ fix in `pdf/renderer.js` / `pdf/pdf-viewport.js`, re-run.
   the app's stderr once the JS side has registered all listeners — useful
   for confirming the bridge is wired before sending tool calls.
 - Each `app_*` tool has its own timeout (60 s for `app_open_pdf`, 30 s
-  for `app_screenshot_view`, 15 s for the rest). On timeout the pending
-  oneshot is cleaned up so request IDs don't leak.
+  for `app_screenshot_view`, `app_mouse_drag` and `app_type`, 10 s for
+  the input tools, 15 s for the rest). On timeout the pending oneshot is
+  cleaned up so request IDs don't leak.
+- Mouse + keyboard events are **synthetic** — they bypass the OS pointer
+  driver and dispatch directly into the JS event loop. This means: (a)
+  the OS cursor doesn't visually move, (b) Tauri's drag-region detection
+  is unaffected, (c) `event.isTrusted` is `false` (which most app code
+  doesn't check). It also means events go to the WebView only, so global
+  shortcuts handled by the OS or Tauri menu won't fire.
+- Coordinates are CSS pixels relative to the WebView document viewport
+  (top-left = 0, 0). At 100 % DPI on a 1920×1080 window with default
+  chrome, the PDF canvas typically starts around y≈80 (below the toolbar)
+  and ends around y≈1000 (above the status bar). Use `app_screenshot_view`
+  with the surrounding chrome cropped, or take an OS-level screenshot
+  first, to find the right click coordinates.

@@ -211,6 +211,97 @@ fn handle_tools_list() -> Value {
                     },
                     "additionalProperties": false
                 }
+            },
+            {
+                "name": "app_mouse_move",
+                "description": "Dispatch a synthetic mousemove at viewport CSS coordinates (x, y) inside the LIVE WebView. Returns the element under the cursor.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "x": { "type": "integer" },
+                        "y": { "type": "integer" }
+                    },
+                    "required": ["x", "y"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_mouse_click",
+                "description": "Dispatch a synthetic mouse click at (x, y). Sequence: mousemove -> mousedown -> mouseup -> click (or contextmenu for right). button: 'left' (default) | 'middle' | 'right'.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "x":      { "type": "integer" },
+                        "y":      { "type": "integer" },
+                        "button": { "type": "string", "enum": ["left", "middle", "right"], "default": "left" }
+                    },
+                    "required": ["x", "y"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_mouse_drag",
+                "description": "Dispatch a synthetic drag from (x1,y1) to (x2,y2) using `steps` interpolated mousemove events. Sequence: mousedown(x1,y1) -> N x mousemove -> mouseup(x2,y2). button: 'left' (default) | 'middle' | 'right'.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "x1":     { "type": "integer" },
+                        "y1":     { "type": "integer" },
+                        "x2":     { "type": "integer" },
+                        "y2":     { "type": "integer" },
+                        "button": { "type": "string", "enum": ["left", "middle", "right"], "default": "left" },
+                        "steps":  { "type": "integer", "minimum": 1, "maximum": 200, "default": 10 }
+                    },
+                    "required": ["x1", "y1", "x2", "y2"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_scroll",
+                "description": "Dispatch a synthetic wheel event at (x, y) with delta (dx, dy) in CSS pixels. Set ctrlKey=true to test ctrl+wheel zoom-to-cursor.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "x":       { "type": "integer" },
+                        "y":       { "type": "integer" },
+                        "dx":      { "type": "integer", "default": 0 },
+                        "dy":      { "type": "integer", "default": 0 },
+                        "ctrlKey": { "type": "boolean", "default": false },
+                        "shiftKey":{ "type": "boolean", "default": false },
+                        "altKey":  { "type": "boolean", "default": false },
+                        "metaKey": { "type": "boolean", "default": false }
+                    },
+                    "required": ["x", "y"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_key",
+                "description": "Press a single key (with optional modifiers) on the focused element. Dispatches keydown then keyup. e.g. {key:'Escape'} or {key:'z', ctrl:true} for undo.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "key":   { "type": "string" },
+                        "ctrl":  { "type": "boolean", "default": false },
+                        "shift": { "type": "boolean", "default": false },
+                        "alt":   { "type": "boolean", "default": false },
+                        "meta":  { "type": "boolean", "default": false }
+                    },
+                    "required": ["key"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_type",
+                "description": "Type a string into the focused element. For each character: keydown -> beforeinput -> (value splice) -> input -> keyup. Editable inputs receive value updates; non-editable elements receive only the key events.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "text": { "type": "string" }
+                    },
+                    "required": ["text"],
+                    "additionalProperties": false
+                }
             }
         ]
     })
@@ -236,6 +327,12 @@ async fn handle_tools_call(state: &AppState, params: &Value) -> Result<Value, (i
         "app_zoom_in" => tool_app_request(state, "mcp:zoom-in", &arguments, Duration::from_secs(15)).await,
         "app_zoom_out" => tool_app_request(state, "mcp:zoom-out", &arguments, Duration::from_secs(15)).await,
         "app_screenshot_view" => tool_app_request(state, "mcp:screenshot-view", &arguments, Duration::from_secs(30)).await,
+        "app_mouse_move"  => tool_app_request(state, "mcp:mouse-move",  &arguments, Duration::from_secs(10)).await,
+        "app_mouse_click" => tool_app_request(state, "mcp:mouse-click", &arguments, Duration::from_secs(10)).await,
+        "app_mouse_drag"  => tool_app_request(state, "mcp:mouse-drag",  &arguments, Duration::from_secs(30)).await,
+        "app_scroll"      => tool_app_request(state, "mcp:scroll",      &arguments, Duration::from_secs(10)).await,
+        "app_key"         => tool_app_request(state, "mcp:key",         &arguments, Duration::from_secs(10)).await,
+        "app_type"        => tool_app_request(state, "mcp:type",        &arguments, Duration::from_secs(30)).await,
         other => Err((
             jsonrpc_error::METHOD_NOT_FOUND,
             format!("method not found: {other}"),
@@ -945,6 +1042,63 @@ mod tests {
             assert!(b64.starts_with("iVBORw0KGgo"), "page {i} not a valid png");
             assert!(p["width"].as_u64().unwrap() > 0);
             assert!(p["height"].as_u64().unwrap() > 0);
+        }
+    }
+
+    /// Confirms every new mouse + keyboard tool is registered with a
+    /// well-formed input schema. Catches drift between the descriptor
+    /// list and the dispatch arms.
+    #[test]
+    fn tools_list_advertises_input_tools() {
+        let v = handle_tools_list();
+        let arr = v["tools"].as_array().expect("tools is an array");
+        let names: Vec<&str> = arr.iter().map(|t| t["name"].as_str().unwrap()).collect();
+        for tool in [
+            "app_mouse_move",
+            "app_mouse_click",
+            "app_mouse_drag",
+            "app_scroll",
+            "app_key",
+            "app_type",
+        ] {
+            assert!(names.contains(&tool), "missing tool: {tool} (got {names:?})");
+            let descr = arr.iter().find(|t| t["name"] == tool).unwrap();
+            assert_eq!(
+                descr["inputSchema"]["type"], "object",
+                "{tool} schema must be an object"
+            );
+            assert_eq!(
+                descr["inputSchema"]["additionalProperties"], false,
+                "{tool} should reject unknown fields"
+            );
+        }
+    }
+
+    /// Sanity-check that calling an `app_*` tool without an AppHandle
+    /// returns an error rather than panicking. Same harness pattern as
+    /// the original 5 app_* tools.
+    #[tokio::test]
+    async fn input_tools_without_app_handle_return_error() {
+        let state = AppState {
+            test_pdfs_dir: std::sync::Arc::new(std::path::PathBuf::from(".")),
+            app_handle: None,
+        };
+        for (name, args) in [
+            ("app_mouse_move",  serde_json::json!({"x": 100, "y": 100})),
+            ("app_mouse_click", serde_json::json!({"x": 100, "y": 100})),
+            ("app_mouse_drag",  serde_json::json!({"x1": 0, "y1": 0, "x2": 1, "y2": 1})),
+            ("app_scroll",      serde_json::json!({"x": 100, "y": 100, "dy": -1})),
+            ("app_key",         serde_json::json!({"key": "Escape"})),
+            ("app_type",        serde_json::json!({"text": "x"})),
+        ] {
+            let params = serde_json::json!({"name": name, "arguments": args});
+            let result = handle_tools_call(&state, &params).await;
+            assert!(result.is_err(), "{name} must return Err without an AppHandle");
+            let (_code, msg) = result.unwrap_err();
+            assert!(
+                msg.contains("AppHandle unavailable"),
+                "{name} message should explain missing AppHandle, got: {msg}"
+            );
         }
     }
 }
