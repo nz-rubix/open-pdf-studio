@@ -1580,3 +1580,35 @@ The clip mask still attenuates row 2822 by ~57% (because `apply_clip` builds an 
 1. **AA clip-mask outward rounding** for clip paths whose bottom/right edge falls within the lower half of a pixel cell. Mirror the iter-32 approach to `apply_clip`. Would close the residual edge attenuation on Tekst.pdf p2/p3.
 2. **Bold synthesis from FontDescriptor flags** (carried from iter 31) — would close the "Totaal incl. BTW" weight gap on Tekst.pdf p2/p3.
 3. **Sub-pixel text glyph rendering** at very small sizes (Barn p3 grid bubbles).
+
+## Quality iter 33 — clip-rect outward rounding (mirror of iter-32) (2026-05-08)
+
+**Target** (from iter-32 hint): Residual ~57% AA-clip-mask attenuation at the boundary row of axis-aligned `re W n` clip rects whose device-space edge falls in the lower half of a pixel cell. Iter-32 fixed the image-rect side; iter-33 mirrors the trick on the clip-mask side.
+
+**Diagnostic recap** (from iter-32):
+On Tekst.pdf p2 the clip rect `1.199 1.789 594.1 840.1 re W* n` maps to device-space bottom edge y≈2822.43. `Mask::fill_path` AA-fills the rect's bottom row at ~57% coverage (the fraction above y=2822.43 within pixel row 2822, which is centered at y=2822.5). Even after iter-32's image fix made the image PAINT into row 2822, the clip mask still attenuated it to 57% intensity. MuPDF/PyMuPDF instead use any-pixel-touched semantics for the clip rect, so the boundary row stays at full opacity.
+
+**Fix** (`open-pdf-render/src/renderer.rs` `apply_clip`):
+Detect the simple-axis-aligned-rect case (4 line segments forming a horizontal/vertical rectangle) when the CTM is a pure scale+translate. Map the 4 corners through the CTM to compute the device-space bbox, inflate by 0.5 px on each edge, build a fresh `Rect`-from-`PathBuilder` path, and fill the mask with `Transform::identity()`. For non-rect clip paths or rotated/skewed CTMs, fall back to the original CTM-transformed `fill_path` / `intersect_path` path.
+
+The detection helper `inflate_axis_aligned_rect_clip` accepts both `M L L L Close` and `M L L L LineToStart` forms (some emitters omit explicit Close). It rejects on the first non-axis-aligned edge. This is intentionally conservative — the dominant case in the test suite (and in MuPDF's own fast-path) is axis-aligned `re`-derived rects.
+
+**Result**:
+- Pass count: **60 → 60 / 106** (no threshold crossings, but broad pixel-tightening across the suite).
+- Tekst.pdf p0: 1.60% → **1.54%**, p1: 1.32 → **1.26**, p2: 1.94 → **1.87**, p3: 2.63 → **2.56** (still FAIL, closer), p4: 0.46 → **0.39**.
+- Text pdf gecombineerd / rapport-constructie p4: 3.92 → **3.80**, p5: 0.81 → **0.40** (-0.41), p15: 2.82 → **2.63**, p16: 1.70 → **1.47**, p18: 3.59 → **3.47**.
+- Combinatie Raster p0: 1.38 → **1.33**.
+- 2885 Demo project p0: 0.35 → **0.26**, p1: 0.59 → **0.45**, p7: 1.83 → **1.73**.
+- Two ~+0.01% noise-level regressions (Zware vector p14, 2885 p10) — well below FAIL threshold.
+- 0 PASS→FAIL transitions; 0 panics; all 8 PDFs render successfully.
+
+**Files touched**:
+- `open-pdf-render/src/renderer.rs` — `apply_clip` augmented with a fast-path for axis-aligned rect clips that inflates the device-space rect outward by 0.5 px per edge before building the mask. New helper `inflate_axis_aligned_rect_clip` parses the path segments and verifies axis-alignment / orthogonal CTM.
+- `docs/superpowers/improvement-log.md` — this entry.
+
+**Status**: **DONE** — quality improvement without pass-count gain. The clip-mask attenuation issue is closed for all axis-aligned `re W n` paths, mirroring iter-32's image-rect fix on the mask-construction side. Many pages dropped 0.05-0.4% closer to reference but no page sat exactly on the threshold (the next-closest, Text-pdf-gec p6 at 2.50%, would need a separate fix).
+
+**Continue**: YES — open candidates for iter 34:
+1. **Bold synthesis from FontDescriptor flags** (carried from iter 31/32) — would close the "Totaal incl. BTW" weight gap on Tekst.pdf p2/p3 (still 2.56% FAIL).
+2. **Sub-pixel text glyph rendering** at very small sizes (Barn p3 grid bubbles).
+3. **Investigate the Text pdf gecombineerd p6 cluster** — sitting at 2.50%, would benefit from another text-AA pass.

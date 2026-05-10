@@ -77,8 +77,40 @@ impl SkiaRenderer {
     /// `q` clones the GraphicsState (including the Mask), so `Q`
     /// automatically restores the previous clip — that's how PDF
     /// clip-stack semantics work without any extra plumbing.
+    ///
+    /// Iter 33: when the clip path is an axis-aligned rectangle and the
+    /// CTM is scale+translate (no rotation/skew), the device-space rect's
+    /// edges may fall in the lower half of a pixel cell. With AA fill
+    /// the boundary row gets only partial coverage (~57% in the Tekst
+    /// p2/p3 case), attenuating any content drawn through that clip.
+    /// MuPDF/PyMuPDF instead use any-pixel-touched semantics for the
+    /// clip rect, so the boundary row gets full coverage. Mirror that
+    /// here by inflating the device-space rect outward by 0.5 px on each
+    /// edge before building the mask. Non-rect or non-orthogonal clips
+    /// fall back to the original behaviour (the residual issue is
+    /// dominated by the simple `re W n` axis-aligned rect case).
     pub fn apply_clip(&mut self, gs: &mut GraphicsState, path: &Path, even_odd: bool) {
         let fill_rule = if even_odd { FillRule::EvenOdd } else { FillRule::Winding };
+
+        // Try the axis-aligned-rect fast path. When it fires, we transform
+        // the rect into device space, inflate by 0.5 px on each edge, and
+        // fill a fresh rect path with identity transform. Otherwise we fall
+        // back to the original CTM-transformed fill.
+        if let Some(inflated_path) = Self::inflate_axis_aligned_rect_clip(path, &gs.ctm) {
+            match gs.clip_path.as_mut() {
+                Some(mask) => {
+                    mask.intersect_path(&inflated_path, fill_rule, true, Transform::identity());
+                }
+                None => {
+                    if let Some(mut mask) = Mask::new(self.width, self.height) {
+                        mask.fill_path(&inflated_path, fill_rule, true, Transform::identity());
+                        gs.clip_path = Some(mask);
+                    }
+                }
+            }
+            return;
+        }
+
         match gs.clip_path.as_mut() {
             Some(mask) => {
                 mask.intersect_path(path, fill_rule, true, gs.ctm);
@@ -90,6 +122,82 @@ impl SkiaRenderer {
                 }
             }
         }
+    }
+
+    /// If `path` is an axis-aligned rectangle (4 line segments meeting at
+    /// right angles, possibly with an explicit Close) AND `ctm` is a pure
+    /// scale+translate, return a NEW path containing the device-space rect
+    /// inflated outward by 0.5 px on each edge. Returns `None` for any
+    /// other shape so the caller can fall back to the original code path.
+    fn inflate_axis_aligned_rect_clip(path: &Path, ctm: &Transform) -> Option<Path> {
+        // Only orthogonal CTMs preserve axis-alignment; a rotated CTM
+        // would turn the rect into a parallelogram and the bbox-inflate
+        // trick would over-clip the corners.
+        if !ctm.is_scale_translate() {
+            return None;
+        }
+
+        // Walk the segments and verify it's the canonical 4-line rect
+        // (M, L, L, L, optional Close) with all edges strictly horizontal
+        // or vertical in user space.
+        let mut iter = path.segments();
+        let p0 = match iter.next()? {
+            PathSegment::MoveTo(p) => p,
+            _ => return None,
+        };
+        let mut pts = [p0; 4];
+        for slot in pts.iter_mut().skip(1) {
+            match iter.next()? {
+                PathSegment::LineTo(p) => *slot = p,
+                _ => return None,
+            }
+        }
+        // Optional Close, optional return-to-start LineTo, then end.
+        loop {
+            match iter.next() {
+                Some(PathSegment::Close) => continue,
+                Some(PathSegment::LineTo(p)) if (p.x - p0.x).abs() < 1e-4
+                    && (p.y - p0.y).abs() < 1e-4 =>
+                {
+                    continue;
+                }
+                None => break,
+                _ => return None,
+            }
+        }
+        // Verify axis-aligned: edges 0->1, 1->2, 2->3, 3->0 each strictly
+        // horizontal or vertical, alternating.
+        let edges = [
+            (pts[0], pts[1]),
+            (pts[1], pts[2]),
+            (pts[2], pts[3]),
+            (pts[3], pts[0]),
+        ];
+        for (a, b) in edges.iter() {
+            let horiz = (a.y - b.y).abs() < 1e-4 && (a.x - b.x).abs() > 1e-4;
+            let vert  = (a.x - b.x).abs() < 1e-4 && (a.y - b.y).abs() > 1e-4;
+            if !horiz && !vert {
+                return None;
+            }
+        }
+
+        // Compute the device-space bbox by mapping all 4 corners through
+        // the (orthogonal) CTM.
+        let mut corners = pts;
+        ctm.map_points(&mut corners);
+        let (mut minx, mut miny) = (corners[0].x, corners[0].y);
+        let (mut maxx, mut maxy) = (corners[0].x, corners[0].y);
+        for p in &corners[1..] {
+            if p.x < minx { minx = p.x; } else if p.x > maxx { maxx = p.x; }
+            if p.y < miny { miny = p.y; } else if p.y > maxy { maxy = p.y; }
+        }
+
+        // Outward-round by 0.5 device px on each edge — see method-level
+        // comment for the rationale (iter 33).
+        const PAD: f32 = 0.5;
+        let rect = Rect::from_ltrb(minx - PAD, miny - PAD, maxx + PAD, maxy + PAD)?;
+        let path = PathBuilder::from_rect(rect);
+        Some(path)
     }
 
     pub fn begin_path(&mut self) {
