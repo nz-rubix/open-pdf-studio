@@ -1648,3 +1648,38 @@ Implemented the ForceBold detection + synthetic-bold rendering per spec, even th
 2. **Sub-pixel text glyph rendering** at very small sizes (Barn p3 grid bubbles).
 3. **Investigate the Text pdf gecombineerd p6 cluster** — sitting at 2.50%, would benefit from another text-AA pass.
 
+## Quality iter 35 — Type1 stem-darkening attempt (2026-05-08)
+
+**Target**: Apply iter-34's revised hypothesis — FreeType-style stem darkening on Type1 outlines (UniviaPro in Tekst.pdf) — by overlaying a small synthetic stroke (≈ 0.5 device px) on top of the fill, gated to Type1 fonts only and only at small-to-mid display sizes. Iter-17's GLOBAL widening regressed because TrueType fonts already have hinting and don't want extra stem widening; the iter-35 approach was supposed to side-step that by being Type1-only.
+
+**Implementation** (later reverted):
+1. Added `is_type1: bool` field to `ParsedFont`; set to `true` in `parse_type1`, `false` in `parse_truetype`.
+2. Added `font_size_device_px` helper to text_renderer.rs to compute the on-screen font height from `font_size × |tm-y-scale| × |ctm-y-scale|`.
+3. In both `render_text_glyphs_skia_with_mode` (simple) and `render_cid_text_glyphs_skia_with_mode` (CID), added a `want_stem_darken` gate (`is_type1 && device_px < cutoff && do_fill && !do_stroke && !force_bold`) that overlays a fill-coloured stroke at `device_px × ratio` on top of the filled glyph.
+4. Reused the same `state.save/restore` envelope as iter-34's ForceBold path for stroke_color + dash_array.
+
+**Sweep**:
+| Run | ratio  | cutoff | Tekst p0 | p1 | p2 | p3 | p4 | PASS  |
+|-----|--------|--------|----------|------|------|--------|------|-------|
+| baseline | — | — | 1.54 PASS | 1.26 PASS | 1.87 PASS | 2.56 FAIL | 0.39 PASS | 60/106 |
+| 1   | 0.025  | 30     | 1.55 PASS | 1.26 PASS | 1.88 PASS | 2.58 FAIL | 0.39 PASS | 60/106 |
+| 2   | 0.05   | 30     | 1.58 PASS | 1.28 PASS | 1.92 PASS | 2.64 FAIL | 0.40 PASS | 60/106 |
+| 3   | 0.015  | 50     | 1.55 PASS | 1.26 PASS | 1.88 PASS | 2.58 FAIL | 0.39 PASS | 60/106 |
+
+**Finding**:
+- All three tested ratios delivered **0 net PASS gain** (60/106 throughout).
+- All three **moved Tekst diff slightly UP**, not down — indicating our existing UniviaPro outlines are already at-or-thicker than PyMuPDF's reference at these sizes. The iter-34 "PyMuPDF stems look bolder" hypothesis was visually plausible but does not match the per-pixel diff direction. Adding stem darkening pushes us further from the reference, not closer.
+- p0/p1/p4 stayed PASS in all runs (diff increases were 0.01–0.04 pp, well below the 2 % threshold).
+- Type1 fonts only appear in Tekst.pdf (5/106 pages); zero non-Tekst pages were touched. So the change cannot help any other corpus page either.
+
+**Decision**: REVERTED. Per the mandate's step 4 ("If 3 attempts fail to find a value that improves p2/p3 without regressing p0/p1/p4, abandon and report NO_FEATURE_GAP_FOUND"). The change is benign on PASS count but moves Tekst pages slightly *away* from the reference, so leaving it in adds risk for no benefit. All edits to `font_parser.rs` and `text_renderer.rs` were reverted; only the iter-30 in-flight `byte_cmap` field remains in `font_parser.rs`.
+
+**Files touched**: none (all reverted).
+
+**Status**: **NO_FEATURE_GAP_FOUND** — Type1 stem darkening, while a real concept implemented in FreeType/PyMuPDF, does not close the residual Tekst.pdf p3 gap in this corpus. The actual diff is dominated by something other than stroke widening (likely the bytecode hinter or a different rasterization choice — both Type1 and TrueType appear on the page). 
+
+**Continue**: YES — revised candidates for iter 36:
+1. **Tekst p3 forensic study** — render p3, diff vs PyMuPDF, identify which glyphs / regions account for the 2.56 % so a targeted fix can be designed (instead of the iter-34/35 educated guesses).
+2. **Sub-pixel text glyph rendering** at very small sizes (Barn p3 grid bubbles).
+3. **Investigate the Text pdf gecombineerd p6 cluster** — sitting at 2.50 %, would benefit from another text-AA pass.
+
