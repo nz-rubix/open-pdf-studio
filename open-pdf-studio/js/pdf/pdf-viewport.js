@@ -436,15 +436,33 @@ export function fitToViewport() {
   const dpr = _getDpr();
   const cssW = _canvas.width / dpr;
   const cssH = _canvas.height / dpr;
-  viewport.zoom = computeFitZoom('page', viewport.pageW, viewport.pageH, cssW, cssH, 0);
-  const scaledW = viewport.pageW * viewport.zoom;
-  const scaledH = viewport.pageH * viewport.zoom;
-  viewport.offsetX = (cssW - scaledW) / 2;
-  viewport.offsetY = (cssH - scaledH) / 2;
+  const newZoom = computeFitZoom('page', viewport.pageW, viewport.pageH, cssW, cssH, 0);
+  const scaledW = viewport.pageW * newZoom;
+  const scaledH = viewport.pageH * newZoom;
+  const newOffsetX = (cssW - scaledW) / 2;
+  const newOffsetY = (cssH - scaledH) / 2;
+
   // Re-centering reset: discard any prior zoom-to-cursor anchor so
   // clampAndCenter() resumes auto-centering on fit-axis as before.
   _anchorActive = false;
   _strictAnchor = false;
+
+  // Skip the dirty-mark when the fit would produce identical zoom + offsets.
+  // ResizeObserver can fire on layout settling without an actual size change
+  // that affects the fit (e.g. clientWidth identical after a parent reflow),
+  // and re-marking dirty triggers a full RAF redraw — heavy `renderVectorPage`
+  // + `redrawAnnotations` per frame. The redundant-mark guard keeps the canvas
+  // path quiet when nothing visible changes.
+  if (
+    viewport.zoom === newZoom &&
+    viewport.offsetX === newOffsetX &&
+    viewport.offsetY === newOffsetY
+  ) {
+    return;
+  }
+  viewport.zoom = newZoom;
+  viewport.offsetX = newOffsetX;
+  viewport.offsetY = newOffsetY;
   viewport.dirty = true;
 }
 
