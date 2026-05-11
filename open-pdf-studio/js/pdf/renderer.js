@@ -265,6 +265,15 @@ export async function renderPage(pageNum) {
     // the vector path on the next vector-doc renderPage().
     if (window.__pdfViewport) window.__pdfViewport.active = false;
     console.log(`[render] Rust render: page=${pageNum}, scale=${scale}, dpr=${dpr}, path=${doc.filePath}`);
+    // Predictive CSS resize: stretch the EXISTING canvas pixels to the new
+    // target zoom size BEFORE Rust starts rendering. The browser does this
+    // upscale instantly (blurry but immediate), so the user sees the page
+    // grow/shrink the moment they zoom even though the sharp Rust render
+    // takes 1-3 seconds on big image PDFs (e.g. Barn Relocation @ 124M
+    // total embedded image pixels). The await below replaces the stretched
+    // bitmap with crisp pixels as soon as Rust finishes — no freeze.
+    pdfCanvas.style.width = Math.floor(viewport.width) + 'px';
+    pdfCanvas.style.height = Math.floor(viewport.height) + 'px';
     try {
       // Rust returns RGBA bytes directly as Uint8Array with 8-byte header (width u32 LE + height u32 LE)
       const rgbaData = await invoke('render_pdf_page', {

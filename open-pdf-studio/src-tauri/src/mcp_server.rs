@@ -302,6 +302,15 @@ fn handle_tools_list() -> Value {
                     "required": ["text"],
                     "additionalProperties": false
                 }
+            },
+            {
+                "name": "app_get_viewport_state",
+                "description": "Probe the LIVE viewport state: zoom + offset of the pdf-viewport singleton, plus pdf-canvas backing-store + CSS rect, pdf-container CSS rect + scroll offsets, and devicePixelRatio. Used for testing zoom-to-cursor math, smooth-scroll behaviour, and any case where screen↔world coordinate mapping needs to be validated externally.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": false
+                }
             }
         ]
     })
@@ -333,6 +342,7 @@ async fn handle_tools_call(state: &AppState, params: &Value) -> Result<Value, (i
         "app_scroll"      => tool_app_request(state, "mcp:scroll",      &arguments, Duration::from_secs(10)).await,
         "app_key"         => tool_app_request(state, "mcp:key",         &arguments, Duration::from_secs(10)).await,
         "app_type"        => tool_app_request(state, "mcp:type",        &arguments, Duration::from_secs(30)).await,
+        "app_get_viewport_state" => tool_app_request(state, "mcp:get-viewport-state", &arguments, Duration::from_secs(5)).await,
         other => Err((
             jsonrpc_error::METHOD_NOT_FOUND,
             format!("method not found: {other}"),

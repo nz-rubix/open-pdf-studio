@@ -473,18 +473,63 @@ async function handleType(params) {
   return { ok: true, typed };
 }
 
+async function handleGetViewportState() {
+  // Probe the current viewport state for testing math (zoom-to-cursor,
+  // smooth scrolling, etc). Returns the singleton viewport's transform
+  // plus canvas + container dimensions so callers can map screen↔world.
+  const vp = window.__pdfViewport;
+  const pdfCanvas = document.getElementById('pdf-canvas');
+  const container = document.getElementById('pdf-container') || pdfCanvas?.parentElement;
+  const cRect = container?.getBoundingClientRect();
+  const pRect = pdfCanvas?.getBoundingClientRect();
+  return {
+    ok: true,
+    // viewport singleton (pdf-viewport.js): the transform that maps world→screen
+    viewport: vp ? {
+      active: !!vp.active,
+      zoom: vp.zoom ?? null,
+      offsetX: vp.offsetX ?? null,
+      offsetY: vp.offsetY ?? null,
+      pageW: vp.pageW ?? null,
+      pageH: vp.pageH ?? null,
+      filePath: vp.filePath ?? null,
+      pageNum: vp.pageNum ?? null,
+    } : null,
+    // The canvas backing store (where compositeCurrentView reads pixels from)
+    canvas: pdfCanvas ? {
+      width: pdfCanvas.width,
+      height: pdfCanvas.height,
+      cssWidth: pRect?.width ?? null,
+      cssHeight: pRect?.height ?? null,
+      cssLeft: pRect?.left ?? null,
+      cssTop: pRect?.top ?? null,
+    } : null,
+    // The container (visible scrollable area)
+    container: cRect ? {
+      width: cRect.width,
+      height: cRect.height,
+      left: cRect.left,
+      top: cRect.top,
+      scrollLeft: container?.scrollLeft ?? null,
+      scrollTop: container?.scrollTop ?? null,
+    } : null,
+    devicePixelRatio: window.devicePixelRatio ?? 1,
+  };
+}
+
 const HANDLERS = {
-  'mcp:open-pdf':        handleOpenPdf,
-  'mcp:set-zoom':        handleSetZoom,
-  'mcp:zoom-in':         handleZoomIn,
-  'mcp:zoom-out':        handleZoomOut,
-  'mcp:screenshot-view': handleScreenshotView,
-  'mcp:mouse-move':      handleMouseMove,
-  'mcp:mouse-click':     handleMouseClick,
-  'mcp:mouse-drag':      handleMouseDrag,
-  'mcp:scroll':          handleScroll,
-  'mcp:key':             handleKey,
-  'mcp:type':            handleType,
+  'mcp:open-pdf':           handleOpenPdf,
+  'mcp:set-zoom':           handleSetZoom,
+  'mcp:zoom-in':            handleZoomIn,
+  'mcp:zoom-out':           handleZoomOut,
+  'mcp:screenshot-view':    handleScreenshotView,
+  'mcp:mouse-move':         handleMouseMove,
+  'mcp:mouse-click':        handleMouseClick,
+  'mcp:mouse-drag':         handleMouseDrag,
+  'mcp:scroll':             handleScroll,
+  'mcp:key':                handleKey,
+  'mcp:type':               handleType,
+  'mcp:get-viewport-state': handleGetViewportState,
 };
 
 /** Wire up all `mcp:*` listeners. Safe to call once at startup. Becomes

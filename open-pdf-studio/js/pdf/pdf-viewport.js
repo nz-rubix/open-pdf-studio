@@ -146,13 +146,91 @@ function _resizeCanvas() {
   }
 }
 
+// ─── Smooth Scroll: Velocity + Momentum ────────────────────────────────────
+// Wheel-driven pan accumulates into _vx/_vy. The RAF loop then applies and
+// decays the velocity each frame so a single wheel notch glides to a smooth
+// stop instead of jumping in a single instantaneous step. Tuned to feel like
+// macOS / iOS rubber-banding scroll without rubber-band overshoot (we just
+// clamp at edges via clampAndCenter()).
+let _vx = 0;
+let _vy = 0;
+// Per-frame decay. Closer to 1 = longer glide. 0.88 ≈ velocity halves in
+// ~5 frames (~83ms @ 60fps); feels responsive but smooth, no over-floaty.
+const _VELOCITY_FRICTION = 0.88;
+// Hard stop threshold so we don't burn frames on sub-pixel residue.
+const _VELOCITY_MIN = 0.15;
+// How much of a wheel notch becomes velocity. The OS sends ~100 per notch;
+// we want ~25 CSS px/frame at impact, which a single notch of 100 * 0.25
+// produces. Trackpad inertia already smooths fine deltas so this scale
+// works for both.
+const _WHEEL_TO_VELOCITY = 0.25;
+
+/**
+ * Add wheel deltas to the pan-momentum accumulator. Called from the wheel
+ * handler in navigation-events.js on plain (non-ctrl) wheel events when the
+ * vector viewport is active. The RAF loop applies velocity over multiple
+ * frames with friction-based decay, producing smooth Apple-style scroll.
+ *
+ * No-op when momentum is suppressed by clamping on both axes (page fits).
+ */
+export function addPanVelocity(dx, dy) {
+  _vx += dx * _WHEEL_TO_VELOCITY;
+  _vy += dy * _WHEEL_TO_VELOCITY;
+  viewport.dirty = true; // wake the RAF loop
+  _anchorActive = true;  // user-positioned, don't auto-center
+}
+
+/**
+ * Halt any in-flight pan momentum. Called when a new gesture begins
+ * (pointer-down for click-pan, ctrl+wheel for zoom, edge-triggered page
+ * nav) so the new gesture doesn't fight a still-decaying old one.
+ */
+export function stopPanMomentum() {
+  _vx = 0;
+  _vy = 0;
+}
+
 // ─── Render Loop ────────────────────────────────────────────────────────────
 
 function _startLoop() {
   function tick() {
-    if (viewport.dirty && viewport.active) {
-      viewport.dirty = false;
-      _render();
+    if (viewport.active) {
+      // Apply pan momentum before the dirty check so a velocity > 0 keeps
+      // the loop alive even when nothing else marked dirty.
+      if (_vx !== 0 || _vy !== 0) {
+        const dpr = _getDpr();
+        const vpW = _canvas ? _canvas.width / dpr : 0;
+        const vpH = _canvas ? _canvas.height / dpr : 0;
+        const pageScreenW = viewport.pageW * viewport.zoom;
+        const pageScreenH = viewport.pageH * viewport.zoom;
+
+        // Skip the velocity update on any axis where the page already fits
+        // (clampAndCenter would just snap it back, producing a buzzy oscillation
+        // for an axis the user can't pan anyway). Also kill that axis's
+        // velocity outright so we don't waste frames decaying it.
+        if (pageScreenW > vpW + 0.5) {
+          viewport.offsetX -= _vx;
+        } else {
+          _vx = 0;
+        }
+        if (pageScreenH > vpH + 0.5) {
+          viewport.offsetY -= _vy;
+        } else {
+          _vy = 0;
+        }
+
+        // Decay
+        _vx *= _VELOCITY_FRICTION;
+        _vy *= _VELOCITY_FRICTION;
+        if (Math.abs(_vx) < _VELOCITY_MIN) _vx = 0;
+        if (Math.abs(_vy) < _VELOCITY_MIN) _vy = 0;
+
+        viewport.dirty = true;
+      }
+      if (viewport.dirty) {
+        viewport.dirty = false;
+        _render();
+      }
     }
     _rafId = requestAnimationFrame(tick);
   }
@@ -446,6 +524,9 @@ export function fitToViewport() {
   // clampAndCenter() resumes auto-centering on fit-axis as before.
   _anchorActive = false;
   _strictAnchor = false;
+  // Fit is a "snap to here" operation — any in-flight pan-momentum from
+  // before the fit is stale and would immediately drag the page off-center.
+  stopPanMomentum();
 
   // Skip the dirty-mark when the fit would produce identical zoom + offsets.
   // ResizeObserver can fire on layout settling without an actual size change
@@ -576,6 +657,10 @@ export function startPan(screenX, screenY) {
   _isPanning = true;
   _panStartX = screenX - viewport.offsetX;
   _panStartY = screenY - viewport.offsetY;
+  // Kill any in-flight wheel-momentum so the page doesn't keep gliding
+  // while the user is now dragging it. Without this the click-pan offset
+  // races with the decaying velocity and produces visible jitter.
+  stopPanMomentum();
 }
 
 export function updatePan(screenX, screenY) {

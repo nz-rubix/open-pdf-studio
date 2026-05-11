@@ -1,6 +1,6 @@
 import { state, getActiveDocument } from '../../core/state.js';
 import { goToPage } from '../../pdf/renderer.js';
-import { viewport, zoomStepAtPoint, suppressNextFit, markAnchored } from '../../pdf/pdf-viewport.js';
+import { viewport, zoomStepAtPoint, suppressNextFit, addPanVelocity, stopPanMomentum } from '../../pdf/pdf-viewport.js';
 import { getTool } from '../../tools/tool-registry.js';
 
 // ─── Wheel Zoom + Pan + Page Navigation ───────────────────────────────────
@@ -52,6 +52,9 @@ export function setupWheelZoom() {
     // Ctrl+wheel = zoom (snaps to discrete preset levels at the cursor).
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
+      // Starting a zoom gesture: kill any in-flight pan momentum so the page
+      // doesn't keep gliding mid-zoom (would tear the cursor anchor away).
+      stopPanMomentum();
       // Legacy path (vector viewport inactive). Used for blank docs (no
       // filePath) and any PDF whose vector viewport didn't activate. The
       // zoom flow is doc.scale → renderPage → canvas resized. We anchor the
@@ -165,6 +168,10 @@ export function setupWheelZoom() {
       if (activeDoc.viewMode === 'single' && !_pageNavCooldown && Math.abs(dy) > Math.abs(dx)) {
         if (dy > 0 && atBottom && activeDoc.currentPage < activeDoc.pdfDoc.numPages) {
           _pageNavCooldown = true;
+          // Kill any in-flight pan momentum so the new page doesn't inherit
+          // the previous page's residual scroll velocity (would slingshot
+          // past the top into the centered fit position).
+          stopPanMomentum();
           // Tell the next setPage() to keep the current zoom instead of
           // running fitToViewport(), so the user's zoom level survives the
           // page change with no flash to fit-zoom in between.
@@ -176,6 +183,7 @@ export function setupWheelZoom() {
         }
         if (dy < 0 && atTop && activeDoc.currentPage > 1) {
           _pageNavCooldown = true;
+          stopPanMomentum();
           suppressNextFit();
           await goToPage(activeDoc.currentPage - 1);
           alignPageToBottom();
@@ -184,21 +192,16 @@ export function setupWheelZoom() {
         }
       }
 
-      // Normal pan inside the page. The viewport's clampAndCenter() runs at
-      // the start of every render so we don't need to clamp here — but we
-      // still skip the update entirely on axes where the page already fits,
-      // otherwise wheel input would briefly knock the centered page off-center
-      // before the next render snaps it back.
-      let newOffsetX = (pageScreenW <= canvasW) ? viewport.offsetX : viewport.offsetX - dx;
-      let newOffsetY = (pageScreenH <= canvasH) ? viewport.offsetY : viewport.offsetY - dy;
-
-      if (newOffsetX !== viewport.offsetX || newOffsetY !== viewport.offsetY) {
-        viewport.offsetX = newOffsetX;
-        viewport.offsetY = newOffsetY;
-        // Wheel-pan is explicit user positioning → don't let clampAndCenter
-        // re-center a fit-axis on the next render.
-        markAnchored();
-        viewport.dirty = true;
+      // Smooth pan: feed wheel deltas into the velocity accumulator instead
+      // of writing offsetX/Y directly. The RAF loop in pdf-viewport applies
+      // and decays the velocity over multiple frames, producing Apple-style
+      // momentum scroll — a single wheel notch glides to a smooth stop.
+      // Skip the contribution on any axis where the page already fits the
+      // viewport (no scroll headroom on that axis).
+      const vx = (pageScreenW <= canvasW) ? 0 : dx;
+      const vy = (pageScreenH <= canvasH) ? 0 : dy;
+      if (vx !== 0 || vy !== 0) {
+        addPanVelocity(vx, vy);
       }
       return;
     }
