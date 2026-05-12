@@ -624,25 +624,72 @@ exit 1
     }
 }
 
-/// Install a virtual printer named "Open PDF Studio" using the built-in
-/// "Microsoft Print to PDF" driver with the PORTPROMPT: port (shows a
-/// Save As dialog with print preview, just like the stock PDF printer).
+/// Install a virtual printer named "Open PDF Printer" using the built-in
+/// "Microsoft Print to PDF" driver. Sets the default paper size to A4.
 /// Requires one-time UAC admin elevation.
+///
+/// `use_collection`:
+///   - `false` (default behaviour) → PORTPROMPT: port. Each print job pops
+///     the standard Windows Save As dialog and the user picks a destination
+///     immediately. No collection dialog appears.
+///   - `true` → routes the output to a fixed file port pointing at
+///     `%LOCALAPPDATA%\OpenPDFPrinter\spool\latest.pdf`. Our app watches
+///     that folder, rotates the captured file into a timestamped name, and
+///     shows the PdfCollectionDialog so the user can combine multiple
+///     print jobs before saving. (Single-port approach: concurrent print
+///     jobs lock on the rotate step inside the app — Windows already
+///     serialises print jobs to a given port so the race window is tiny.)
+///
+/// Backward compatibility: removes the legacy printer name "Open PDF
+/// Studio" if present, so an existing installation cleanly migrates to
+/// the new name on next install.
 #[tauri::command]
-fn install_virtual_printer() -> Result<bool, String> {
+fn install_virtual_printer(use_collection: Option<bool>) -> Result<bool, String> {
     #[cfg(target_os = "windows")]
     {
-        let script = r#"$ErrorActionPreference = 'Stop'
-$printerName = 'Open PDF Studio'
+        let use_collection = use_collection.unwrap_or(false);
+        let (port_setup_block, port_arg) = if use_collection {
+            // Pre-create the spool dir + port pointing at it. Windows
+            // file-ports require the port NAME to be the file path itself.
+            let local = std::env::var("LOCALAPPDATA")
+                .map_err(|_| "LOCALAPPDATA not set".to_string())?;
+            let spool_dir = std::path::Path::new(&local).join("OpenPDFPrinter").join("spool");
+            let spool_file = spool_dir.join("latest.pdf");
+            std::fs::create_dir_all(&spool_dir)
+                .map_err(|e| format!("Failed to create spool dir: {}", e))?;
+            let spool_file_str = spool_file.to_string_lossy().to_string();
+            (
+                format!(
+                    r#"$portPath = '{}'
+# Remove any existing port at this path before re-adding (Add-PrinterPort errors if it exists)
+try {{ Remove-PrinterPort -Name $portPath -ErrorAction SilentlyContinue }} catch {{}}
+Add-PrinterPort -Name $portPath
+"#,
+                    spool_file_str.replace('\'', "''")
+                ),
+                format!("'{}'", spool_file_str.replace('\'', "''")),
+            )
+        } else {
+            (String::new(), "'PORTPROMPT:'".to_string())
+        };
 
-# Remove existing printer if present (ignore errors)
-try { Remove-Printer -Name $printerName -ErrorAction SilentlyContinue } catch {}
+        let script = format!(r#"$ErrorActionPreference = 'Stop'
+$printerName = 'Open PDF Printer'
+$legacyName = 'Open PDF Studio'
 
-# Create the printer using the built-in PDF driver and PORTPROMPT: port
-# PORTPROMPT: shows a Save As dialog with print preview
-Add-Printer -Name $printerName -DriverName 'Microsoft Print to PDF' -PortName 'PORTPROMPT:'"#;
+# Remove the LEGACY-named printer if present (migration from older versions)
+try {{ Remove-Printer -Name $legacyName -ErrorAction SilentlyContinue }} catch {{}}
+try {{ Remove-Printer -Name $printerName -ErrorAction SilentlyContinue }} catch {{}}
 
-        run_elevated_ps_script(script)?;
+{}
+Add-Printer -Name $printerName -DriverName 'Microsoft Print to PDF' -PortName {}
+
+# Default paper size = A4 (don't let driver/locale defaults pick C-size).
+try {{ Set-PrintConfiguration -PrinterName $printerName -PaperSize A4 -ErrorAction Stop }} catch {{
+    Write-Host "Note: could not set default paper size to A4 (install still succeeded). $($_.Exception.Message)"
+}}"#, port_setup_block, port_arg);
+
+        run_elevated_ps_script(&script)?;
         Ok(true)
     }
 
@@ -652,19 +699,23 @@ Add-Printer -Name $printerName -DriverName 'Microsoft Print to PDF' -PortName 'P
     }
 }
 
-/// Remove the "Open PDF Studio" virtual printer.
-/// Requires UAC admin elevation.
+/// Remove the "Open PDF Printer" virtual printer (and the legacy
+/// "Open PDF Studio" name if it exists). Requires UAC admin elevation.
 #[tauri::command]
 fn remove_virtual_printer() -> Result<bool, String> {
     #[cfg(target_os = "windows")]
     {
         let script = r#"$ErrorActionPreference = 'Stop'
-$printerName = 'Open PDF Studio'
+$printerName = 'Open PDF Printer'
+$legacyName = 'Open PDF Studio'
 
-Remove-Printer -Name $printerName
+# Remove BOTH the current and legacy names so the UI status reflects
+# "not installed" regardless of which one the user has.
+try { Remove-Printer -Name $printerName -ErrorAction SilentlyContinue } catch {}
+try { Remove-Printer -Name $legacyName -ErrorAction SilentlyContinue } catch {}
 
 # Clean up any leftover local port from older installations
-Get-PrinterPort | Where-Object { $_.Name -like '*OpenPDFStudio*print-capture*' } | Remove-PrinterPort"#;
+Get-PrinterPort | Where-Object { $_.Name -like '*OpenPDFStudio*print-capture*' -or $_.Name -like '*OpenPDFPrinter*print-capture*' } | Remove-PrinterPort"#;
 
         run_elevated_ps_script(script)?;
         Ok(true)
@@ -676,7 +727,9 @@ Get-PrinterPort | Where-Object { $_.Name -like '*OpenPDFStudio*print-capture*' }
     }
 }
 
-/// Check whether the "Open PDF Studio" virtual printer is installed.
+/// Check whether the "Open PDF Printer" virtual printer is installed.
+/// Also returns `true` for the legacy "Open PDF Studio" name so users on
+/// an older installation see "installed" until they reinstall.
 #[tauri::command]
 fn is_virtual_printer_installed() -> bool {
     #[cfg(target_os = "windows")]
@@ -686,7 +739,7 @@ fn is_virtual_printer_installed() -> bool {
         let output = std::process::Command::new("powershell")
             .args(&[
                 "-NoProfile", "-NonInteractive", "-Command",
-                "Get-Printer -Name 'Open PDF Studio' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name"
+                "(Get-Printer -Name 'Open PDF Printer' -ErrorAction SilentlyContinue) -or (Get-Printer -Name 'Open PDF Studio' -ErrorAction SilentlyContinue)"
             ])
             .creation_flags(CREATE_NO_WINDOW)
             .output();
@@ -694,7 +747,7 @@ fn is_virtual_printer_installed() -> bool {
         match output {
             Ok(o) => {
                 let stdout = String::from_utf8_lossy(&o.stdout);
-                stdout.trim() == "Open PDF Studio"
+                stdout.trim().eq_ignore_ascii_case("True")
             }
             Err(_) => false,
         }
@@ -703,6 +756,130 @@ fn is_virtual_printer_installed() -> bool {
     #[cfg(not(target_os = "windows"))]
     {
         false
+    }
+}
+
+/// Spool directory for the PDF Printer collection feature. Print jobs to
+/// "Open PDF Printer" can be routed here (instead of the PORTPROMPT save
+/// dialog) so our app captures the output and shows a multi-PDF collection
+/// dialog instead. Lives under %LOCALAPPDATA% so it's per-user and
+/// auto-cleaned on uninstall (Windows clears LocalAppData entries that
+/// reference removed apps via the standard cleanup flow).
+#[tauri::command]
+fn get_printer_spool_dir() -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let local = std::env::var("LOCALAPPDATA")
+            .map_err(|_| "LOCALAPPDATA not set".to_string())?;
+        let dir = std::path::Path::new(&local).join("OpenPDFPrinter").join("spool");
+        std::fs::create_dir_all(&dir)
+            .map_err(|e| format!("Failed to create spool dir: {}", e))?;
+        Ok(dir.to_string_lossy().to_string())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("PDF Printer is Windows-only".to_string())
+    }
+}
+
+/// List PDFs currently waiting in the printer spool directory. The collection
+/// dialog calls this on open and after each `printer:job-arrived` event so
+/// the user sees a live list of "PDFs the printer has captured but not yet
+/// merged or saved". Returns absolute paths sorted by creation time.
+#[tauri::command]
+fn list_printer_spool() -> Result<Vec<String>, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let dir = get_printer_spool_dir()?;
+        let dir_path = std::path::Path::new(&dir);
+        let mut entries: Vec<(std::time::SystemTime, String)> = Vec::new();
+        for e in std::fs::read_dir(dir_path)
+            .map_err(|e| format!("Failed to read spool: {}", e))? {
+            if let Ok(entry) = e {
+                let path = entry.path();
+                if path.extension().and_then(|x| x.to_str()) == Some("pdf") {
+                    let created = entry.metadata().ok()
+                        .and_then(|m| m.created().ok())
+                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                    entries.push((created, path.to_string_lossy().to_string()));
+                }
+            }
+        }
+        entries.sort_by_key(|(t, _)| *t);
+        Ok(entries.into_iter().map(|(_, p)| p).collect())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Ok(Vec::new())
+    }
+}
+
+/// Remove a captured print-job PDF from the spool after the collection
+/// dialog has merged it into the saved output (or after the user clicks
+/// Discard). The collection dialog calls this for each spool entry it
+/// consumed so the next print job starts fresh.
+#[tauri::command]
+fn discard_spool_pdf(path: String) -> Result<bool, String> {
+    let p = std::path::Path::new(&path);
+    // Safety: only allow deletion under the spool directory to prevent the
+    // dialog from accidentally being tricked into rm-rf'ing arbitrary files.
+    let spool = get_printer_spool_dir()?;
+    if !p.starts_with(&spool) {
+        return Err("Path is not in the printer spool directory".to_string());
+    }
+    std::fs::remove_file(p)
+        .map_err(|e| format!("Failed to remove spool file: {}", e))?;
+    Ok(true)
+}
+
+/// Open a file in the system's default PDF viewer. Used by the auto-open
+/// hook after a successful Save As so the user immediately sees their
+/// freshly-saved file in their preferred reader.
+///
+/// Windows: `cmd /C start "" "<path>"` — the empty title argument prevents
+/// `start` from interpreting the path as a window title (a long-standing
+/// quoting quirk). The shell `start` verb honours the user's default app
+/// association for .pdf, so users with Acrobat, Foxit, PDF-XChange, etc.
+/// installed all hit their preferred reader.
+///
+/// macOS: `open "<path>"` honours `LSHandlerContentType` for .pdf.
+/// Linux: `xdg-open "<path>"` honours the `application/pdf` MIME default.
+#[tauri::command]
+fn open_pdf_in_default_viewer(path: String) -> Result<bool, String> {
+    if !std::path::Path::new(&path).exists() {
+        return Err(format!("File not found: {}", path));
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        // `cmd /C start "" "<path>"` is the Windows idiom for "open this
+        // file with whatever the user has set as the default handler".
+        // The double-quoted empty title is required: without it, `start`
+        // treats the quoted path as the window title and then has no file
+        // argument to open.
+        std::process::Command::new("cmd")
+            .args(&["/C", "start", "", &path])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| format!("Failed to launch default PDF viewer: {}", e))?;
+        Ok(true)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to launch default PDF viewer: {}", e))?;
+        Ok(true)
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to launch default PDF viewer: {}", e))?;
+        Ok(true)
     }
 }
 
@@ -1004,24 +1181,26 @@ fn render_pdf_page(
     rotation: Option<i32>,
     bytes_cache: tauri::State<PdfBytesCache>,
     handle_cache: tauri::State<DocHandleCache>,
-) -> Result<String, String> {
+) -> Result<tauri::ipc::Response, String> {
     let doc = get_or_load_doc(&path, &bytes_cache, &handle_cache)?;
     let extra_rot = rotation.unwrap_or(0);
     let page = doc.render_page(page_index as usize, scale, extra_rot).map_err(|e| format!("{}", e))?;
 
-    // Write RGBA to temp file (Tauri IPC is too slow for 16-36MB binary data)
-    let temp_dir = std::env::temp_dir();
-    let temp_path = temp_dir.join(format!("opdf_{}_{}.raw", page_index,
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis()));
-
+    // PERF FIX #3: return RGBA bytes directly via Tauri's binary IPC fast path
+    // (tauri::ipc::Response wraps Vec<u8> and skips JSON serialization). The
+    // tempfile roundtrip was added when the original author believed Tauri
+    // couldn't transfer 16-36MB of binary data efficiently — in Tauri 2.10
+    // that's no longer true and the disk write was pure overhead.
+    //
+    // Wire format: [width: u32 LE][height: u32 LE][rgba bytes...] so the JS
+    // side parses an 8-byte header followed by `width * height * 4` pixels.
+    // This matches the layout the existing JS bitmap-path code already
+    // expects (see renderer.js line ~700/900 — DataView.getUint32 at 0/4).
     let mut data = Vec::with_capacity(8 + page.rgba.len());
     data.extend_from_slice(&page.width.to_le_bytes());
     data.extend_from_slice(&page.height.to_le_bytes());
     data.extend_from_slice(&page.rgba);
-    fs::write(&temp_path, &data).map_err(|e| format!("Write temp: {}", e))?;
-
-    // Return path|width|height (tiny string, fast IPC)
-    Ok(format!("{}|{}|{}", temp_path.to_string_lossy(), page.width, page.height))
+    Ok(tauri::ipc::Response::new(data))
 }
 
 /// Render a thumbnail for a PDF page. Returns a JSON string with {dataURL, width, height}.
@@ -1432,6 +1611,10 @@ pub fn run(opts: StartupOpts) {
             install_virtual_printer,
             remove_virtual_printer,
             is_virtual_printer_installed,
+            open_pdf_in_default_viewer,
+            get_printer_spool_dir,
+            list_printer_spool,
+            discard_spool_pdf,
             download_pdf_from_url,
             list_pdf_files,
             save_preferences,

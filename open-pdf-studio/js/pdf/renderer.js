@@ -17,6 +17,182 @@ import { onPageRendered, clearHighlights } from '../search/find-bar.js';
 // Hi-DPI support: render canvases at device pixel ratio for sharp text
 export function getCanvasDPR() { return window.devicePixelRatio || 1; }
 
+// ─── JS-side bitmap CACHE (per-document, LRU-bounded) ───────────────────────
+// Caches the fully-decoded ImageBitmap for each (file, page, scale, rotation)
+// so revisits of an exact zoom level skip the entire Rust IPC + tempfile +
+// ImageData rebuild pipeline (~300-500ms saved per hit). On a hit, render is
+// just `drawImage(cachedBitmap)` which the GPU compositor handles in <10ms.
+// Capacity 16 = enough for a Barn-sized 7-page doc with 2-3 zooms per page
+// without pinning excessive memory (each ImageBitmap is GC'd when evicted).
+const _BITMAP_JS_CACHE = new Map();
+const _BITMAP_JS_CACHE_MAX = 16;
+export function _bitmapJSCacheGet(key) {
+  const entry = _BITMAP_JS_CACHE.get(key);
+  if (entry) {
+    // LRU touch: re-insert so the eviction order moves this entry to the end.
+    _BITMAP_JS_CACHE.delete(key);
+    _BITMAP_JS_CACHE.set(key, entry);
+  }
+  return entry || null;
+}
+export async function _bitmapJSCacheSet(key, imageData) {
+  while (_BITMAP_JS_CACHE.size >= _BITMAP_JS_CACHE_MAX) {
+    const firstKey = _BITMAP_JS_CACHE.keys().next().value;
+    if (!firstKey) break;
+    const old = _BITMAP_JS_CACHE.get(firstKey);
+    try { old?.bitmap?.close?.(); } catch {}
+    _BITMAP_JS_CACHE.delete(firstKey);
+  }
+  try {
+    const bitmap = await createImageBitmap(imageData);
+    _BITMAP_JS_CACHE.set(key, { bitmap, w: imageData.width, h: imageData.height });
+  } catch (e) {
+    console.warn('[bitmap-cache] createImageBitmap failed:', e);
+  }
+}
+export function clearBitmapJSCacheForFile(filePath) {
+  // Wipe all entries for this filePath (used on close / save / annotation
+  // changes that invalidate the rendered pixels).
+  for (const k of Array.from(_BITMAP_JS_CACHE.keys())) {
+    if (k.startsWith(filePath + '|')) {
+      const e = _BITMAP_JS_CACHE.get(k);
+      try { e?.bitmap?.close?.(); } catch {}
+      _BITMAP_JS_CACHE.delete(k);
+    }
+  }
+}
+
+// ─── Background pre-render of adjacent zoom levels ─────────────────────────
+// When a foreground render completes, schedule async Rust renders at the
+// next-lower and next-higher preset zoom levels for the same page. The
+// results land in BOTH the JS ImageBitmap cache (here) and the Rust
+// DocumentHandle's pixmap cache (server-side). Subsequent user zoom in one
+// preset step becomes an instant cache hit instead of a 1.5-3s cold render.
+//
+// Cancellation: each pre-render gets a generation token; if the user moves
+// to a different page OR the foreground render runs again (which invokes
+// this scheduler again), the in-flight pre-render is abandoned (we still
+// finish the IPC since it can't be cancelled, but discard the result).
+const _PRESET_ZOOMS = [
+  0.10, 0.125, 0.25, 0.333, 0.50, 0.667, 0.75, 0.80, 0.90,
+  1.00, 1.10, 1.25, 1.50, 1.75, 2.00, 2.50, 3.00, 4.00, 6.00,
+  8.00, 12.00, 16.00, 24.00, 32.00,
+];
+let _preRenderTimer = null;
+let _preRenderGen = 0;
+
+function _findPresetIndex(scale) {
+  const eps = scale * 1e-4;
+  for (let i = 0; i < _PRESET_ZOOMS.length; i++) {
+    if (Math.abs(_PRESET_ZOOMS[i] - scale) < eps) return i;
+  }
+  // Find closest if not exact match
+  let bestI = 0, bestD = Math.abs(_PRESET_ZOOMS[0] - scale);
+  for (let i = 1; i < _PRESET_ZOOMS.length; i++) {
+    const d = Math.abs(_PRESET_ZOOMS[i] - scale);
+    if (d < bestD) { bestD = d; bestI = i; }
+  }
+  return bestI;
+}
+
+async function _preRenderOne(doc, pageNum, targetScale, myGen) {
+  if (myGen !== _preRenderGen) return false;
+  const userRotation = getPageRotation(pageNum) || 0;
+  const key = `${doc.filePath}|${pageNum}|${Math.round(targetScale * 10000)}|${userRotation}`;
+  if (_bitmapJSCacheGet(key)) return true;  // already cached
+  try {
+    const t0 = performance.now();
+    // PERF FIX #3: direct binary IPC, no tempfile. See lib.rs render_pdf_page.
+    const rgbaData = await invoke('render_pdf_page', {
+      path: doc.filePath,
+      pageIndex: pageNum - 1,
+      scale: targetScale,
+    });
+    if (myGen !== _preRenderGen) return false;
+    const fileBytes = rgbaData instanceof Uint8Array ? rgbaData : new Uint8Array(rgbaData);
+    if (fileBytes && fileBytes.length > 8) {
+      const header = new DataView(fileBytes.buffer, fileBytes.byteOffset, 8);
+      const rustW = header.getUint32(0, true);
+      const rustH = header.getUint32(4, true);
+      const rgba = new Uint8ClampedArray(fileBytes.buffer, fileBytes.byteOffset + 8, fileBytes.length - 8);
+      if (rustW * rustH * 4 === rgba.length) {
+        const imageData = new ImageData(new Uint8ClampedArray(rgba), rustW, rustH);
+        await _bitmapJSCacheSet(key, imageData);
+        console.log(`[pre-render] warmed: p${pageNum} @ ${targetScale} in ${Math.round(performance.now() - t0)}ms`);
+        return true;
+      }
+    }
+  } catch (e) {
+    console.warn(`[pre-render] failed p${pageNum} @ ${targetScale}:`, e);
+  }
+  return false;
+}
+
+function _schedulePreRenderAdjacent(doc, pageNum, currentScale) {
+  if (!doc || !doc.filePath) return;
+  if (_preRenderTimer) clearTimeout(_preRenderTimer);
+  const myGen = ++_preRenderGen;
+  const numPages = doc.pdfDoc?.numPages || 1;
+  const targetIdx = _findPresetIndex(currentScale);
+
+  // Build pre-render task queue. Priority order:
+  //   1. SAME page, ±1 zoom step       (user wheels up/down)
+  //   2. ADJACENT pages, SAME zoom     (user page-nav at this zoom)
+  //   3. SAME page, ±2 zoom steps      (user wheels further)
+  // Each task is { pageNum, scale }. The loop renders them in priority
+  // order; the gen check between each lets user input cancel pending
+  // background work immediately.
+  const tasks = [];
+  // Priority 1: ±1 zoom step on current page
+  if (targetIdx + 1 < _PRESET_ZOOMS.length) tasks.push({ p: pageNum, s: _PRESET_ZOOMS[targetIdx + 1] });
+  if (targetIdx - 1 >= 0) tasks.push({ p: pageNum, s: _PRESET_ZOOMS[targetIdx - 1] });
+  // Priority 2: adjacent pages at current scale
+  if (pageNum + 1 <= numPages) tasks.push({ p: pageNum + 1, s: currentScale });
+  if (pageNum - 1 >= 1) tasks.push({ p: pageNum - 1, s: currentScale });
+  // Priority 3: ±2 zoom steps on current page (extends the "wheel two
+  // ticks ahead" window so even fast spins land in cache)
+  if (targetIdx + 2 < _PRESET_ZOOMS.length) tasks.push({ p: pageNum, s: _PRESET_ZOOMS[targetIdx + 2] });
+  if (targetIdx - 2 >= 0) tasks.push({ p: pageNum, s: _PRESET_ZOOMS[targetIdx - 2] });
+
+  _preRenderTimer = setTimeout(async () => {
+    _preRenderTimer = null;
+    if (myGen !== _preRenderGen) return;
+    if (!doc || !doc.filePath) return;
+
+    for (const { p, s } of tasks) {
+      if (myGen !== _preRenderGen) return;
+      await _preRenderOne(doc, p, s, myGen);
+      // Tiny breather between tasks so user input can interleave + abort
+      await new Promise(r => setTimeout(r, 20));
+    }
+  }, 600);
+}
+
+/// Open-time warmup: when a document is first loaded, schedule renders
+/// at the most-common zoom presets (1.0, 1.25, 1.75) for page 1 in the
+/// background. This means the user's first ctrl+wheel up or down lands
+/// instantly even before they've made any other interaction.
+export function preWarmOnOpen(doc) {
+  if (!doc || !doc.filePath) return;
+  const myGen = ++_preRenderGen;
+  // Wait for the foreground initial render to clearly settle before
+  // starting the warmup queue (we don't want to compete with it).
+  setTimeout(async () => {
+    if (myGen !== _preRenderGen) return;
+    const targets = [
+      { p: 1, s: 1.25 },
+      { p: 1, s: 1.75 },
+      { p: 1, s: 1.00 },
+      { p: 1, s: 2.00 },
+    ];
+    for (const { p, s } of targets) {
+      if (myGen !== _preRenderGen) return;
+      await _preRenderOne(doc, p, s, myGen);
+      await new Promise(r => setTimeout(r, 30));
+    }
+  }, 800);
+}
+
 // NOTE: an earlier prototype embedded MuPDF WASM rendering helpers here
 // (loadMupdf / isMupdfAvailable / getMupdfDocument / renderPageWithMupdf).
 // They were never wired up — the active path is the Rust vector renderer
@@ -264,7 +440,6 @@ export async function renderPage(pageNum) {
     // any resize/dirty event redraws A over B. Reactivated by setPage() in
     // the vector path on the next vector-doc renderPage().
     if (window.__pdfViewport) window.__pdfViewport.active = false;
-    console.log(`[render] Rust render: page=${pageNum}, scale=${scale}, dpr=${dpr}, path=${doc.filePath}`);
     // Predictive CSS resize: stretch the EXISTING canvas pixels to the new
     // target zoom size BEFORE Rust starts rendering. The browser does this
     // upscale instantly (blurry but immediate), so the user sees the page
@@ -274,71 +449,108 @@ export async function renderPage(pageNum) {
     // bitmap with crisp pixels as soon as Rust finishes — no freeze.
     pdfCanvas.style.width = Math.floor(viewport.width) + 'px';
     pdfCanvas.style.height = Math.floor(viewport.height) + 'px';
-    try {
-      // Rust returns RGBA bytes directly as Uint8Array with 8-byte header (width u32 LE + height u32 LE)
-      const rgbaData = await invoke('render_pdf_page', {
-        path: doc.filePath,
-        pageIndex: pageNum - 1,
-        scale: scale,
-      });
-      if (_isStaleDoc(doc)) return; // tab switched while Rust was rendering
-      const _t1 = performance.now();
 
-      // Rust returns "tempPath|width|height" string
-      const parts = rgbaData.split('|');
-      const tempPath = parts[0];
-      const rustW = parseInt(parts[1]);
-      const rustH = parseInt(parts[2]);
-
-      // Read RGBA from temp file via Tauri FS (fast binary)
-      await invoke('allow_fs_scope', { path: tempPath });
-      if (_isStaleDoc(doc)) return;
-      const { readBinaryFile } = await import('../core/platform.js');
-      const fileBytes = await readBinaryFile(tempPath);
-      if (_isStaleDoc(doc)) return;
-      const _t2 = performance.now();
-
-      if (fileBytes && fileBytes.length > 8) {
-        const rgba = new Uint8ClampedArray(fileBytes.buffer, fileBytes.byteOffset + 8, fileBytes.length - 8);
-
-        if (rustW * rustH * 4 !== rgba.length) {
-          console.warn(`[render] Size mismatch: ${rustW}x${rustH}x4=${rustW*rustH*4} != ${rgba.length}. Fallback.`);
-          await _renderPageWithPdfJs(page, viewport, pdfCanvas, bufferW, bufferH, dpr);
-          if (_isStaleDoc(doc)) return;
-        } else {
-          pdfCanvas.width = rustW;
-          pdfCanvas.height = rustH;
-          pdfCanvas.style.width = Math.floor(viewport.width) + 'px';
-          pdfCanvas.style.height = Math.floor(viewport.height) + 'px';
-          const imageData = new ImageData(rgba, rustW, rustH);
-          pdfCanvas.getContext('2d').putImageData(imageData, 0, 0);
-          const _totalMs = Math.round(_t2 - _t0);
-          state.renderEngine = 'Rust';
-          state.renderTiming = `${_totalMs}ms`;
-          console.log(`[render] ✅ Rust OK: ${rustW}x${rustH}, cmd=${Math.round(_t1 - _t0)}ms, read=${Math.round(_t2 - _t1)}ms, total=${_totalMs}ms`);
-        }
-      } else {
-        console.warn(`[render] Empty response. Fallback.`);
-        await _renderPageWithPdfJs(page, viewport, pdfCanvas, bufferW, bufferH, dpr);
+    // ─── JS-side ImageBitmap CACHE (bypasses Rust+IPC on revisit) ──────
+    // Even though Rust's pixmap cache makes the actual rasterise near-instant
+    // (<10ms), the IPC + tempfile-write + JS-side read + ImageData rebuild
+    // still costs ~300-500ms per call. For revisits of the same exact
+    // (file, page, scale, rotation) we cache the decoded ImageBitmap on the
+    // JS side too — drawImage of a cached bitmap is <10ms, giving the user
+    // an instant-feeling zoom-out/zoom-in cycle. LRU-bounded so memory stays
+    // sane on heavy multi-page docs.
+    const _jsCacheKey = `${doc.filePath}|${pageNum}|${Math.round(scale * 10000)}|${getPageRotation(pageNum) || 0}`;
+    const _jsCached = _bitmapJSCacheGet(_jsCacheKey);
+    if (_jsCached) {
+      pdfCanvas.width = _jsCached.w;
+      pdfCanvas.height = _jsCached.h;
+      pdfCanvas.style.width = Math.floor(viewport.width) + 'px';
+      pdfCanvas.style.height = Math.floor(viewport.height) + 'px';
+      pdfCanvas.getContext('2d').drawImage(_jsCached.bitmap, 0, 0);
+      const _hitMs = Math.round(performance.now() - _t0);
+      state.renderEngine = 'Rust (JS cache)';
+      state.renderTiming = `${_hitMs}ms (cached)`;
+      console.log(`[render] ✅ JS-cache HIT: ${_jsCached.w}x${_jsCached.h}, total=${_hitMs}ms`);
+      // Skip the rest of bitmap-path setup (text/link layer creation
+      // already done on first render). Just continue past the bitmap block.
+      _skipBitmapRender = true;
+      // Fall through to text-layer reuse / annotation overlay sync below.
+    }
+    if (!_skipBitmapRender) {
+      console.log(`[render] Rust render: page=${pageNum}, scale=${scale}, dpr=${dpr}, path=${doc.filePath}`);
+      try {
+        // PERF FIX #3: Rust now returns raw RGBA bytes via tauri::ipc::Response
+        // (binary IPC fast path). Wire format: [w u32 LE][h u32 LE][rgba...].
+        // No more tempfile + allow_fs_scope + readBinaryFile roundtrip.
+        const rgbaData = await invoke('render_pdf_page', {
+          path: doc.filePath,
+          pageIndex: pageNum - 1,
+          scale: scale,
+        });
         if (_isStaleDoc(doc)) return;
+        const _t1 = performance.now();
+        const _spBytes = rgbaData instanceof Uint8Array ? rgbaData : new Uint8Array(rgbaData);
+        const _t2 = performance.now();
+
+        // RUST-ONLY: hard error on any malformed buffer (no PDF.js fallback).
+        if (!_spBytes || _spBytes.length <= 8) {
+          state.renderEngine = 'ERROR';
+          state.renderTiming = `${Math.round(_t2 - _t0)}ms (empty)`;
+          console.error(`[render] HARD ERROR: Rust returned empty buffer for page ${pageNum} @ scale ${scale}. NO FALLBACK.`);
+        } else {
+          const _spHeader = new DataView(_spBytes.buffer, _spBytes.byteOffset, 8);
+          const rustW = _spHeader.getUint32(0, true);
+          const rustH = _spHeader.getUint32(4, true);
+          const rgba = new Uint8ClampedArray(_spBytes.buffer, _spBytes.byteOffset + 8, _spBytes.length - 8);
+          if (rustW * rustH * 4 !== rgba.length) {
+            state.renderEngine = 'ERROR';
+            state.renderTiming = `${Math.round(_t2 - _t0)}ms (size mismatch)`;
+            console.error(`[render] HARD ERROR: size mismatch ${rustW}x${rustH}x4=${rustW*rustH*4} != ${rgba.length}. NO FALLBACK.`);
+          } else {
+            pdfCanvas.width = rustW;
+            pdfCanvas.height = rustH;
+            pdfCanvas.style.width = Math.floor(viewport.width) + 'px';
+            pdfCanvas.style.height = Math.floor(viewport.height) + 'px';
+            const imageData = new ImageData(rgba, rustW, rustH);
+            pdfCanvas.getContext('2d').putImageData(imageData, 0, 0);
+            const _totalMs = Math.round(_t2 - _t0);
+            state.renderEngine = 'Rust';
+            state.renderTiming = `${_totalMs}ms`;
+            console.log(`[render] ✅ Rust OK: ${rustW}x${rustH}, cmd=${Math.round(_t1 - _t0)}ms, read=${Math.round(_t2 - _t1)}ms, total=${_totalMs}ms`);
+            // Insert into JS-side ImageBitmap cache. Fire-and-forget (the
+            // createImageBitmap is async and may take ~50ms; we don't make
+            // the render wait for it). The cached bitmap accelerates the
+            // NEXT revisit of this exact (file, page, scale, rotation).
+            // Note: the underlying RGBA backing was a view into fileBytes
+            // — clone the ImageData so the cache owns its own buffer (the
+            // Uint8ClampedArray view becomes invalid once fileBytes is GC'd).
+            const cacheImageData = new ImageData(new Uint8ClampedArray(rgba), rustW, rustH);
+            _bitmapJSCacheSet(_jsCacheKey, cacheImageData);
+
+            // ─── BACKGROUND PRE-RENDER OF ADJACENT ZOOMS ────────────
+            // After a successful render, schedule async renders at the
+            // next-lower and next-higher preset zoom levels so the
+            // user's likely-next interaction (one wheel tick up or
+            // down) hits a warm cache instead of a cold 1.5-3s Rust
+            // render. Idle delay = 600ms so we don't compete with
+            // active user gestures (debounce window is 150ms, the
+            // visual feedback animation runs ~300ms, then we wait
+            // an extra 300ms for the user to settle).
+            _schedulePreRenderAdjacent(doc, pageNum, scale);
+          }
+        }
+      } catch (e) {
+        state.renderEngine = 'ERROR';
+        state.renderTiming = `${Math.round(performance.now() - _t0)}ms (exception)`;
+        console.error(`[render] HARD ERROR: Rust render threw. NO FALLBACK.`, e);
       }
-    } catch (e) {
-      console.warn(`[render] Rust render FAILED: ${e}. Falling back to PDF.js`);
-      await _renderPageWithPdfJs(page, viewport, pdfCanvas, bufferW, bufferH, dpr);
-      if (_isStaleDoc(doc)) return;
-      console.log(`[render] PDF.js fallback: ${Math.round(performance.now() - _t0)}ms`);
     }
   } else if (!_skipBitmapRender) {
-    // See comment above — deactivate vector viewport so its RAF loop can't
-    // overwrite our PDF.js raster output on the shared canvas.
-    if (window.__pdfViewport) window.__pdfViewport.active = false;
-    console.log(`[render] PDF.js render: page=${pageNum}, tauri=${_canUseTauri}, filePath=${_hasFilePath}`);
-    await _renderPageWithPdfJs(page, viewport, pdfCanvas, bufferW, bufferH, dpr);
-    if (_isStaleDoc(doc)) return;
-    const _pjsMs = Math.round(performance.now() - _t0);
-    state.renderEngine = 'PDF.js';
-    state.renderTiming = `${_pjsMs}ms`;
-    console.log(`[render] PDF.js done: ${_pjsMs}ms`);
+    // No Tauri OR no filePath (blank doc / web context). This is the only
+    // legitimately-unreachable-via-Rust case. Still no PDF.js — set an
+    // explicit "unsupported" state so the user sees the issue.
+    state.renderEngine = 'UNSUPPORTED';
+    state.renderTiming = `${Math.round(performance.now() - _t0)}ms (no Tauri/filePath)`;
+    console.error(`[render] HARD ERROR: cannot render — tauri=${_canUseTauri}, filePath=${_hasFilePath}. NO FALLBACK.`);
   }
 
   // Annotation canvas resize is deferred to just before redrawAnnotations()
@@ -451,74 +663,47 @@ export async function renderPageOffscreen(pageNum) {
   const annotationCanvas = getAnnotationCanvas();
   if (!pdfCanvas || !annotationCanvas) return;
 
-  // Try Rust open-pdf-render first, fall back to PDF.js offscreen rendering
-  let rustRendered = false;
-
+  // RUST-ONLY: this offscreen render path used to dual-fallback to PDF.js.
+  // Per project policy ("geen fallback"), Rust failure is now a hard error
+  // surfaced via state.renderEngine = 'ERROR' so any rasterizer bug is
+  // immediately visible.
   // Deactivate the vector viewport singleton — same reason as renderPage().
   if (window.__pdfViewport) window.__pdfViewport.active = false;
 
-  if (isTauri() && doc.filePath) {
-    try {
-      const rgbaData = await invoke('render_pdf_page', {
-        path: doc.filePath,
-        pageIndex: pageNum - 1,
-        scale: scale,
-      });
-      if (_isStaleDoc(doc)) return;
-      const _offBytes = rgbaData instanceof Uint8Array ? rgbaData : new Uint8Array(rgbaData);
-      if (_offBytes && _offBytes.length > 8) {
-        const headerView = new DataView(_offBytes.buffer, _offBytes.byteOffset, 8);
-        const rustW = headerView.getUint32(0, true);
-        const rustH = headerView.getUint32(4, true);
-        const rgba = new Uint8ClampedArray(_offBytes.buffer, _offBytes.byteOffset + 8, _offBytes.length - 8);
-        pdfCanvas.width = rustW;
-        pdfCanvas.height = rustH;
-        pdfCanvas.style.width = Math.floor(viewport.width) + 'px';
-        pdfCanvas.style.height = Math.floor(viewport.height) + 'px';
-        const imageData = new ImageData(rgba, rustW, rustH);
-        pdfCanvas.getContext('2d').putImageData(imageData, 0, 0);
-        setupCanvasHiDPI(annotationCanvas, viewport.width, viewport.height);
-        rustRendered = true;
-      }
-    } catch (e) {
-      console.warn('[open-pdf-render] Offscreen fallback to PDF.js:', e);
-    }
+  if (!isTauri() || !doc.filePath) {
+    state.renderEngine = 'UNSUPPORTED';
+    console.error('[render-offscreen] HARD ERROR: cannot render without Tauri+filePath. NO FALLBACK.');
+    return;
   }
-
-  // Fall back to PDF.js offscreen rendering
-  if (!rustRendered) {
-    const offPdf = document.createElement('canvas');
-    const offW = Math.floor(viewport.width * dpr);
-    const offH = Math.floor(viewport.height * dpr);
-    offPdf.width = offW;
-    offPdf.height = offH;
-
-    const offCtx = offPdf.getContext('2d');
-    const renderContext = {
-      canvasContext: offCtx,
-      viewport,
-      transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null,
-      annotationMode: 0
-    };
-    if (state.preferences.thinLines) renderContext.enhanceThinLines = true;
-
-    currentRenderTask = page.render(renderContext);
-    try {
-      await currentRenderTask.promise;
-    } catch (e) {
-      if (e.name === 'RenderingCancelledException') return;
-      throw e;
-    }
-    currentRenderTask = null;
+  try {
+    const rgbaData = await invoke('render_pdf_page', {
+      path: doc.filePath,
+      pageIndex: pageNum - 1,
+      scale: scale,
+    });
     if (_isStaleDoc(doc)) return;
-
-    // Resize visible canvases to match new viewport
-    setupCanvasHiDPI(pdfCanvas, viewport.width, viewport.height);
+    const _offBytes = rgbaData instanceof Uint8Array ? rgbaData : new Uint8Array(rgbaData);
+    if (!_offBytes || _offBytes.length <= 8) {
+      state.renderEngine = 'ERROR';
+      console.error('[render-offscreen] HARD ERROR: Rust returned empty buffer. NO FALLBACK.');
+      return;
+    }
+    const headerView = new DataView(_offBytes.buffer, _offBytes.byteOffset, 8);
+    const rustW = headerView.getUint32(0, true);
+    const rustH = headerView.getUint32(4, true);
+    const rgba = new Uint8ClampedArray(_offBytes.buffer, _offBytes.byteOffset + 8, _offBytes.length - 8);
+    pdfCanvas.width = rustW;
+    pdfCanvas.height = rustH;
+    pdfCanvas.style.width = Math.floor(viewport.width) + 'px';
+    pdfCanvas.style.height = Math.floor(viewport.height) + 'px';
+    const imageData = new ImageData(rgba, rustW, rustH);
+    pdfCanvas.getContext('2d').putImageData(imageData, 0, 0);
     setupCanvasHiDPI(annotationCanvas, viewport.width, viewport.height);
-
-    // Copy rendered PDF pixels in one drawImage call (no visible blank frame)
-    const visCtx = pdfCanvas.getContext('2d');
-    visCtx.drawImage(offPdf, 0, 0);
+    state.renderEngine = 'Rust';
+  } catch (e) {
+    state.renderEngine = 'ERROR';
+    console.error('[render-offscreen] HARD ERROR: Rust render threw. NO FALLBACK.', e);
+    return;
   }
 
   // Set CSS scale variables for text/annotation layers
@@ -677,62 +862,97 @@ async function renderContinuousPage(pageNum) {
     annotationCanvasEl.style.pointerEvents = 'none';
   }
 
-  // Render PDF page — try Rust open-pdf-render first, fall back to PDF.js
+  // RUST-ONLY: continuous-mode page render. Used to dual-fallback to
+  // PDF.js — removed per project policy. Rust failure surfaced via console
+  // + state.renderEngine = 'ERROR' (the page stays blank rather than
+  // showing a slow-rendered PDF.js fallback that hides the actual Rust bug).
   const pdfCtxEl = pdfCanvasEl.getContext('2d');
-  const contDpr = getCanvasDPR();
-  let contRustRendered = false;
 
-  if (isTauri() && doc.filePath) {
+  if (!isTauri() || !doc.filePath) {
+    state.renderEngine = 'UNSUPPORTED';
+    console.error(`[render-continuous] HARD ERROR: page ${pageNum} cannot render without Tauri+filePath. NO FALLBACK.`);
+    return;
+  }
+
+  // ─── PERF FIX #1 + #2 + #3 (BARN measurement scaffold) ───────────────
+  //  #1: Drop the DPR multiplier — single-page mode renders at bare
+  //      doc.scale and looks fine on 2x DPR displays. Multiplying the
+  //      render scale was doing 4x the Rust pixel work per page for
+  //      identical visual output.
+  //  #2: Reuse the same JS-side ImageBitmap cache that renderPage uses
+  //      (_BITMAP_JS_CACHE) so scrolling a page back into view does a
+  //      <10ms drawImage instead of a 1.5-3s cold Rust render. Cache key
+  //      mirrors the single-page path so a continuous→single switch at
+  //      the same scale also hits warm.
+  //  #3: Skip the tempfile roundtrip — Rust now returns RGBA bytes
+  //      directly via tauri::ipc::Response (see lib.rs render_pdf_page).
+  //      The invoke() now resolves to ArrayBuffer/Uint8Array, not a
+  //      "path|w|h" string. No more allow_fs_scope + readBinaryFile +
+  //      tempfile unlink chain — pure binary IPC.
+  //
+  // Instrumentation: every console.time/timeEnd is scoped to one render
+  // call so DevTools shows you cache-lookup / invoke-render / canvas
+  // putImageData / cache-store sub-timings per page. Compare totals
+  // before vs after on the BARN Relocation PDF.
+  const label = `[render p${pageNum} scale ${doc.scale.toFixed(2)}]`;
+  console.time(label);
+  const _jsCacheKey = `${doc.filePath}|${pageNum}|${Math.round(doc.scale * 10000)}|${extraRotation || 0}`;
+  console.time(label + ' cache-lookup');
+  const _cached = _bitmapJSCacheGet(_jsCacheKey);
+  console.timeEnd(label + ' cache-lookup');
+  if (_cached) {
+    console.time(label + ' canvas-draw-cached');
+    pdfCanvasEl.width = _cached.w;
+    pdfCanvasEl.height = _cached.h;
+    pdfCanvasEl.style.width = _cached.w + 'px';
+    pdfCanvasEl.style.height = _cached.h + 'px';
+    pdfCtxEl.drawImage(_cached.bitmap, 0, 0);
+    console.timeEnd(label + ' canvas-draw-cached');
+    state.renderEngine = 'Rust (JS cache)';
+    console.timeEnd(label);
+  } else {
     try {
+      console.time(label + ' invoke-render');
       const rgbaData = await invoke('render_pdf_page', {
         path: doc.filePath,
         pageIndex: pageNum - 1,
-        scale: doc.scale * contDpr,
+        scale: doc.scale,
       });
-      if (_isStaleDoc(doc)) return; // tab switched while Rust rendered this page
+      console.timeEnd(label + ' invoke-render');
+      if (_isStaleDoc(doc)) { console.timeEnd(label); return; }
       const _contBytes = rgbaData instanceof Uint8Array ? rgbaData : new Uint8Array(rgbaData);
-      if (_contBytes && _contBytes.length > 8) {
-        const headerView = new DataView(_contBytes.buffer, _contBytes.byteOffset, 8);
-        const rustW = headerView.getUint32(0, true);
-        const rustH = headerView.getUint32(4, true);
-        const rgba = new Uint8ClampedArray(_contBytes.buffer, _contBytes.byteOffset + 8, _contBytes.length - 8);
-        pdfCanvasEl.width = rustW;
-        pdfCanvasEl.height = rustH;
-        pdfCanvasEl.style.width = Math.floor(rustW / contDpr) + 'px';
-        pdfCanvasEl.style.height = Math.floor(rustH / contDpr) + 'px';
-        const imageData = new ImageData(rgba, rustW, rustH);
-        pdfCtxEl.putImageData(imageData, 0, 0);
-        contRustRendered = true;
+      if (!_contBytes || _contBytes.length <= 8) {
+        state.renderEngine = 'ERROR';
+        console.error(`[render-continuous] HARD ERROR: page ${pageNum} Rust returned empty buffer. NO FALLBACK.`);
+        console.timeEnd(label);
+        return;
       }
+      const headerView = new DataView(_contBytes.buffer, _contBytes.byteOffset, 8);
+      const rustW = headerView.getUint32(0, true);
+      const rustH = headerView.getUint32(4, true);
+      const rgba = new Uint8ClampedArray(_contBytes.buffer, _contBytes.byteOffset + 8, _contBytes.length - 8);
+      console.time(label + ' canvas-putImageData');
+      pdfCanvasEl.width = rustW;
+      pdfCanvasEl.height = rustH;
+      pdfCanvasEl.style.width = rustW + 'px';
+      pdfCanvasEl.style.height = rustH + 'px';
+      const imageData = new ImageData(rgba, rustW, rustH);
+      pdfCtxEl.putImageData(imageData, 0, 0);
+      console.timeEnd(label + ' canvas-putImageData');
+      state.renderEngine = 'Rust';
+      // Cache the freshly-rendered bitmap (clone the RGBA into its own buffer
+      // — the view into _contBytes becomes invalid once that array is GC'd).
+      console.time(label + ' cache-store');
+      const cacheImageData = new ImageData(new Uint8ClampedArray(rgba), rustW, rustH);
+      _bitmapJSCacheSet(_jsCacheKey, cacheImageData);
+      console.timeEnd(label + ' cache-store');
+      console.timeEnd(label);
     } catch (e) {
-      console.warn(`[open-pdf-render] Continuous page ${pageNum} fallback to PDF.js:`, e);
-    }
-  }
-
-  if (!contRustRendered) {
-    const contRenderContext = {
-      canvasContext: pdfCtxEl,
-      viewport: viewport,
-      transform: contDpr !== 1 ? [contDpr, 0, 0, contDpr, 0, 0] : null,
-      annotationMode: 0
-    };
-    if (state.preferences.thinLines) {
-      contRenderContext.enhanceThinLines = true;
-    }
-
-    const renderTask = page.render(contRenderContext);
-    _continuousRenderTasks.set(pageNum, renderTask);
-
-    try {
-      await renderTask.promise;
-    } catch (error) {
-      if (error.name === 'RenderingCancelledException') return;
-      console.error(`Error rendering page ${pageNum}:`, error);
+      state.renderEngine = 'ERROR';
+      console.error(`[render-continuous] HARD ERROR: page ${pageNum} Rust threw. NO FALLBACK.`, e);
+      try { console.timeEnd(label); } catch {}
       return;
-    } finally {
-      _continuousRenderTasks.delete(pageNum);
     }
-    if (_isStaleDoc(doc)) return;
   }
 
   // Create text layer

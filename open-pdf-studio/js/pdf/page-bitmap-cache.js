@@ -13,7 +13,7 @@
  * memory growth and limit re-renders to actually-different scales.
  */
 
-import { isTauri, invoke, readBinaryFile } from '../core/platform.js';
+import { isTauri, invoke } from '../core/platform.js';
 
 // Map<key, { bitmap: ImageBitmap, w, h, scale }>
 const _cache = new Map();
@@ -90,20 +90,19 @@ export function ensureBitmap(filePath, pageNum, rotation, zoomBucket) {
 
   const p = (async () => {
     try {
+      // PERF FIX #3: Rust now returns RGBA bytes directly via tauri::ipc::Response.
+      // Wire format: [width u32 LE][height u32 LE][rgba bytes...]. No tempfile.
       const result = await invoke('render_pdf_page', {
         path: filePath,
         pageIndex: pageNum - 1,
         scale: zoomBucket,
         rotation: rotation || 0,
       });
-      // Result format: "tempPath|width|height"
-      const parts = String(result).split('|');
-      const tempPath = parts[0];
-      const w = parseInt(parts[1], 10);
-      const h = parseInt(parts[2], 10);
-      try { await invoke('allow_fs_scope', { path: tempPath }); } catch {}
-      const fileBytes = await readBinaryFile(tempPath);
+      const fileBytes = result instanceof Uint8Array ? result : new Uint8Array(result);
       if (!fileBytes || fileBytes.length <= 8) return null;
+      const header = new DataView(fileBytes.buffer, fileBytes.byteOffset, 8);
+      const w = header.getUint32(0, true);
+      const h = header.getUint32(4, true);
       const expected = w * h * 4;
       if (expected !== fileBytes.length - 8) {
         console.warn('[page-bitmap-cache] size mismatch', expected, fileBytes.length - 8);
