@@ -21,6 +21,12 @@ pub struct ParsedFont {
     pub units_per_em: u16,
     pub glyphs: HashMap<u16, GlyphOutline>,
     pub cmap: HashMap<u32, u16>,
+    /// Direct byte-code → GID map populated from non-Unicode cmap subtables
+    /// (Macintosh 1,0 Roman and Microsoft 3,0 Symbol). Subset TrueType fonts
+    /// in PDFs frequently have only these subtables — they map the 1-byte
+    /// content-stream codes directly to the subset's renumbered GIDs.
+    /// Empty for ordinary Unicode-cmap'd fonts.
+    pub byte_cmap: HashMap<u8, u16>,
 }
 
 /// Builder that implements ttf_parser::OutlineBuilder to collect outline commands.
@@ -164,6 +170,7 @@ pub fn parse_type1(
         units_per_em: 1000,
         glyphs,
         cmap: HashMap::new(),
+        byte_cmap: HashMap::new(),
     })
 }
 
@@ -268,10 +275,31 @@ pub fn parse_truetype(font_data: &[u8]) -> Result<ParsedFont, String> {
         }
     }
 
+    // Build byte_cmap from non-Unicode subtables. Subset TrueType fonts
+    // in PDFs (Encoding=None, FirstChar=1..N) typically expose a
+    // (1,0) Macintosh-Roman or (3,0) Microsoft-Symbol cmap whose entries
+    // map the raw 1-byte content-stream codes to the subset's renumbered
+    // GIDs. Without this, we cannot resolve those codes to glyphs.
+    let mut byte_cmap = HashMap::new();
+    if let Some(cmap_table) = face.tables().cmap {
+        for sub in cmap_table.subtables {
+            // Skip Unicode-capable subtables — they're already covered above.
+            if sub.is_unicode() { continue; }
+            for code in 0u32..=255 {
+                if let Some(gid) = sub.glyph_index(code) {
+                    if gid.0 != 0 {
+                        byte_cmap.entry(code as u8).or_insert(gid.0);
+                    }
+                }
+            }
+        }
+    }
+
     Ok(ParsedFont {
         units_per_em,
         glyphs,
         cmap,
+        byte_cmap,
     })
 }
 
