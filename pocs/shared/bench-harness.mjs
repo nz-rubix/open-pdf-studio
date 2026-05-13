@@ -1,19 +1,18 @@
-// pocs/shared/bench-harness.mjs
+// pocs/shared/bench-harness.mjs — CDP-based render perf measurement
 //
-// Gedeelde CDP-based bench harness voor het PoC programma.
-// Verbindt met een draaiende Tauri dev app op CDP port 9222 en meet
-// render timings voor de scenarios uit corpus.json.
+// Connects to a running Tauri dev app on CDP port 9222 and times pure
+// `invoke('render_pdf_page', ...)` calls. No reliance on loader.js/state —
+// we measure the Rust render path + IPC, not the full app load.
 //
-// Vereiste setup vóór gebruik:
-//   1. Tauri dev draait met: WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222
-//   2. npm run tauri:dev (vanuit open-pdf-studio/)
-//   3. App is geopend en de WebView is bereikbaar via http://localhost:9222
+// Setup:
+//   1. WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222
+//   2. npm run tauri:dev (from open-pdf-studio/)
+//   3. App window open
 //
-// Gebruik:
+// Usage:
 //   node pocs/shared/bench-harness.mjs --fixture barn --scenario cold_open_p1
-//   node pocs/shared/bench-harness.mjs --fixture barn --scenario scroll_p1_to_p7
 //
-// Output: JSON op stdout met per-run timing + median/p95 stats.
+// Output: JSON on stdout with per-run timing + median/p95 stats.
 
 import { createRequire } from 'module';
 import { readFileSync } from 'fs';
@@ -28,7 +27,6 @@ const PROJECT_ROOT = join(__dirname, '..', '..');
 
 const corpus = JSON.parse(readFileSync(join(__dirname, 'corpus.json'), 'utf-8'));
 
-// ─── arg parsing ──────────────────────────────────────────
 const args = parseArgs(process.argv.slice(2));
 if (!args.fixture || !args.scenario) {
   console.error('Usage: bench-harness.mjs --fixture <name> --scenario <name> [--runs <n>]');
@@ -46,15 +44,12 @@ const pdfPath = join(PROJECT_ROOT, corpus.fixture_root, fixture.path);
 const measuredRuns = args.runs ? parseInt(args.runs) : scenario.measured_runs;
 const warmupRuns = scenario.warmup_runs;
 
-// ─── connect ──────────────────────────────────────────────
 async function main() {
   let browser;
   try {
-    browser = await playwright.chromium.connectOverCDP('http://localhost:9222', {
-      timeout: 10000,
-    });
+    browser = await playwright.chromium.connectOverCDP('http://localhost:9222', { timeout: 10000 });
   } catch (e) {
-    console.error(`FATAL: cannot connect to CDP on localhost:9222. Is tauri dev running with WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222?`);
+    console.error(`FATAL: cannot connect to CDP on localhost:9222.`);
     console.error(`Underlying error: ${e.message}`);
     process.exit(3);
   }
@@ -62,65 +57,28 @@ async function main() {
   const page = browser.contexts()[0]?.pages()[0];
   if (!page) { console.error('No page in CDP context'); process.exit(3); }
 
-  // Ensure clean state — close all existing tabs first
-  await page.evaluate(async () => {
-    try {
-      const { state } = await import('/js/core/state.ts');
-      const { closeTab } = await import('/js/ui/chrome/tabs.js');
-      while (state.documents.length > 0) closeTab(0, true);
-    } catch (e) { /* harmless if no docs */ }
-  });
-  await sleep(500);
-
-  // Open the fixture
-  const opened = await page.evaluate(async (path) => {
-    try {
-      await window.__TAURI__.core.invoke('allow_fs_scope', { path });
-      const { createTab } = await import('/js/ui/chrome/tabs.js');
-      const { loadPDF } = await import('/js/pdf/loader.js');
-      const { state } = await import('/js/core/state.ts');
-      createTab(path);
-      await loadPDF(path, state.activeDocumentIndex);
-      return {
-        ok: !!state.documents[0]?.pdfDoc,
-        numPages: state.documents[0]?.pdfDoc?.numPages,
-      };
-    } catch (e) {
-      return { ok: false, error: e.message };
-    }
+  // Grant FS scope — bypass loader.js stack to avoid WIP-related conflicts.
+  const fsOk = await page.evaluate(async (p) => {
+    try { await window.__TAURI__.core.invoke('allow_fs_scope', { path: p }); return { ok: true }; }
+    catch (e) { return { ok: false, error: e.message }; }
   }, pdfPath);
 
-  if (!opened.ok) {
-    console.error(`Failed to open fixture: ${JSON.stringify(opened)}`);
+  if (!fsOk.ok) {
+    console.error(`Failed to grant fs scope: ${JSON.stringify(fsOk)}`);
     process.exit(4);
   }
 
-  // Wait briefly for the page to settle
-  await sleep(1000);
-
-  // ── Scenario dispatch ──
   let runs;
   switch (scenario.name) {
-    case 'cold_open_p1':
-      runs = await scenarioColdOpenP1(page, fixture, warmupRuns, measuredRuns);
-      break;
-    case 'scroll_p1_to_p7':
-      runs = await scenarioScrollAll(page, fixture, warmupRuns, measuredRuns);
-      break;
-    case 'zoom_in_revisit':
-      runs = await scenarioZoomRevisit(page, fixture, warmupRuns, measuredRuns);
-      break;
-    case 'scroll_back_revisit':
-      runs = await scenarioScrollBackRevisit(page, fixture, warmupRuns, measuredRuns);
-      break;
-    default:
-      console.error(`Unknown scenario: ${scenario.name}`);
-      process.exit(2);
+    case 'cold_open_p1':       runs = await scenarioColdOpenP1(page, fixture, pdfPath, warmupRuns, measuredRuns); break;
+    case 'scroll_p1_to_p7':    runs = await scenarioScrollAll(page, fixture, pdfPath, warmupRuns, measuredRuns); break;
+    case 'zoom_in_revisit':    runs = await scenarioZoomRevisit(page, fixture, pdfPath, warmupRuns, measuredRuns); break;
+    case 'scroll_back_revisit':runs = await scenarioScrollBackRevisit(page, fixture, pdfPath, warmupRuns, measuredRuns); break;
+    default:                    console.error(`Unknown scenario: ${scenario.name}`); process.exit(2);
   }
 
   await browser.close();
 
-  // ── Stats ──
   const measured = runs.slice(warmupRuns).map(r => r.totalMs);
   const sorted = [...measured].sort((a, b) => a - b);
   const median = sorted[Math.floor(sorted.length / 2)];
@@ -149,106 +107,87 @@ async function main() {
 
 // ─── scenarios ────────────────────────────────────────────
 
-async function scenarioColdOpenP1(page, fixture, warmup, measured) {
-  // Cold render of page 0 at scale 1.0. Between runs, force cache clear.
+async function scenarioColdOpenP1(page, fixture, pdfPath, warmup, measured) {
   const runs = [];
   for (let i = 0; i < warmup + measured; i++) {
-    // Clear caches between runs (so each is "cold")
-    await page.evaluate(async () => {
-      try {
-        const m = await import('/js/pdf/page-bitmap-cache.js');
-        m.clearAllBitmaps?.();
-      } catch (e) { /* shrug */ }
-    });
+    // Clear Rust-side cache between runs for true cold measurements
+    await page.evaluate(async (p) => {
+      try { await window.__TAURI__.core.invoke('clear_pdf_cache', { path: p }); }
+      catch (e) { /* command may not exist on all builds */ }
+    }, pdfPath);
     await sleep(200);
 
-    const t = await page.evaluate(async () => {
+    const t = await page.evaluate(async (p) => {
       const t0 = performance.now();
       const buf = await window.__TAURI__.core.invoke('render_pdf_page', {
-        path: (await import('/js/core/state.ts')).state.documents[0].filePath,
-        pageIndex: 0,
-        scale: 1.0,
-        rotation: 0,
+        path: p, pageIndex: 0, scale: 1.0, rotation: 0,
       });
       const dt = performance.now() - t0;
       const view = new DataView(buf.buffer || buf);
-      const w = view.getUint32(0, true);
-      const h = view.getUint32(4, true);
-      return { totalMs: dt, width: w, height: h };
-    });
+      return { totalMs: dt, width: view.getUint32(0, true), height: view.getUint32(4, true) };
+    }, pdfPath);
     runs.push(t);
   }
   return runs;
 }
 
-async function scenarioScrollAll(page, fixture, warmup, measured) {
+async function scenarioScrollAll(page, fixture, pdfPath, warmup, measured) {
   const runs = [];
   for (let i = 0; i < warmup + measured; i++) {
-    const t = await page.evaluate(async (numPages) => {
+    const t = await page.evaluate(async ({ p, numPages }) => {
       const t0 = performance.now();
-      const path = (await import('/js/core/state.ts')).state.documents[0].filePath;
-      for (let p = 0; p < numPages; p++) {
-        await window.__TAURI__.core.invoke('render_pdf_page', { path, pageIndex: p, scale: 1.0, rotation: 0 });
+      for (let pn = 0; pn < numPages; pn++) {
+        await window.__TAURI__.core.invoke('render_pdf_page', { path: p, pageIndex: pn, scale: 1.0, rotation: 0 });
       }
       return { totalMs: performance.now() - t0 };
-    }, fixture.pages);
+    }, { p: pdfPath, numPages: fixture.pages });
     runs.push(t);
   }
   return runs;
 }
 
-async function scenarioZoomRevisit(page, fixture, warmup, measured) {
+async function scenarioZoomRevisit(page, fixture, pdfPath, warmup, measured) {
   const runs = [];
   for (let i = 0; i < warmup + measured; i++) {
-    const t = await page.evaluate(async () => {
-      const path = (await import('/js/core/state.ts')).state.documents[0].filePath;
-      // Render at 1.0 (priming)
-      await window.__TAURI__.core.invoke('render_pdf_page', { path, pageIndex: 0, scale: 1.0, rotation: 0 });
-      // Render at 1.5 (zoom in — measure THIS)
+    const t = await page.evaluate(async (p) => {
+      await window.__TAURI__.core.invoke('render_pdf_page', { path: p, pageIndex: 0, scale: 1.0, rotation: 0 });
       const t1 = performance.now();
-      await window.__TAURI__.core.invoke('render_pdf_page', { path, pageIndex: 0, scale: 1.5, rotation: 0 });
+      await window.__TAURI__.core.invoke('render_pdf_page', { path: p, pageIndex: 0, scale: 1.5, rotation: 0 });
       const zoomIn = performance.now() - t1;
-      // Render at 1.0 again (zoom out back to cached scale — measure THIS too)
       const t2 = performance.now();
-      await window.__TAURI__.core.invoke('render_pdf_page', { path, pageIndex: 0, scale: 1.0, rotation: 0 });
+      await window.__TAURI__.core.invoke('render_pdf_page', { path: p, pageIndex: 0, scale: 1.0, rotation: 0 });
       const zoomBack = performance.now() - t2;
       return { totalMs: zoomIn + zoomBack, zoomIn_ms: zoomIn, zoomBack_ms: zoomBack };
-    });
+    }, pdfPath);
     runs.push(t);
   }
   return runs;
 }
 
-async function scenarioScrollBackRevisit(page, fixture, warmup, measured) {
+async function scenarioScrollBackRevisit(page, fixture, pdfPath, warmup, measured) {
   const runs = [];
   for (let i = 0; i < warmup + measured; i++) {
-    const t = await page.evaluate(async (numPages) => {
-      const path = (await import('/js/core/state.ts')).state.documents[0].filePath;
-      // Cold scroll (priming)
-      for (let p = 0; p < numPages; p++) {
-        await window.__TAURI__.core.invoke('render_pdf_page', { path, pageIndex: p, scale: 1.0, rotation: 0 });
+    const t = await page.evaluate(async ({ p, numPages }) => {
+      // Cold pass to prime caches
+      for (let pn = 0; pn < numPages; pn++) {
+        await window.__TAURI__.core.invoke('render_pdf_page', { path: p, pageIndex: pn, scale: 1.0, rotation: 0 });
       }
-      // Warm scroll (measure THIS)
+      // Warm pass — measure this
       const t0 = performance.now();
-      for (let p = 0; p < numPages; p++) {
-        await window.__TAURI__.core.invoke('render_pdf_page', { path, pageIndex: p, scale: 1.0, rotation: 0 });
+      for (let pn = 0; pn < numPages; pn++) {
+        await window.__TAURI__.core.invoke('render_pdf_page', { path: p, pageIndex: pn, scale: 1.0, rotation: 0 });
       }
       return { totalMs: performance.now() - t0 };
-    }, fixture.pages);
+    }, { p: pdfPath, numPages: fixture.pages });
     runs.push(t);
   }
   return runs;
 }
-
-// ─── helpers ──────────────────────────────────────────────
 
 function parseArgs(argv) {
   const out = {};
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i].startsWith('--')) {
-      out[argv[i].slice(2)] = argv[i + 1];
-      i++;
-    }
+    if (argv[i].startsWith('--')) { out[argv[i].slice(2)] = argv[i + 1]; i++; }
   }
   return out;
 }
