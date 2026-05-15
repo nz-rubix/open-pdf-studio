@@ -333,12 +333,24 @@ async function _renderPageImpl(pageNum) {
         const _rasterContainer = document.getElementById('pdf-container');
         if (_rasterContainer) _rasterContainer.style.overflow = 'hidden';
 
-        // Page dims for the viewport. page.view = [x0, y0, x1, y1].
+        // Page dims for the viewport. page.view = [x0, y0, x1, y1] in PRE-
+        // rotation user-space coords. The PDFium bitmap is rendered POST-
+        // rotation (intrinsic /Rotate is applied by default), so if the PDF
+        // has /Rotate=90 or 270 the bitmap's width/height are swapped vs
+        // page.view. Match by swapping page.view dims here too — otherwise
+        // _render() stretches a portrait bitmap into a landscape rectangle
+        // (or vice versa) and the page appears with dims transposed.
         const _x0 = page.view[0], _y0 = page.view[1];
         const _x1 = page.view[2], _y1 = page.view[3];
+        const _rawW = _x1 - _x0;
+        const _rawH = _y1 - _y0;
+        const _intrinsicRot = (page.rotate || 0) % 360;
+        const _rotSwap = (_intrinsicRot === 90 || _intrinsicRot === 270);
+        const _pageWpt = _rotSwap ? _rawH : _rawW;
+        const _pageHpt = _rotSwap ? _rawW : _rawH;
         setPage(
           doc.filePath, pageNum,
-          _x1 - _x0, _y1 - _y0,
+          _pageWpt, _pageHpt,
           _x0, _y0,
           getPageRotation(pageNum) || 0
         );
@@ -353,7 +365,7 @@ async function _renderPageImpl(pageNum) {
         // (Step 4); for the initial fit we let _render() display whatever
         // getBestAvailableBitmap provides immediately.
 
-        console.log(`[render] Raster viewport activated: ${_x1 - _x0}x${_y1 - _y0} pt`);
+        console.log(`[render] Raster viewport activated: ${_pageWpt}x${_pageHpt} pt (intrinsic /Rotate=${_intrinsicRot}°)`);
         // The new viewport path now OWNS the canvas (initViewport's
         // _resizeCanvas sets pdfCanvas.width = container size; _render's
         // setTransform scales content). The OLD bitmap path's
