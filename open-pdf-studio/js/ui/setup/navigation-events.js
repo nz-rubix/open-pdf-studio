@@ -34,6 +34,17 @@ function _resetZoomAccumSoon() {
   }, 200);
 }
 
+// Wheel-zoom generation counter — fixes the rapid-zoom scroll-anchor stack-up.
+// Each ctrl+wheel handler captures its own _myWheelGen at entry. Multiple
+// rapid handlers all read the SAME oldScale (sync part), AWAIT zoomIn(), then
+// post-zoom each tries to adjust container.scrollLeft to anchor the cursor to
+// its captured worldX. With N rapid wheels, N near-identical dxScroll values
+// stack up — the page visibly springs left/right past the intended anchor.
+// The gen check after the await ensures only the LATEST wheel handler runs
+// the scroll adjustment; earlier ones bail out so their dxScroll doesn't get
+// applied on top of the latest one's.
+let _wheelZoomGen = 0;
+
 export function setupWheelZoom() {
   document.querySelector('.main-view')?.addEventListener('wheel', async (e) => {
     const activeDoc = getActiveDocument();
@@ -63,6 +74,11 @@ export function setupWheelZoom() {
       // after the re-render adjust the scroll container so the same PDF
       // point sits under the cursor again.
       if (!viewport.active) {
+        // Stamp this wheel-zoom invocation with a fresh generation. Re-checked
+        // after the awaited zoomIn/zoomOut. Older invocations bail out of the
+        // post-zoom scroll-anchor adjustment so their (already-stale) dxScroll
+        // doesn't pile on top of the latest one. See _wheelZoomGen comment.
+        const myWheelGen = ++_wheelZoomGen;
         const dy = e.deltaY || 0;
         const direction = dy < 0 ? 1 : -1;
         const m = await import('../../pdf/renderer.js');
@@ -83,11 +99,18 @@ export function setupWheelZoom() {
           worldY = cursorCanvasY / oldScale;
         }
         if (direction > 0) await m.zoomIn(); else await m.zoomOut();
-        // Post-zoom: if we had a valid anchor, shift scroll so worldX/Y is
-        // still under the cursor. With flex `safe center`, the canvas is
-        // auto-centered when it fits the container — in that case scrolling
-        // has no effect (scrollLeft/Top clamp to 0) and the canvas stays
-        // centered, which is the correct fallback.
+        // Post-zoom: only the LATEST wheel-zoom invocation runs the scroll
+        // adjustment. Earlier rapid wheels bail out — otherwise N rapid wheel
+        // notches stack N near-identical dxScroll values and the page springs
+        // visibly past the cursor anchor.
+        if (myWheelGen !== _wheelZoomGen) {
+          console.log(`[wheel-zoom] STALE gen ${myWheelGen} (current ${_wheelZoomGen}) — skipping scroll adjustment`);
+          return;
+        }
+        // If we had a valid anchor, shift scroll so worldX/Y is still under
+        // the cursor. With flex `safe center`, the canvas is auto-centered
+        // when it fits the container — scrolling clamps to 0 in that case and
+        // the canvas stays centered (correct fallback).
         if (worldX !== null && pdfCanvas && container) {
           const newScale = (getActiveDocument()?.scale) || oldScale;
           const newCanvasRect = pdfCanvas.getBoundingClientRect();
