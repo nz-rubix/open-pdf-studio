@@ -669,10 +669,14 @@ async function _renderPageImpl(pageNum) {
         // getBestAvailableBitmap provides immediately.
 
         console.log(`[render] Raster viewport activated: ${_x1 - _x0}x${_y1 - _y0} pt`);
-        // DON'T set _skipBitmapRender = true yet — Task 5 rips the old path
-        // and at that point this block becomes the only raster path. For
-        // now letting both run keeps the bitmap visible while we test the
-        // unified path.
+        // The new viewport path now OWNS the canvas (initViewport's
+        // _resizeCanvas sets pdfCanvas.width = container size; _render's
+        // setTransform scales content). The OLD bitmap path's
+        // pdfCanvas.width = pageW*scale assignment is INCOMPATIBLE with
+        // this model — leaving it active would thrash the canvas
+        // dimensions every frame. So skip the old path now; Task 5
+        // physically deletes its code from the file.
+        _skipBitmapRender = true;
       }
       // Heavy IPC for the active page is done — let the thumbnail processor
       // resume immediately instead of waiting out the pause window.
