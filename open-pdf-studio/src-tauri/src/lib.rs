@@ -1249,6 +1249,56 @@ fn render_pdf_page(
 }
 
 #[tauri::command]
+fn render_pdf_page_region(
+    path: String,
+    page_index: u32,
+    scale: f32,
+    rotation: Option<i32>,
+    region_x_pt: f32,
+    region_y_pt: f32,
+    region_w_pt: f32,
+    region_h_pt: f32,
+    bytes_cache: tauri::State<PdfBytesCache>,
+    pdfium_cache: tauri::State<pdfium_renderer::PdfiumDocCache>,
+) -> Result<tauri::ipc::Response, String> {
+    let extra_rot = rotation.unwrap_or(0);
+
+    let bytes = {
+        let mut bm = bytes_cache.0.lock().map_err(|e| format!("Bytes cache lock: {}", e))?;
+        if let Some(cached) = bm.get(&path) {
+            cached.clone()
+        } else {
+            let read = std::fs::read(&path).map_err(|e| format!("Read: {}", e))?;
+            bm.insert(path.clone(), read.clone());
+            read
+        }
+    };
+
+    let handle = pdfium_renderer::get_or_load_pdfium_doc_with_bytes(
+        &path,
+        std::sync::Arc::new(bytes),
+        &pdfium_cache,
+    )?;
+
+    let (width, height, rgba) = pdfium_renderer::render_page_region_to_rgba(
+        handle.document(),
+        page_index,
+        scale,
+        extra_rot,
+        region_x_pt,
+        region_y_pt,
+        region_w_pt,
+        region_h_pt,
+    )?;
+
+    let mut data = Vec::with_capacity(8 + rgba.len());
+    data.extend_from_slice(&width.to_le_bytes());
+    data.extend_from_slice(&height.to_le_bytes());
+    data.extend_from_slice(&rgba);
+    Ok(tauri::ipc::Response::new(data))
+}
+
+#[tauri::command]
 fn render_thumbnail(
     path: String,
     page_index: u32,
@@ -1600,6 +1650,7 @@ pub fn run(opts: StartupOpts) {
             uninstall_plugin,
             read_plugin_file,
             render_pdf_page,
+            render_pdf_page_region,
             get_page_dimensions,
             invalidate_pdf_cache,
             clear_pdf_cache,
