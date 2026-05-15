@@ -1181,26 +1181,40 @@ fn render_pdf_page(
     scale: f32,
     rotation: Option<i32>,
     bytes_cache: tauri::State<PdfBytesCache>,
-    handle_cache: tauri::State<DocHandleCache>,
+    pdfium_cache: tauri::State<pdfium_renderer::PdfiumDocCache>,
 ) -> Result<tauri::ipc::Response, String> {
-    let doc = get_or_load_doc(&path, &bytes_cache, &handle_cache)?;
     let extra_rot = rotation.unwrap_or(0);
-    let page = doc.render_page(page_index as usize, scale, extra_rot).map_err(|e| format!("{}", e))?;
 
-    // PERF FIX #3: return RGBA bytes directly via Tauri's binary IPC fast path
-    // (tauri::ipc::Response wraps Vec<u8> and skips JSON serialization). The
-    // tempfile roundtrip was added when the original author believed Tauri
-    // couldn't transfer 16-36MB of binary data efficiently — in Tauri 2.10
-    // that's no longer true and the disk write was pure overhead.
-    //
-    // Wire format: [width: u32 LE][height: u32 LE][rgba bytes...] so the JS
-    // side parses an 8-byte header followed by `width * height * 4` pixels.
-    // This matches the layout the existing JS bitmap-path code already
-    // expects (see renderer.js line ~700/900 — DataView.getUint32 at 0/4).
-    let mut data = Vec::with_capacity(8 + page.rgba.len());
-    data.extend_from_slice(&page.width.to_le_bytes());
-    data.extend_from_slice(&page.height.to_le_bytes());
-    data.extend_from_slice(&page.rgba);
+    // Get bytes from the existing cache (or read from disk if absent).
+    let bytes = {
+        let mut bm = bytes_cache.0.lock().map_err(|e| format!("Bytes cache lock: {}", e))?;
+        if let Some(cached) = bm.get(&path) {
+            cached.clone()
+        } else {
+            let read = std::fs::read(&path).map_err(|e| format!("Read: {}", e))?;
+            bm.insert(path.clone(), read.clone());
+            read
+        }
+    };
+
+    let handle = pdfium_renderer::get_or_load_pdfium_doc_with_bytes(
+        &path,
+        std::sync::Arc::new(bytes),
+        &pdfium_cache,
+    )?;
+
+    let (width, height, rgba) = pdfium_renderer::render_page_to_rgba(
+        handle.document(),
+        page_index,
+        scale,
+        extra_rot,
+    )?;
+
+    // Wire format unchanged: [width: u32 LE][height: u32 LE][rgba bytes...]
+    let mut data = Vec::with_capacity(8 + rgba.len());
+    data.extend_from_slice(&width.to_le_bytes());
+    data.extend_from_slice(&height.to_le_bytes());
+    data.extend_from_slice(&rgba);
     Ok(tauri::ipc::Response::new(data))
 }
 
