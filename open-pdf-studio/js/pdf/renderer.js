@@ -454,6 +454,17 @@ export async function renderPage(pageNum) {
   }
 
   if (!_skipBitmapRender && _canUseTauri && _hasFilePath) {
+    // Stale-gen bailout for the WHOLE bitmap path. With rapid zoom, multiple
+    // renderPage() are in flight after their analyze_page_type await; each
+    // would otherwise set the canvas CSS dims to its own scale's width on
+    // arrival, causing 4 short successive resizes (and with `flex` layout
+    // the visible canvas position shifts each resize → "links/rechts springt"
+    // bug). Only the LATEST renderPage should run the predictive CSS resize
+    // and the subsequent cache/Rust render.
+    if (_isStaleGen()) {
+      console.log(`[render] STALE bitmap-path gen ${_renderGen} (current ${_foregroundRenderGen}) @ scale=${scale} — skipping entirely`);
+      return;
+    }
     // Deactivate the vector viewport singleton — otherwise its RAF render loop
     // will keep clearing & redrawing the previous (vector) document's content
     // on top of the bitmap pixels we're about to write to the SHARED canvas.
