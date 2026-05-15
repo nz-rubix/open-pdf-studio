@@ -28,6 +28,39 @@ function tauriInvoke() {
   return window.__TAURI__?.core?.invoke ?? null;
 }
 
+// ─── Console ring buffer for MCP/AI observability ────────────────────────
+// Captures the most recent N console messages whose text matches the
+// observer regex. The MCP tool `app_get_recent_console` reads this and
+// returns the slice the AI client wants. Default-on so an AI agent can
+// always look back at what happened during the last few seconds without
+// any setup step on the user side.
+const CONSOLE_RING = [];
+const CONSOLE_RING_MAX = 500;
+// Patterns the render pipeline uses: [render], [tile], [wheel-zoom],
+// [PERF], [pre-render], STALE markers. Adjust if more subsystems need
+// capture later.
+const CONSOLE_CAPTURE_RE = /\[render\]|\[tile\]|\[wheel-zoom\]|\[PERF\]|\[pre-render\]|STALE|JANK/;
+
+function _captureConsole(level, args) {
+  try {
+    const s = args.map(a => typeof a === 'string' ? a : (a && a.message) ? a.message : String(a)).join(' ');
+    if (!CONSOLE_CAPTURE_RE.test(s)) return;
+    CONSOLE_RING.push({ t: Date.now(), level, text: s });
+    if (CONSOLE_RING.length > CONSOLE_RING_MAX) CONSOLE_RING.shift();
+  } catch {
+    // Swallow — observability MUST NOT crash the app.
+  }
+}
+
+(function patchConsole() {
+  const ORIG_LOG = console.log;
+  const ORIG_WARN = console.warn;
+  const ORIG_ERROR = console.error;
+  console.log = function (...args) { _captureConsole('log', args); ORIG_LOG.apply(console, args); };
+  console.warn = function (...args) { _captureConsole('warn', args); ORIG_WARN.apply(console, args); };
+  console.error = function (...args) { _captureConsole('error', args); ORIG_ERROR.apply(console, args); };
+})();
+
 /** Send the response payload back to the awaiting Rust task. */
 async function respond(requestId, result) {
   const invoke = tauriInvoke();
@@ -477,13 +510,51 @@ async function handleGetViewportState() {
   // Probe the current viewport state for testing math (zoom-to-cursor,
   // smooth scrolling, etc). Returns the singleton viewport's transform
   // plus canvas + container dimensions so callers can map screen↔world.
+  // Also includes render-engine status, tile-overlay state, and the active
+  // document scale/page — everything an AI/MCP client needs to observe a
+  // zoom/scroll/pan sequence.
   const vp = window.__pdfViewport;
   const pdfCanvas = document.getElementById('pdf-canvas');
+  const tileCanvas = document.getElementById('pdf-canvas-tile');
   const container = document.getElementById('pdf-container') || pdfCanvas?.parentElement;
   const cRect = container?.getBoundingClientRect();
   const pRect = pdfCanvas?.getBoundingClientRect();
+  const tRect = tileCanvas?.getBoundingClientRect();
+
+  // Pull state.renderEngine + state.renderTiming from the central app state
+  // (set by renderer.js after each render). Critical for verifying that
+  // PDFium (NOT PDF.js) is the engine actually drawing the page.
+  let renderEngine = null;
+  let renderTiming = null;
+  let docScale = null;
+  let activeDocPath = null;
+  let activePageNum = null;
+  let viewMode = null;
+  try {
+    const stateMod = await import('/js/core/state.ts');
+    renderEngine = stateMod.state?.renderEngine ?? null;
+    renderTiming = stateMod.state?.renderTiming ?? null;
+    const doc = stateMod.state?.documents?.[stateMod.state.activeDocumentIndex];
+    docScale = doc?.scale ?? null;
+    activeDocPath = doc?.filePath ?? null;
+    activePageNum = doc?.currentPage ?? null;
+    viewMode = doc?.viewMode ?? null;
+  } catch {
+    // Module may not be loaded yet; leave fields null.
+  }
+
   return {
     ok: true,
+    // Engine + timing — what the user sees in the status-bar chip.
+    engine: renderEngine,
+    renderTiming,
+    // Active document at the moment of the snapshot.
+    doc: {
+      filePath: activeDocPath,
+      scale: docScale,
+      currentPage: activePageNum,
+      viewMode,
+    },
     // viewport singleton (pdf-viewport.js): the transform that maps world→screen
     viewport: vp ? {
       active: !!vp.active,
@@ -495,7 +566,7 @@ async function handleGetViewportState() {
       filePath: vp.filePath ?? null,
       pageNum: vp.pageNum ?? null,
     } : null,
-    // The canvas backing store (where compositeCurrentView reads pixels from)
+    // The main canvas backing store
     canvas: pdfCanvas ? {
       width: pdfCanvas.width,
       height: pdfCanvas.height,
@@ -503,6 +574,19 @@ async function handleGetViewportState() {
       cssHeight: pRect?.height ?? null,
       cssLeft: pRect?.left ?? null,
       cssTop: pRect?.top ?? null,
+    } : null,
+    // High-zoom tile overlay (pdf-canvas-tile). When `display !== 'none'`
+    // the tile is showing a crisp render of the visible viewport region
+    // on top of the cap-stretched main canvas.
+    tile: tileCanvas ? {
+      display: tileCanvas.style?.display || 'block',
+      visible: (tileCanvas.style?.display || 'block') !== 'none',
+      width: tileCanvas.width,
+      height: tileCanvas.height,
+      cssWidth: tRect?.width ?? null,
+      cssHeight: tRect?.height ?? null,
+      cssLeft: tileCanvas.style?.left || null,
+      cssTop: tileCanvas.style?.top || null,
     } : null,
     // The container (visible scrollable area)
     container: cRect ? {
@@ -514,6 +598,31 @@ async function handleGetViewportState() {
       scrollTop: container?.scrollTop ?? null,
     } : null,
     devicePixelRatio: window.devicePixelRatio ?? 1,
+  };
+}
+
+async function handleGetRecentConsole(params) {
+  // Return the recent capture-buffer of console messages. Defaults to all
+  // 500 entries. Filter via `params.since` (epoch-ms cutoff) or
+  // `params.tail` (last N entries) to limit volume.
+  const since = (params && typeof params.since === 'number') ? params.since : 0;
+  const tail = (params && typeof params.tail === 'number') ? params.tail : 0;
+
+  let entries = CONSOLE_RING;
+  if (since > 0) entries = entries.filter(e => e.t >= since);
+  if (tail > 0 && entries.length > tail) entries = entries.slice(-tail);
+
+  return {
+    ok: true,
+    serverTimeMs: Date.now(),
+    bufferSize: CONSOLE_RING.length,
+    bufferMax: CONSOLE_RING_MAX,
+    entries: entries.map(e => ({
+      t: e.t,
+      deltaMs: Date.now() - e.t,
+      level: e.level,
+      text: e.text,
+    })),
   };
 }
 
@@ -530,6 +639,7 @@ const HANDLERS = {
   'mcp:key':                handleKey,
   'mcp:type':               handleType,
   'mcp:get-viewport-state': handleGetViewportState,
+  'mcp:get-recent-console': handleGetRecentConsole,
 };
 
 /** Wire up all `mcp:*` listeners. Safe to call once at startup. Becomes

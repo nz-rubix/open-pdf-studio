@@ -305,10 +305,22 @@ fn handle_tools_list() -> Value {
             },
             {
                 "name": "app_get_viewport_state",
-                "description": "Probe the LIVE viewport state: zoom + offset of the pdf-viewport singleton, plus pdf-canvas backing-store + CSS rect, pdf-container CSS rect + scroll offsets, and devicePixelRatio. Used for testing zoom-to-cursor math, smooth-scroll behaviour, and any case where screen↔world coordinate mapping needs to be validated externally.",
+                "description": "Probe the LIVE viewport state: render engine + timing chip, active document scale/page/viewMode, pdf-viewport singleton transform, pdf-canvas backing-store + CSS rect, high-zoom tile-overlay state (visible/hidden + position+size), pdf-container CSS rect + scroll offsets, and devicePixelRatio. Use this for any case where screen↔world coordinate mapping or zoom-state needs to be validated externally — e.g. after dispatching a zoom or scroll via `app_scroll`/`app_set_zoom`, call this to see where things landed.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {},
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_get_recent_console",
+                "description": "Return the most recent matching console messages captured by the in-app observability buffer (mcp-bridge.js). Captures lines matching: [render], [tile], [wheel-zoom], [PERF], [pre-render], STALE, JANK. Buffer holds up to 500 entries; oldest auto-evicted. Filter with `since` (epoch-ms cutoff) or `tail` (last N entries) to limit output volume. Use after dispatching a zoom/scroll action to see exactly which render path fired, in what order, and whether any stale-render bailouts triggered.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "since": { "type": "number", "description": "Only return entries with timestamp >= this epoch-ms. Omit or 0 for all entries." },
+                        "tail":  { "type": "integer", "minimum": 1, "description": "Return only the last N matching entries. Omit for all." }
+                    },
                     "additionalProperties": false
                 }
             }
@@ -343,6 +355,7 @@ async fn handle_tools_call(state: &AppState, params: &Value) -> Result<Value, (i
         "app_key"         => tool_app_request(state, "mcp:key",         &arguments, Duration::from_secs(10)).await,
         "app_type"        => tool_app_request(state, "mcp:type",        &arguments, Duration::from_secs(30)).await,
         "app_get_viewport_state" => tool_app_request(state, "mcp:get-viewport-state", &arguments, Duration::from_secs(5)).await,
+        "app_get_recent_console" => tool_app_request(state, "mcp:get-recent-console", &arguments, Duration::from_secs(5)).await,
         other => Err((
             jsonrpc_error::METHOD_NOT_FOUND,
             format!("method not found: {other}"),
