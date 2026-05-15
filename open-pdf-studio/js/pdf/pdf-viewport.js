@@ -27,6 +27,11 @@ if (!window.__pdfViewport) {
     rotation: 0,    // user-applied rotation (0/90/180/270) — part of cache key
     dirty: true,
     active: false,
+    // NEW: bitmap + tile state for unified render loop
+    currentBitmap: null,    // ImageBitmap or null — whole-page raster for current zoom-bucket
+    currentTile: null,      // ImageBitmap or null — visible-region high-zoom augment
+    currentTileMeta: null,  // { regionXpt, regionYpt, regionWpt, regionHpt, zoom } so _render() can position it
+    pageType: 'unknown',    // 'raster' | 'vector' | 'unknown'
   };
 }
 export const viewport = window.__pdfViewport;
