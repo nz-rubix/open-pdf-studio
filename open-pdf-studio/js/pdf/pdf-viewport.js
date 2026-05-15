@@ -391,7 +391,15 @@ function _render() {
   _ctx.fillStyle = '#e0e0e0';
   _ctx.fillRect(0, 0, _canvas.width, _canvas.height);
 
-  // White page background — SAME transform as vector commands, multiplied by dpr
+  // Display dimensions of the page (post-rotation). PDF page is pageW x pageH
+  // in user-space; after a 90°/270° rotation the on-screen extent is swapped.
+  const isRotated90 = (viewport.rotation === 90 || viewport.rotation === 270);
+  const displayPageW = isRotated90 ? viewport.pageH : viewport.pageW;
+  const displayPageH = isRotated90 ? viewport.pageW : viewport.pageH;
+
+  // White page background — SAME transform as vector commands, multiplied by dpr.
+  // For vector content we keep the PDF user-space (Y-flipped) transform; for raster
+  // we'll draw on top in screen space.
   _ctx.save();
   _ctx.setTransform(viewport.zoom * dpr, 0, 0, viewport.zoom * dpr, viewport.offsetX * dpr, viewport.offsetY * dpr);
   _ctx.transform(1, 0, 0, -1, 0, viewport.pageH);
@@ -400,20 +408,55 @@ function _render() {
   _ctx.fillRect(viewport.originX, viewport.originY, viewport.pageW, viewport.pageH);
   _ctx.restore();
 
-  // Vector content (multiply zoom and offsets by dpr for HiDPI rasterization)
-  _ctx.save();
-  renderVectorPage(_ctx, viewport.filePath, viewport.pageNum, {
-    a: viewport.zoom * dpr,
-    b: 0,
-    c: 0,
-    d: viewport.zoom * dpr,
-    e: viewport.offsetX * dpr,
-    f: viewport.offsetY * dpr,
-  }, viewport.rotation);
-  _ctx.restore();
+  // RASTER BITMAP — whole-page raster from PDFium, drawn in screen space at
+  // (offsetX, offsetY) sized to the post-rotation page extent. The bitmap is
+  // already rendered with rotation applied, so we don't apply any per-axis
+  // transform here — identity scale, identity rotation, just stretch-to-fit.
+  if (viewport.currentBitmap) {
+    _ctx.save();
+    _ctx.setTransform(1, 0, 0, 1, 0, 0); // identity (device-pixel space)
+    const destX = viewport.offsetX * dpr;
+    const destY = viewport.offsetY * dpr;
+    const destW = displayPageW * viewport.zoom * dpr;
+    const destH = displayPageH * viewport.zoom * dpr;
+    _ctx.drawImage(viewport.currentBitmap, destX, destY, destW, destH);
+    _ctx.restore();
+  }
+
+  // TILE AUGMENT — crisp visible-region overlay when zoom is above the
+  // 4096 px-axis cap. The tile is rendered at the requested zoom for the
+  // PDF-point region described by currentTileMeta.
+  if (viewport.currentTile && viewport.currentTileMeta) {
+    _ctx.save();
+    _ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const m = viewport.currentTileMeta;
+    const destX = (viewport.offsetX + m.regionXpt * viewport.zoom) * dpr;
+    const destY = (viewport.offsetY + m.regionYpt * viewport.zoom) * dpr;
+    const destW = m.regionWpt * viewport.zoom * dpr;
+    const destH = m.regionHpt * viewport.zoom * dpr;
+    _ctx.drawImage(viewport.currentTile, destX, destY, destW, destH);
+    _ctx.restore();
+  }
+
+  // VECTOR CONTENT — only run when this is NOT a raster-only page. Hybrid
+  // (mixed-content) pages can have both: raster background + vector overlay.
+  // Until pageType='hybrid' exists we treat pageType==='raster' as
+  // raster-only and skip the vector pass.
+  if (viewport.pageType !== 'raster') {
+    _ctx.save();
+    renderVectorPage(_ctx, viewport.filePath, viewport.pageNum, {
+      a: viewport.zoom * dpr,
+      b: 0,
+      c: 0,
+      d: viewport.zoom * dpr,
+      e: viewport.offsetX * dpr,
+      f: viewport.offsetY * dpr,
+    }, viewport.rotation);
+    _ctx.restore();
+  }
 
   // Status bar
-  state.renderEngine = 'Vector';
+  state.renderEngine = viewport.pageType === 'raster' ? 'Raster (PDFium)' : 'Vector';
 
   // Sync text layer with viewport.
   // PDF.js text layer (0,0) = page top-left at scale=1.
