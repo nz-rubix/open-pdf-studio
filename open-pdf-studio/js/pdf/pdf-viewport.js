@@ -565,6 +565,20 @@ export function setPage(filePath, pageNum, pageW, pageH, originX, originY, rotat
   // chose). Identify the document by file path — that's stable across all
   // page navigation but changes when a different file is opened.
   const isNewDocument = viewport.filePath !== filePath;
+  const isPageChange = viewport.pageNum !== pageNum;
+
+  // Clear stale raster state on page or document change so the unified
+  // render loop doesn't keep painting the PREVIOUS page's bitmap (stretched
+  // to the NEW page's pageW × zoom rectangle) until the async bitmap-
+  // orchestrator fills the cache for the new page. Without this clear, the
+  // user sees the previous page's content "lag" through to the new page
+  // for ~10-50ms — visible glitch on raster-classified PDFs (Tekst.pdf,
+  // rapport-constructie.pdf, etc.).
+  if (isNewDocument || isPageChange) {
+    viewport.currentBitmap = null;
+    viewport.currentTile = null;
+    viewport.currentTileMeta = null;
+  }
 
   viewport.filePath = filePath;
   viewport.pageNum = pageNum;
