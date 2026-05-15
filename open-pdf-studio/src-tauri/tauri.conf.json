@@ -65,9 +65,10 @@
         ]
       }
     },
-    "resources": [
-      "icons/file-icon.ico"
-    ],
+    "resources": {
+      "icons/file-icon.ico": "file-icon.ico",
+      "binaries/win-x64/pdfium.dll": "pdfium.dll"
+    },
     "fileAssociations": [
       {
         "ext": [
