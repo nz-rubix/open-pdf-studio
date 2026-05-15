@@ -1260,7 +1260,7 @@ fn render_thumbnail(
         &pdfium_cache,
     )?;
 
-    let data_url = pdfium_renderer::render_thumbnail_to_data_url(
+    let data_url = pdfium_renderer::render_thumbnail_to_json(
         handle.document(),
         page_index,
         max_width,

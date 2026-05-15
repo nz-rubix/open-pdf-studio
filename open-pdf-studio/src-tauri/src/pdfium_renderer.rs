@@ -201,13 +201,15 @@ pub fn render_page_to_rgba(
 }
 
 /// Render a low-resolution thumbnail of a single page, encoded as a
-/// data-URL JPEG string ready to use as the `src` of an `<img>`.
+/// JSON string `{"dataURL":"data:image/jpeg;base64,...","width":N,"height":N}`.
 ///
 /// `max_width` is in pixels — the page is scaled so the longest side
 /// fits within this. Aspect ratio preserved.
 ///
-/// Returns the data URL string (format: `data:image/jpeg;base64,...`).
-pub fn render_thumbnail_to_data_url(
+/// The JSON shape matches the legacy wire format that left-panel.js
+/// expects: it does `JSON.parse(result)` and accesses `.dataURL`,
+/// `.width`, `.height`.
+pub fn render_thumbnail_to_json(
     doc: &PdfDocument<'static>,
     page_index: u32,
     max_width: u32,
@@ -244,5 +246,10 @@ pub fn render_thumbnail_to_data_url(
 
     use base64::Engine;
     let b64 = base64::engine::general_purpose::STANDARD.encode(&jpeg_bytes);
-    Ok(format!("data:image/jpeg;base64,{}", b64))
+    let data_url = format!("data:image/jpeg;base64,{}", b64);
+
+    Ok(format!(
+        r#"{{"dataURL":"{}","width":{},"height":{}}}"#,
+        data_url, w, h
+    ))
 }
