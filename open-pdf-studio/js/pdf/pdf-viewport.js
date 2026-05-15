@@ -170,6 +170,23 @@ const _VELOCITY_MIN = 0.15;
 // works for both.
 const _WHEEL_TO_VELOCITY = 0.25;
 
+// Debounce timer for tile re-renders triggered by pan. ensureTileForCurrentView
+// is cheap when zoom <= cap (early-returns + clears tile state) but the Rust
+// region-render call is expensive at high zoom, so coalesce rapid pan updates
+// into a single re-check 100 ms after the last pan event.
+let _panTileTimer = null;
+
+function _scheduleTileRecheckAfterPan() {
+  if (viewport.pageType !== 'raster' || !_canvas) return;
+  if (_panTileTimer) clearTimeout(_panTileTimer);
+  _panTileTimer = setTimeout(() => {
+    _panTileTimer = null;
+    import('./bitmap-orchestrator.js').then(orch => {
+      orch.ensureTileForCurrentView(_canvas);
+    }).catch(() => {});
+  }, 100);
+}
+
 /**
  * Add wheel deltas to the pan-momentum accumulator. Called from the wheel
  * handler in navigation-events.js on plain (non-ctrl) wheel events when the
@@ -231,6 +248,10 @@ function _startLoop() {
         if (Math.abs(_vy) < _VELOCITY_MIN) _vy = 0;
 
         viewport.dirty = true;
+
+        if (_vx !== 0 || _vy !== 0) {
+          _scheduleTileRecheckAfterPan();
+        }
       }
       if (viewport.dirty) {
         viewport.dirty = false;
@@ -790,6 +811,7 @@ export function updatePan(screenX, screenY) {
   _anchorActive = true;
   _strictAnchor = false;
   viewport.dirty = true;
+  _scheduleTileRecheckAfterPan();
 }
 
 export function endPan() {
