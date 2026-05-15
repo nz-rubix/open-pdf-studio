@@ -142,7 +142,13 @@ export default function StatusBar() {
               "background": (() => {
                 const e = state.renderEngine || '';
                 if (e === 'ERROR' || e === 'UNSUPPORTED') return '#b22';
-                if (e.startsWith('PDFium')) return '#2a5fa0';   // blue — PDFium active
+                // Engine-name → status chip color:
+                //   • Raster (PDFium...) → blue — bitmap rendering via PDFium
+                //   • Vector             → green — vector renderer (Rust extract + JS canvas)
+                //   • UNSUPPORTED/ERROR  → red (handled above)
+                //   • anything else      → gray fallback
+                if (e.startsWith('Raster')) return '#2a5fa0';
+                if (e === 'Vector') return '#2a8a3a';
                 return '#666';
               })(),
               "color": "#fff",
@@ -254,7 +260,12 @@ export default function StatusBar() {
               "font-size": "10px",
               "padding": "1px 6px",
               "border-radius": "2px",
-              "background": (state.renderEngine || '').startsWith('PDFium') ? '#2a5fa0' : '#666',
+              "background": (() => {
+                const e = state.renderEngine || '';
+                if (e.startsWith('Raster')) return '#2a5fa0';  // blue for PDFium raster
+                if (e === 'Vector') return '#2a8a3a';            // green for vector
+                return '#666';
+              })(),
               "color": "#fff",
               "font-weight": "bold",
               "letter-spacing": "0.5px",

@@ -300,12 +300,17 @@
 }
 
 .main-view > #pdf-container.visible {
-  /* "safe center" keeps the canvas centered when it fits, but falls back to
-     top/left when the canvas is larger than the container so overflow stays
-     scrollable. Without `safe`, an oversized page would shift its top-left
-     out of reach above the scroll origin. */
-  align-items: safe center;
-  justify-content: safe center;
+  /* Free-pan UX: NO auto-centering. Canvas always top-left of the container.
+     Previously used `safe center` which centered the canvas when it fit the
+     viewport and fell back to start when it overflowed — the transition
+     between those two states caused a visible canvas-position JUMP at the
+     exact zoom level where the canvas first exceeds container width. The
+     cursor anchor couldn't compensate because `scrollLeft` cannot go
+     negative. Removing centering eliminates the transition jump entirely.
+     Initial fit-to-page positioning is done explicitly by JS (fitToViewport
+     in vector mode, or by leaving the canvas at 0,0 in bitmap mode). */
+  align-items: flex-start;
+  justify-content: flex-start;
   position: relative;
 }
 

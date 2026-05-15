@@ -626,6 +626,228 @@ async function handleGetRecentConsole(params) {
   };
 }
 
+// ─── Zoom-anchor test harness (autonomous AI driving the app) ─────────────
+//
+// Synthetic WheelEvent dispatch + numeric pre/post canvas state capture so
+// an MCP-driven loop can probe the cursor-anchor accuracy of zoom WITHOUT
+// requiring a human to wiggle the mouse. The test reports the displacement
+// (in CSS pixels) between where the world-point under the cursor was BEFORE
+// the zoom and where it ended up AFTER — anything > a few pixels is the
+// "zoom springt" bug the user has been seeing.
+
+async function _waitForRenderIdle(timeoutMs = 5000) {
+  // Renderer.js increments window.__pdfRenderInFlight at the top of
+  // renderPage and decrements in a finally block, so === 0 means no
+  // bitmap/cache work is pending. We also wait one extra RAF so any
+  // post-paint setTimeout(0) (tile overlay) lands.
+  const t0 = performance.now();
+  while (performance.now() - t0 < timeoutMs) {
+    if ((window.__pdfRenderInFlight || 0) === 0) {
+      await new Promise(r => requestAnimationFrame(() => r()));
+      await new Promise(r => setTimeout(r, 0)); // let tile setTimeout(0) macrotask run
+      await new Promise(r => requestAnimationFrame(() => r()));
+      // Second check in case a follow-up renderPage was queued by setTimeout(0)
+      if ((window.__pdfRenderInFlight || 0) === 0) {
+        return true;
+      }
+    }
+    await new Promise(r => setTimeout(r, 30));
+  }
+  return false; // timed out — caller should still proceed but flag it
+}
+
+/** Snapshot enough state to compute "where is the world-point at (x, y)?" */
+async function _captureCanvasState(x, y) {
+  const pdfCanvas = document.getElementById('pdf-canvas');
+  const container = document.getElementById('pdf-container');
+  const canvasContainer = document.getElementById('canvas-container');
+  const tile = document.getElementById('pdf-canvas-tile');
+  if (!pdfCanvas) return null;
+  const r = pdfCanvas.getBoundingClientRect();
+  const cr = container?.getBoundingClientRect();
+  const ccr = canvasContainer?.getBoundingClientRect();
+  // fractionX/Y: where the cursor sits relative to the canvas (0..1 means
+  // inside, < 0 left of canvas, > 1 right of canvas). This is the
+  // scale-independent world anchor used by the wheel-zoom handler.
+  const fractionX = r.width > 0 ? (x - r.left) / r.width : null;
+  const fractionY = r.height > 0 ? (y - r.top) / r.height : null;
+  // World screen-X = where (fractionX, fractionY) currently appears on screen
+  const worldScreenX = r.left + (fractionX ?? 0) * r.width;
+  const worldScreenY = r.top + (fractionY ?? 0) * r.height;
+  // Scale source: vector viewport if active, else doc.scale from app state.
+  let scale = null, viewportActive = false, mode = 'unknown';
+  try {
+    const vp = window.__pdfViewport;
+    if (vp?.active) {
+      scale = vp.zoom;
+      viewportActive = true;
+      mode = 'vector';
+    } else {
+      const stateMod = await import('./core/state.js');
+      const doc = stateMod.getActiveDocument();
+      scale = doc?.scale ?? null;
+      mode = 'bitmap';
+    }
+  } catch {}
+  return {
+    cursor: { x, y },
+    canvas: {
+      left: r.left, top: r.top, width: r.width, height: r.height,
+      cssWidth: pdfCanvas.style.width, cssHeight: pdfCanvas.style.height,
+      bufferW: pdfCanvas.width, bufferH: pdfCanvas.height,
+    },
+    container: cr ? { left: cr.left, top: cr.top, width: cr.width, height: cr.height,
+      scrollLeft: container.scrollLeft, scrollTop: container.scrollTop,
+      clientW: container.clientWidth, clientH: container.clientHeight } : null,
+    canvasContainer: ccr ? { left: ccr.left, top: ccr.top, width: ccr.width, height: ccr.height } : null,
+    tile: tile ? {
+      display: tile.style.display, w: tile.width, h: tile.height,
+      cssLeft: tile.style.left, cssTop: tile.style.top,
+      cssWidth: tile.style.width, cssHeight: tile.style.height,
+    } : null,
+    scale,
+    viewportActive,
+    mode,
+    fractionX, fractionY,
+    worldScreenX, worldScreenY,
+  };
+}
+
+/** Navigate the active document to a specific page (1-based). Exposed for
+ *  AI-driven test setups that need a deterministic page (e.g. BARN p.2). */
+async function handleGoToPage(params) {
+  const pageNum = Number(params?.page);
+  if (!Number.isInteger(pageNum) || pageNum < 1) {
+    return { ok: false, error: 'missing or invalid params.page (1-based integer)' };
+  }
+  const stateMod = await import('./core/state.js');
+  const doc = stateMod.getActiveDocument();
+  if (!doc?.pdfDoc) return { ok: false, error: 'no active document' };
+  if (pageNum > doc.pdfDoc.numPages) {
+    return { ok: false, error: `page ${pageNum} out of range (doc has ${doc.pdfDoc.numPages} pages)` };
+  }
+  const rendererMod = await import('./pdf/renderer.js');
+  await rendererMod.goToPage(pageNum);
+  return { ok: true, page: pageNum };
+}
+
+async function handleClearCaches() {
+  const invoke = tauriInvoke();
+  if (!invoke) return { ok: false, error: 'tauri invoke unavailable' };
+  try {
+    await invoke('clear_pdf_cache');
+  } catch (e) {
+    return { ok: false, error: `clear_pdf_cache invoke failed: ${e?.message ?? e}` };
+  }
+  // Also clear the JS-side ImageBitmap cache by re-importing renderer and
+  // calling its export if available.
+  try {
+    const m = await import('./pdf/renderer.js');
+    if (typeof m._clearJSBitmapCache === 'function') m._clearJSBitmapCache();
+  } catch {}
+  return { ok: true };
+}
+
+/** Dispatch a synthetic WheelEvent matching what the OS sends for ctrl+wheel.
+ *  deltaY < 0 → zoom in (wheel up). deltaY > 0 → zoom out (wheel down).
+ *  Routes through the same .main-view listener the user's wheel hits, so we
+ *  exercise the actual zoom path and not some test-only shortcut. */
+async function handleWheelZoom(params) {
+  const x = Number(params?.x);
+  const y = Number(params?.y);
+  const deltaY = Number(params?.deltaY ?? -120); // default zoom-in (one notch)
+  const ctrlKey = params?.ctrlKey !== false;     // default true
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return { ok: false, error: 'missing or invalid params.x/y' };
+  }
+  // Aim at .main-view (the actual wheel listener) but use elementFromPoint
+  // for `target` so the event behaves like a real OS wheel event arriving
+  // at whatever happens to be under the cursor.
+  const mainView = document.querySelector('.main-view');
+  const target = targetAt(x, y);
+  if (!mainView) return { ok: false, error: '.main-view not found' };
+
+  const wheelInit = {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    view: window,
+    clientX: x, clientY: y,
+    screenX: x, screenY: y,
+    button: 0, buttons: 0,
+    ctrlKey, shiftKey: false, altKey: false, metaKey: false,
+    deltaX: 0, deltaY, deltaZ: 0,
+    deltaMode: 0, // 0 = pixel
+  };
+  const ev = new WheelEvent('wheel', wheelInit);
+  // Dispatch from `target` so e.target / closest('canvas') match real OS
+  // behavior; the event bubbles up to .main-view which has the listener.
+  target.dispatchEvent(ev);
+  return {
+    ok: true, x, y, deltaY, ctrlKey,
+    target: describeTarget(target),
+  };
+}
+
+/** One full anchor-accuracy probe.
+ *  1. Snapshot pre-zoom state at (x, y).
+ *  2. Dispatch a ctrl+wheel event at (x, y).
+ *  3. Wait for renderPage to settle.
+ *  4. Snapshot post-zoom state.
+ *  5. Report the displacement of the world-point that started under the cursor.
+ *
+ *  Anchor-error formula:
+ *    Pre-zoom worldFraction = (x - pre.canvas.left) / pre.canvas.width
+ *    Post-zoom worldScreenX = post.canvas.left + worldFraction * post.canvas.width
+ *    error = worldScreenX - x   (in CSS px; |error| > ~3 = visible spring)
+ */
+async function handleZoomAnchorTest(params) {
+  const x = Number(params?.x);
+  const y = Number(params?.y);
+  const direction = params?.direction === 'out' ? +1 : -1; // -1 → zoom in by default
+  const deltaY = direction * 120;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return { ok: false, error: 'missing or invalid params.x/y' };
+  }
+  const pre = await _captureCanvasState(x, y);
+  if (!pre || pre.canvas.width <= 0) {
+    return { ok: false, error: 'pre-snapshot failed (canvas missing/zero-size)' };
+  }
+  // Dispatch the wheel event the same way the OS would.
+  await handleWheelZoom({ x, y, deltaY, ctrlKey: true });
+  // Wait for the in-flight renderPage to fully complete (counter back to 0).
+  const idle = await _waitForRenderIdle(6000);
+  // Capture post-zoom state.
+  const post = await _captureCanvasState(x, y);
+  if (!post) return { ok: false, error: 'post-snapshot failed', pre, idle };
+
+  // Compute anchor error using pre-zoom worldFraction.
+  const fractionX = pre.fractionX;
+  const fractionY = pre.fractionY;
+  const expectedScreenX = post.canvas.left + (fractionX ?? 0) * post.canvas.width;
+  const expectedScreenY = post.canvas.top + (fractionY ?? 0) * post.canvas.height;
+  const anchorErrorX = expectedScreenX - x;
+  const anchorErrorY = expectedScreenY - y;
+  const anchorErrorPx = Math.sqrt(anchorErrorX * anchorErrorX + anchorErrorY * anchorErrorY);
+
+  return {
+    ok: true,
+    idle,
+    pre,
+    post,
+    fractionX,
+    fractionY,
+    expectedScreenX,
+    expectedScreenY,
+    anchorErrorX,
+    anchorErrorY,
+    anchorErrorPx,
+    // Pass-fail threshold: < 3 CSS px = imperceptible, < 8 = acceptable
+    pass: anchorErrorPx < 3,
+    acceptable: anchorErrorPx < 8,
+  };
+}
+
 const HANDLERS = {
   'mcp:open-pdf':           handleOpenPdf,
   'mcp:set-zoom':           handleSetZoom,
@@ -640,6 +862,10 @@ const HANDLERS = {
   'mcp:type':               handleType,
   'mcp:get-viewport-state': handleGetViewportState,
   'mcp:get-recent-console': handleGetRecentConsole,
+  'mcp:wheel-zoom':         handleWheelZoom,
+  'mcp:zoom-anchor-test':   handleZoomAnchorTest,
+  'mcp:clear-caches':       handleClearCaches,
+  'mcp:go-to-page':         handleGoToPage,
 };
 
 /** Wire up all `mcp:*` listeners. Safe to call once at startup. Becomes

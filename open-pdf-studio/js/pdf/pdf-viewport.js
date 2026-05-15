@@ -237,12 +237,32 @@ function _startLoop() {
   _rafId = requestAnimationFrame(tick);
 }
 
-// Single source of truth for offset validity:
-//   - If the page fits an axis, center it on that axis.
-//   - Otherwise clamp the offset so the page can't be dragged off-screen.
-// Called at the top of every render so any code path that mutates
-// zoom/offset gets corrected before the next paint.
+// DISABLED (2026-05-15, free pan/zoom UX request).
+//
+// This function used to clamp viewport.offsetX/Y so the page couldn't be
+// dragged off-screen, AND to auto-center the page on an axis where it fit
+// the viewport. Both behaviors were running EVERY FRAME, which fought with
+// wheel zoom-to-cursor and free pan: the cursor anchor was dragged back
+// toward the centered position, and the user couldn't pan past page edges
+// to see surrounding gray space.
+//
+// The free pan/zoom UX (as used by modern PDF viewers) allows:
+//   • Cursor anchor to be fully honored at any zoom (page can extend off-screen)
+//   • Free pan in any direction (no clamp to page edges)
+// We now match that behavior by NEVER touching offsets on every render.
+// Initial fit-to-viewport positioning is done explicitly by fitToViewport().
+// The user can re-center with a Fit Page command if they pan into nothing.
+//
+// The function is kept (no-op body) so existing callers don't crash.
 export function clampAndCenter() {
+  // NO-OP — preserved as a function reference; all clamping/centering removed.
+  return;
+}
+
+// Internal variant retained for the rare callers that genuinely want a
+// minimal "snap into viewport if completely lost" behavior (e.g. setPage on
+// a fresh document). Not called per-frame.
+export function clampAndCenterUnused_keptForReference() {
   if (!_canvas || !viewport.pageW || !viewport.pageH) return;
   // Use CSS-pixel viewport size (backing is dpr * css)
   const dpr = _getDpr();
@@ -264,6 +284,13 @@ export function clampAndCenter() {
   const anchored = _anchorActive;
   const strict = _strictAnchor;
 
+  // Over-pan slack: how far the page can be positioned past the viewport
+  // edge on an overflow axis. Half-viewport means the user can scroll/pan
+  // until at most 50% of the viewport is gray (page-left at viewport-middle,
+  // or page-right at viewport-middle). Matches Edge/Chrome/Acrobat behavior
+  // where you can scroll past page edges to see surrounding gray space.
+  const OVERPAN_FRACTION = 0.5;
+
   if (pageScreenW <= vpW) {
     if (strict) {
       // Wheel zoom-to-cursor: leave offsetX exactly where _anchorAt placed it
@@ -277,11 +304,25 @@ export function clampAndCenter() {
       viewport.offsetX = (vpW - pageScreenW) / 2;
     }
   } else {
-    // Doesn't fit → clamp so neither edge crosses the viewport edge
-    const minX = vpW - pageScreenW; // page right edge == viewport right edge
-    const maxX = 0;                  // page left edge == viewport left edge
-    if (viewport.offsetX < minX) viewport.offsetX = minX;
-    if (viewport.offsetX > maxX) viewport.offsetX = maxX;
+    // Page is bigger than viewport on this axis.
+    if (strict) {
+      // Wheel zoom-to-cursor: NO clamp. The cursor anchor math
+      // (offsetX = screenX − wx * newZoom) guarantees the world point under
+      // the cursor stays under the cursor — and thus on-screen — so the user
+      // cannot lose the page by zooming. Clamping here was the cause of the
+      // "geen fixatie rondom mijn muis" complaint at >200% zoom: the clamp
+      // dragged the page back toward viewport edges, breaking the anchor.
+    } else {
+      // Pan / non-strict anchor / default: allow over-pan past page edges
+      // with half-viewport slack. Previous behavior ("neither edge crosses
+      // the viewport edge") made the page feel pinned and prevented the user
+      // from panning past the page to see the surrounding gray area.
+      const SLACK_X = vpW * OVERPAN_FRACTION;
+      const minX = vpW - pageScreenW - SLACK_X;
+      const maxX = SLACK_X;
+      if (viewport.offsetX < minX) viewport.offsetX = minX;
+      if (viewport.offsetX > maxX) viewport.offsetX = maxX;
+    }
   }
 
   if (pageScreenH <= vpH) {
@@ -296,10 +337,15 @@ export function clampAndCenter() {
       viewport.offsetY = (vpH - pageScreenH) / 2;
     }
   } else {
-    const minY = vpH - pageScreenH;
-    const maxY = 0;
-    if (viewport.offsetY < minY) viewport.offsetY = minY;
-    if (viewport.offsetY > maxY) viewport.offsetY = maxY;
+    if (strict) {
+      // Same reasoning as X axis above — cursor anchor must be honored.
+    } else {
+      const SLACK_Y = vpH * OVERPAN_FRACTION;
+      const minY = vpH - pageScreenH - SLACK_Y;
+      const maxY = SLACK_Y;
+      if (viewport.offsetY < minY) viewport.offsetY = minY;
+      if (viewport.offsetY > maxY) viewport.offsetY = maxY;
+    }
   }
 }
 

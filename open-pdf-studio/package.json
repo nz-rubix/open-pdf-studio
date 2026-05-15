@@ -1,6 +1,6 @@
 {
   "name": "open-pdf-studio",
-  "version": "1.48.0",
+  "version": "1.49.0",
   "description": "A free, open-source PDF annotation editor built with Tauri",
   "scripts": {
     "dev": "vite",
@@ -8,6 +8,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
+    "tauri:dev:debug": "node scripts/run-dev-debug.mjs",
     "tauri:build": "npm run build && tauri build",
     "bump": "node scripts/bump-version.js",
     "typecheck": "tsc --noEmit",

@@ -323,6 +323,56 @@ fn handle_tools_list() -> Value {
                     },
                     "additionalProperties": false
                 }
+            },
+            {
+                "name": "app_wheel_zoom",
+                "description": "Dispatch a synthetic ctrl+WheelEvent at (x, y) in the LIVE WebView — exercises the exact same wheel listener the OS hits, so this is a faithful proxy for a user spinning the wheel. `deltaY` < 0 = zoom in, > 0 = zoom out. Use this from an AI-driven debugging loop to reproduce the user's reported zoom problems WITHOUT a human at the mouse.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "x": { "type": "number", "description": "Cursor clientX in CSS pixels (viewport-relative)." },
+                        "y": { "type": "number", "description": "Cursor clientY in CSS pixels (viewport-relative)." },
+                        "deltaY": { "type": "number", "description": "WheelEvent.deltaY. Default -120 (one notch zoom-in)." },
+                        "ctrlKey": { "type": "boolean", "description": "Whether ctrlKey is set (default true → zoom). Set false to test plain wheel pan/scroll." }
+                    },
+                    "required": ["x", "y"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_zoom_anchor_test",
+                "description": "Full cursor-anchor accuracy probe: snapshot pre-zoom canvas+container+tile state at (x, y), dispatch a synthetic ctrl+wheel event, WAIT for renderPage to fully settle (window.__pdfRenderInFlight === 0 + 2 RAFs + 1 setTimeout to drain post-paint tile overlay), then snapshot post-zoom state and compute `anchorErrorPx` — the displacement (in CSS pixels) between where the cursor's world-point WAS before the zoom and where it ENDED UP after. < 3 px = pass (imperceptible), < 8 = acceptable, > 8 = visible spring/drift. This is the AI's primary metric for verifying zoom-anchor fixes.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "x": { "type": "number", "description": "Cursor clientX in CSS pixels." },
+                        "y": { "type": "number", "description": "Cursor clientY in CSS pixels." },
+                        "direction": { "type": "string", "enum": ["in", "out"], "description": "Zoom direction. Default `in`." }
+                    },
+                    "required": ["x", "y"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_clear_caches",
+                "description": "Force-clear all PDF-related caches: Rust pdfium doc cache, Rust pixmap cache, JS-side ImageBitmap cache. Use to rule out cache-staleness as a cause of any reported zoom/render anomaly. Safe to call any time; the next renderPage will rebuild whatever it needs.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_go_to_page",
+                "description": "Navigate the active document to a specific 1-based page number. Wraps `goToPage()` so all the side effects (active-thumbnail update, page-input sync, fire-page-changed event) happen exactly as if the user clicked a thumbnail or pressed the page-input. Required for AI-driven test setups that need a deterministic page (e.g. BARN p.2 for zoom-anchor tests).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "page": { "type": "integer", "minimum": 1, "description": "1-based target page number." }
+                    },
+                    "required": ["page"],
+                    "additionalProperties": false
+                }
             }
         ]
     })
@@ -356,6 +406,10 @@ async fn handle_tools_call(state: &AppState, params: &Value) -> Result<Value, (i
         "app_type"        => tool_app_request(state, "mcp:type",        &arguments, Duration::from_secs(30)).await,
         "app_get_viewport_state" => tool_app_request(state, "mcp:get-viewport-state", &arguments, Duration::from_secs(5)).await,
         "app_get_recent_console" => tool_app_request(state, "mcp:get-recent-console", &arguments, Duration::from_secs(5)).await,
+        "app_wheel_zoom"         => tool_app_request(state, "mcp:wheel-zoom",         &arguments, Duration::from_secs(15)).await,
+        "app_zoom_anchor_test"   => tool_app_request(state, "mcp:zoom-anchor-test",   &arguments, Duration::from_secs(30)).await,
+        "app_clear_caches"       => tool_app_request(state, "mcp:clear-caches",       &arguments, Duration::from_secs(10)).await,
+        "app_go_to_page"         => tool_app_request(state, "mcp:go-to-page",         &arguments, Duration::from_secs(15)).await,
         other => Err((
             jsonrpc_error::METHOD_NOT_FOUND,
             format!("method not found: {other}"),

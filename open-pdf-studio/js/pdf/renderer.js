@@ -61,6 +61,16 @@ export function clearBitmapJSCacheForFile(filePath) {
     }
   }
 }
+/** Wipe every entry in the JS-side ImageBitmap cache. Exposed for the MCP
+ *  `app_clear_caches` test tool so an AI-driven debug loop can rule out
+ *  stale cache as a contributor to anomalies. */
+export function _clearJSBitmapCache() {
+  for (const k of Array.from(_BITMAP_JS_CACHE.keys())) {
+    const e = _BITMAP_JS_CACHE.get(k);
+    try { e?.bitmap?.close?.(); } catch {}
+    _BITMAP_JS_CACHE.delete(k);
+  }
+}
 
 // ─── Background pre-render of adjacent zoom levels ─────────────────────────
 // When a foreground render completes, schedule async Rust renders at the
@@ -428,6 +438,22 @@ export function wireTileScrollListener() {
 
 // Render PDF page (single page mode)
 export async function renderPage(pageNum) {
+  // In-flight counter exposed for MCP test harness — `waitForRenderIdle()`
+  // polls `window.__pdfRenderInFlight === 0` to know when a synthetic zoom
+  // event has fully settled (bitmap painted, tile rendered, state updated).
+  if (typeof window !== 'undefined') {
+    window.__pdfRenderInFlight = (window.__pdfRenderInFlight || 0) + 1;
+  }
+  try {
+    return await _renderPageImpl(pageNum);
+  } finally {
+    if (typeof window !== 'undefined') {
+      window.__pdfRenderInFlight = Math.max(0, (window.__pdfRenderInFlight || 1) - 1);
+    }
+  }
+}
+
+async function _renderPageImpl(pageNum) {
   const _rp0 = performance.now();
   console.log(`[PERF] renderPage(${pageNum}) START`);
   // Clear search highlights immediately to prevent stale highlights
@@ -627,6 +653,17 @@ export async function renderPage(pageNum) {
     // any resize/dirty event redraws A over B. Reactivated by setPage() in
     // the vector path on the next vector-doc renderPage().
     if (window.__pdfViewport) window.__pdfViewport.active = false;
+    // Restore the container's natural scrollability. The vector path sets
+    // `container.style.overflow = 'hidden'` to disable native scrolling (the
+    // viewport handles pan internally). If we don't reset it here, opening a
+    // raster PDF after a vector PDF leaves overflow:hidden in place — the
+    // user can't scroll the page even when zoomed in, and the page feels
+    // pinned to the flex-centered position. Empty string removes the inline
+    // override and lets the CSS rule (`overflow: auto`) take effect.
+    const _bmContainer = document.getElementById('pdf-container');
+    if (_bmContainer && _bmContainer.style.overflow === 'hidden') {
+      _bmContainer.style.overflow = '';
+    }
     // Predictive CSS resize: stretch the EXISTING canvas pixels to the new
     // target zoom size BEFORE Rust starts rendering. The browser does this
     // upscale instantly (blurry but immediate), so the user sees the page
@@ -667,15 +704,23 @@ export async function renderPage(pageNum) {
         pdfCanvas.style.height = Math.floor(viewport.height) + 'px';
         pdfCanvas.getContext('2d').drawImage(_jsCached.bitmap, 0, 0);
         const _hitMs = Math.round(performance.now() - _t0);
-        state.renderEngine = 'PDFium (cached)';
+        state.renderEngine = 'Raster (PDFium · cached)';
         state.renderTiming = `${_hitMs}ms (cached)`;
         console.log(`[render] ✅ JS-cache HIT: ${_jsCached.w}x${_jsCached.h}, total=${_hitMs}ms`);
         // High-zoom: overlay tile even on cache hits (the cache holds the
         // capped bitmap; the tile provides crisp pixels for the visible region).
+        //
+        // TILE POSITION SPRING FIX: Defer the tile render via setTimeout(0)
+        // so it runs as a macrotask AFTER the wheel-handler's sync scroll-anchor
+        // adjustment lands. Otherwise the tile renders at the OLD scroll
+        // position and ~150ms later the scroll-listener fires another render
+        // at the NEW position — user sees the tile spring sideways.
         if (_effectiveScale < scale) {
-          _renderTileOverlay(doc, pageNum, scale, viewport).catch(e =>
-            console.warn('[tile] background render rejected:', e)
-          );
+          setTimeout(() => {
+            _renderTileOverlay(doc, pageNum, scale, viewport).catch(e =>
+              console.warn('[tile] background render rejected:', e)
+            );
+          }, 0);
         } else {
           _hideTileOverlay();
         }
@@ -740,7 +785,7 @@ export async function renderPage(pageNum) {
             const imageData = new ImageData(rgba, rustW, rustH);
             pdfCanvas.getContext('2d').putImageData(imageData, 0, 0);
             const _totalMs = Math.round(_t2 - _t0);
-            state.renderEngine = 'PDFium';
+            state.renderEngine = 'Raster (PDFium)';
             state.renderTiming = `${_totalMs}ms`;
             console.log(`[render] ✅ Rust OK: ${rustW}x${rustH}, cmd=${Math.round(_t1 - _t0)}ms, read=${Math.round(_t2 - _t1)}ms, total=${_totalMs}ms`);
             // Insert into JS-side ImageBitmap cache. Fire-and-forget (the
@@ -766,10 +811,16 @@ export async function renderPage(pageNum) {
 
             // High-zoom: if the main bitmap was capped, overlay a crisp
             // tile of the visible viewport at the full requested scale.
+            //
+            // TILE POSITION SPRING FIX: see comment at the cache-HIT site
+            // above. Deferred via setTimeout(0) so the wheel-handler's
+            // sync scroll-anchor adjustment runs FIRST.
             if (_effectiveScale < scale) {
-              _renderTileOverlay(doc, pageNum, scale, viewport).catch(e =>
-                console.warn('[tile] background render rejected:', e)
-              );
+              setTimeout(() => {
+                _renderTileOverlay(doc, pageNum, scale, viewport).catch(e =>
+                  console.warn('[tile] background render rejected:', e)
+                );
+              }, 0);
             } else {
               _hideTileOverlay();
             }
@@ -936,7 +987,7 @@ export async function renderPageOffscreen(pageNum) {
     const imageData = new ImageData(rgba, rustW, rustH);
     pdfCanvas.getContext('2d').putImageData(imageData, 0, 0);
     setupCanvasHiDPI(annotationCanvas, viewport.width, viewport.height);
-    state.renderEngine = 'PDFium';
+    state.renderEngine = 'Raster (PDFium)';
   } catch (e) {
     state.renderEngine = 'ERROR';
     console.error('[render-offscreen] HARD ERROR: Rust render threw. NO FALLBACK.', e);
@@ -1145,7 +1196,7 @@ async function renderContinuousPage(pageNum) {
     pdfCanvasEl.style.height = _cached.h + 'px';
     pdfCtxEl.drawImage(_cached.bitmap, 0, 0);
     console.timeEnd(label + ' canvas-draw-cached');
-    state.renderEngine = 'PDFium (cached)';
+    state.renderEngine = 'Raster (PDFium · cached)';
     console.timeEnd(label);
   } else {
     try {
@@ -1176,7 +1227,7 @@ async function renderContinuousPage(pageNum) {
       const imageData = new ImageData(rgba, rustW, rustH);
       pdfCtxEl.putImageData(imageData, 0, 0);
       console.timeEnd(label + ' canvas-putImageData');
-      state.renderEngine = 'PDFium';
+      state.renderEngine = 'Raster (PDFium)';
       // Cache the freshly-rendered bitmap (clone the RGBA into its own buffer
       // — the view into _contBytes becomes invalid once that array is GC'd).
       console.time(label + ' cache-store');

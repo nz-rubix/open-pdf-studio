@@ -82,23 +82,43 @@ export function setupWheelZoom() {
         const dy = e.deltaY || 0;
         const direction = dy < 0 ? 1 : -1;
         const m = await import('../../pdf/renderer.js');
-        const activeDocForZoom = getActiveDocument();
-        const oldScale = activeDocForZoom?.scale || 1;
         const pdfCanvas = document.getElementById('pdf-canvas');
         const container = document.getElementById('pdf-container');
-        // Cursor in canvas-local CSS pixels (pre-zoom)
-        let worldX = null, worldY = null;
+
+        // ── Pre-zoom anchor capture ───────────────────────────────────────
+        // Capture the cursor position as a NORMALIZED FRACTION of the canvas
+        // (0.0 = canvas-left, 1.0 = canvas-right). This is scale-independent
+        // and uses ONLY the visible canvas CSS geometry — no `doc.scale`.
+        //
+        // Why scale-independent: zoomIn() updates `doc.scale` synchronously,
+        // but the predictive canvas CSS resize happens inside renderPage()
+        // AFTER `await analyze_page_type` (which takes 50-300ms for BARN-class
+        // PDFs). During that window, doc.scale is at the new value but the
+        // canvas CSS dimensions are still at the OLD value. If a second wheel
+        // event arrives in this window, reading `doc.scale` gives the new
+        // scale but `canvasRect` gives the old size — the worldX formula
+        // `(clientX - rect.left) / oldScale` produces a stale world point,
+        // and the cursor anchor visibly drifts. The user reported this as
+        // "geen fixatie rondom mijn muis".
+        //
+        // Using fractionX (CSS-pixels / CSS-pixels = unitless) avoids the
+        // mismatch entirely. Post-zoom we recover screen-X as
+        // `newRect.left + fractionX * newRect.width`, which is mathematically
+        // equivalent to the old `newRect.left + worldX * newScale` formula
+        // (since `newRect.width = pageWidthPt * newScale`) but cannot race
+        // with an inconsistent doc.scale.
+        let fractionX = null, fractionY = null;
         const clientX = e.clientX, clientY = e.clientY;
         if (pdfCanvas && container) {
           const canvasRect = pdfCanvas.getBoundingClientRect();
-          const cursorCanvasX = clientX - canvasRect.left;
-          const cursorCanvasY = clientY - canvasRect.top;
-          // Normalize to scale-1 (PDF page user-space). This stays constant
-          // across the zoom and is the anchor point we want under the cursor.
-          worldX = cursorCanvasX / oldScale;
-          worldY = cursorCanvasY / oldScale;
+          if (canvasRect.width > 0 && canvasRect.height > 0) {
+            fractionX = (clientX - canvasRect.left) / canvasRect.width;
+            fractionY = (clientY - canvasRect.top) / canvasRect.height;
+          }
         }
+
         if (direction > 0) await m.zoomIn(); else await m.zoomOut();
+
         // Post-zoom: only the LATEST wheel-zoom invocation runs the scroll
         // adjustment. Earlier rapid wheels bail out — otherwise N rapid wheel
         // notches stack N near-identical dxScroll values and the page springs
@@ -107,18 +127,16 @@ export function setupWheelZoom() {
           console.log(`[wheel-zoom] STALE gen ${myWheelGen} (current ${_wheelZoomGen}) — skipping scroll adjustment`);
           return;
         }
-        // If we had a valid anchor, shift scroll so worldX/Y is still under
-        // the cursor. With flex `safe center`, the canvas is auto-centered
-        // when it fits the container — scrolling clamps to 0 in that case and
-        // the canvas stays centered (correct fallback).
-        if (worldX !== null && pdfCanvas && container) {
-          const newScale = (getActiveDocument()?.scale) || oldScale;
+
+        // Shift scroll so the cursor's world point (captured as a 0..1 fraction
+        // of the canvas) is still under the cursor at the new zoom. With flex
+        // `safe center`, the canvas is auto-centered when it fits the
+        // container — scrolling clamps to 0 in that case and the canvas stays
+        // centered (correct fallback).
+        if (fractionX !== null && pdfCanvas && container) {
           const newCanvasRect = pdfCanvas.getBoundingClientRect();
-          // Where worldX/Y sits in viewport coords right now (post-render)
-          const targetClientX = newCanvasRect.left + worldX * newScale;
-          const targetClientY = newCanvasRect.top + worldY * newScale;
-          // We want targetClient → clientX/Y. Container scrolling shifts the
-          // canvas in the opposite direction: scrollLeft += (target - cursor).
+          const targetClientX = newCanvasRect.left + fractionX * newCanvasRect.width;
+          const targetClientY = newCanvasRect.top + fractionY * newCanvasRect.height;
           const dxScroll = targetClientX - clientX;
           const dyScroll = targetClientY - clientY;
           if (dxScroll !== 0) container.scrollLeft += dxScroll;
