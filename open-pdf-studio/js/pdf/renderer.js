@@ -332,6 +332,25 @@ export async function renderPage(pageNum) {
   }
   const viewport = page.getViewport(viewportOpts);
 
+  // High-zoom safety cap. The browser canvas has a max ~16384 px per axis
+  // (Chromium); rendering BARN (1632×1056 pt page) at scale=10 would produce
+  // a 16320×10560 buffer = exceeds limit, allocation fails, canvas turns
+  // black, user sees "versringen". Cap the Rust render at a safe max-axis
+  // and let CSS-stretch the bitmap to the user-requested CSS viewport size
+  // (slightly blurry but stable — same approach as Edge/Chrome on heavy zoom).
+  //
+  // MAX_BITMAP_AXIS_PX chosen at 4096 = well under canvas limits, easy to
+  // allocate even on weak hardware, and CSS-stretching from 4096 to e.g.
+  // 8000 px is barely noticeable for tex/vector content (1 source pixel
+  // covers 2 dest pixels via bilinear).
+  const MAX_BITMAP_AXIS_PX = 4096;
+  const _pageMaxAxisPt = Math.max(viewport.width, viewport.height) / scale;
+  const _maxAllowedScale = MAX_BITMAP_AXIS_PX / _pageMaxAxisPt;
+  const _effectiveScale = Math.min(scale, _maxAllowedScale);
+  if (_effectiveScale < scale) {
+    console.log(`[render] high-zoom safety cap: requested scale=${scale.toFixed(2)}, rendering at ${_effectiveScale.toFixed(2)} (CSS-stretch to viewport)`);
+  }
+
   // Cache page dimensions in PDF points on the doc so plugin annotation
   // handlers can read them synchronously at click time without depending
   // on the pdf-viewport singleton (which is a noop for blank docs whose
@@ -490,7 +509,9 @@ export async function renderPage(pageNum) {
     // JS side too — drawImage of a cached bitmap is <10ms, giving the user
     // an instant-feeling zoom-out/zoom-in cycle. LRU-bounded so memory stays
     // sane on heavy multi-page docs.
-    const _jsCacheKey = `${doc.filePath}|${pageNum}|${Math.round(scale * 10000)}|${getPageRotation(pageNum) || 0}`;
+    // Cache key uses the EFFECTIVE (possibly capped) scale, so multiple
+    // high-zoom requests share the same capped bitmap.
+    const _jsCacheKey = `${doc.filePath}|${pageNum}|${Math.round(_effectiveScale * 10000)}|${getPageRotation(pageNum) || 0}`;
     const _jsCached = _bitmapJSCacheGet(_jsCacheKey);
     if (_jsCached) {
       // Stale-render guard for the CACHE HIT path. Without this, rapid zoom
@@ -528,7 +549,7 @@ export async function renderPage(pageNum) {
         const rgbaData = await invoke('render_pdf_page', {
           path: doc.filePath,
           pageIndex: pageNum - 1,
-          scale: scale,
+          scale: _effectiveScale,  // capped if user zoom would exceed safe canvas size
         });
         if (_isStaleDoc(doc)) return;
         const _t1 = performance.now();
