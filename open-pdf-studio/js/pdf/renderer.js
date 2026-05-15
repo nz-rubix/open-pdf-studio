@@ -211,38 +211,6 @@ export function preWarmOnOpen(doc) {
 // `mupdf-renderer.js` is still imported once below for `closeDocument()`
 // cleanup (no-op when the runtime never loaded the WASM module).
 
-// PDF.js rendering helper — used as fallback when the vector path is unavailable
-async function _renderPageWithPdfJs(page, viewport, pdfCanvas, bufferW, bufferH, dpr) {
-  const offscreen = document.createElement('canvas');
-  offscreen.width = bufferW;
-  offscreen.height = bufferH;
-  const offCtx = offscreen.getContext('2d');
-
-  const renderContext = {
-    canvasContext: offCtx,
-    viewport: viewport,
-    transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null,
-    annotationMode: 0,
-  };
-  if (state.preferences.thinLines) renderContext.enhanceThinLines = true;
-
-  currentRenderTask = page.render(renderContext);
-  try {
-    await currentRenderTask.promise;
-  } catch (e) {
-    if (e.name === 'RenderingCancelledException') return;
-    throw e;
-  }
-  currentRenderTask = null;
-
-  // Atomic swap
-  pdfCanvas.width = bufferW;
-  pdfCanvas.height = bufferH;
-  pdfCanvas.style.width = Math.floor(viewport.width) + 'px';
-  pdfCanvas.style.height = Math.floor(viewport.height) + 'px';
-  pdfCanvas.getContext('2d').drawImage(offscreen, 0, 0);
-}
-
 function setupCanvasHiDPI(canvas, width, height) {
   const dpr = getCanvasDPR();
   canvas.width = Math.floor(width * dpr);
@@ -250,9 +218,6 @@ function setupCanvasHiDPI(canvas, width, height) {
   canvas.style.width = Math.floor(width) + 'px';
   canvas.style.height = Math.floor(height) + 'px';
 }
-
-// Track current render task to cancel if needed
-let currentRenderTask = null;
 
 // Foreground-render generation counter. Bumped on every renderPage() entry;
 // each in-flight invocation captures the value at start, then re-checks after
@@ -337,17 +302,6 @@ async function _renderPageImpl(pageNum) {
   // below. Prevents the rapid-zoom out-of-order race.
   const _renderGen = ++_foregroundRenderGen;
   const _isStaleGen = () => _renderGen !== _foregroundRenderGen;
-
-  // Cancel any ongoing render task and wait for it to finish
-  if (currentRenderTask) {
-    try {
-      currentRenderTask.cancel();
-      await currentRenderTask.promise;
-    } catch (e) {
-      // Ignore cancel/RenderingCancelledException errors
-    }
-    currentRenderTask = null;
-  }
 
   const page = await pdfDoc.getPage(pageNum);
   if (_isStaleDoc(doc)) return; // user switched tabs while we awaited PDF.js page
@@ -648,12 +602,6 @@ export async function renderPageOffscreen(pageNum) {
   const scale = doc.scale;
 
   if (!Number.isInteger(pageNum) || pageNum < 1 || pageNum > pdfDoc.numPages) return;
-
-  // Cancel any ongoing render
-  if (currentRenderTask) {
-    try { currentRenderTask.cancel(); await currentRenderTask.promise; } catch {}
-    currentRenderTask = null;
-  }
 
   const page = await pdfDoc.getPage(pageNum);
   if (_isStaleDoc(doc)) return;
