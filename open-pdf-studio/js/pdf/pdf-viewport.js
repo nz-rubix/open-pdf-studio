@@ -639,6 +639,17 @@ export function fitToViewport() {
   viewport.offsetX = newOffsetX;
   viewport.offsetY = newOffsetY;
   viewport.dirty = true;
+
+  // Raster: re-kick the orchestrator so the new fit-zoom-bucket's bitmap +
+  // tile get async-fetched. Mirrors the hook in _anchorAt; fitToViewport
+  // does NOT call _anchorAt (it sets viewport.zoom directly), so it needs
+  // its own kick.
+  if (viewport.pageType === 'raster') {
+    import('./bitmap-orchestrator.js').then(orch => {
+      orch.ensureBitmapForCurrentView();
+      if (_canvas) orch.ensureTileForCurrentView(_canvas);
+    }).catch(() => {});
+  }
 }
 
 // ─── Zoom ───────────────────────────────────────────────────────────────────
@@ -693,6 +704,17 @@ function _anchorAt(screenX, screenY, oldZoom, newZoom, strict = false) {
   _anchorActive = true;
   _strictAnchor = strict;
   viewport.dirty = true;
+
+  // For raster pages, kick the orchestrator so the new zoom-bucket's bitmap
+  // and (if zoom > cap) tile get async-fetched. ensureBitmap dedups
+  // concurrent requests; the sync fallback in the orchestrator surfaces
+  // whatever bitmap is already cached so the canvas never blanks.
+  if (viewport.pageType === 'raster') {
+    import('./bitmap-orchestrator.js').then(orch => {
+      orch.ensureBitmapForCurrentView();
+      if (_canvas) orch.ensureTileForCurrentView(_canvas);
+    }).catch(() => {});
+  }
 }
 
 // Snap to the next/previous discrete zoom level, anchored at a cursor point.

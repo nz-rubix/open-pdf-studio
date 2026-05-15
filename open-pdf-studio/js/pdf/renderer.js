@@ -621,8 +621,58 @@ async function _renderPageImpl(pageNum) {
           }
 
           console.log(`[render] ✅ Vector viewport: ${dims.w}x${dims.h} pt, origin=(${dims.x0},${dims.y0})`);
+          // Mark page type so the unified render loop knows which branches to run
+          if (window.__pdfViewport) window.__pdfViewport.pageType = 'vector';
           _skipBitmapRender = true;
         }
+      }
+
+      // ─── RASTER MODE: unified viewport ──────────────────────────────────
+      // For raster-classified pages, activate the viewport singleton (same
+      // one used by vector mode) and let the unified _render() loop handle
+      // paint. The OLD bitmap-mode path further down still runs during this
+      // transition; Task 5 will rip it.
+      if (!_skipBitmapRender && !vr.hasCachedCommands(doc.filePath, pageNum, userRotation)) {
+        const { initViewport, setPage, wireEvents, viewport: pdfVP } =
+          await import('./pdf-viewport.js');
+        if (_isStaleDoc(doc)) { resumeThumbnails(); return; }
+
+        // Init viewport on the main PDF canvas if not already running.
+        initViewport(pdfCanvas, () => redrawAnnotations(true));
+        if (!pdfCanvas._vpEventsWired) {
+          wireEvents(pdfCanvas);
+          pdfCanvas._vpEventsWired = true;
+        }
+
+        // Container in fixed-overflow mode — viewport handles pan/zoom now.
+        const _rasterContainer = document.getElementById('pdf-container');
+        if (_rasterContainer) _rasterContainer.style.overflow = 'hidden';
+
+        // Page dims for the viewport. page.view = [x0, y0, x1, y1].
+        const _x0 = page.view[0], _y0 = page.view[1];
+        const _x1 = page.view[2], _y1 = page.view[3];
+        setPage(
+          doc.filePath, pageNum,
+          _x1 - _x0, _y1 - _y0,
+          _x0, _y0,
+          getPageRotation(pageNum) || 0
+        );
+
+        // Mark as raster so _render() takes the bitmap branch + skips vector
+        pdfVP.pageType = 'raster';
+
+        // Kick async bitmap fill — fires viewport.dirty when arrives.
+        const _orch = await import('./bitmap-orchestrator.js');
+        _orch.ensureBitmapForCurrentView();
+        // Tile will be ensured on the first zoom change via the _anchorAt hook
+        // (Step 4); for the initial fit we let _render() display whatever
+        // getBestAvailableBitmap provides immediately.
+
+        console.log(`[render] Raster viewport activated: ${_x1 - _x0}x${_y1 - _y0} pt`);
+        // DON'T set _skipBitmapRender = true yet — Task 5 rips the old path
+        // and at that point this block becomes the only raster path. For
+        // now letting both run keeps the bitmap visible while we test the
+        // unified path.
       }
       // Heavy IPC for the active page is done — let the thumbnail processor
       // resume immediately instead of waiting out the pause window.
