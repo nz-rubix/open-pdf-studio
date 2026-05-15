@@ -236,7 +236,7 @@ pub fn render_thumbnail_to_data_url(
     {
         use image::codecs::jpeg::JpegEncoder;
         use image::ImageEncoder;
-        let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_bytes, 75);
+        let encoder = JpegEncoder::new_with_quality(&mut jpeg_bytes, 75);
         encoder
             .write_image(&rgb, w, h, image::ExtendedColorType::Rgb8)
             .map_err(|e| format!("JPEG encode: {}", e))?;
