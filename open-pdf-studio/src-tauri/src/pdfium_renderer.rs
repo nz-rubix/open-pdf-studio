@@ -145,3 +145,57 @@ pub fn get_or_load_pdfium_doc_with_bytes(
     map.insert(path.to_string(), handle.clone());
     Ok(handle)
 }
+
+/// Render a single page to RGBA pixel bytes at the requested scale and
+/// rotation. Returns (width, height, rgba) where rgba length is
+/// width * height * 4.
+///
+/// `scale = 1.0` produces 1 PDF point = 1 pixel. The caller is
+/// responsible for any DPR adjustment.
+///
+/// `rotation` is in degrees, must be one of 0, 90, 180, 270.
+///
+/// /AP annotation streams are rendered (FPDF_ANNOT flag on) so sticky
+/// notes from Acrobat etc. appear, matching Chrome/Edge behaviour.
+pub fn render_page_to_rgba(
+    doc: &PdfDocument<'static>,
+    page_index: u32,
+    scale: f32,
+    rotation: i32,
+) -> Result<(u32, u32, Vec<u8>), String> {
+    let pages = doc.pages();
+    let page = pages
+        .get(page_index as i32)
+        .map_err(|e| format!("Page {} not found: {}", page_index, e))?;
+
+    let width_pt = page.width().value;
+    let height_pt = page.height().value;
+
+    let target_w = (width_pt * scale).ceil() as i32;
+    let target_h = (height_pt * scale).ceil() as i32;
+
+    let rot = match rotation.rem_euclid(360) {
+        0 => PdfPageRenderRotation::None,
+        90 => PdfPageRenderRotation::Degrees90,
+        180 => PdfPageRenderRotation::Degrees180,
+        270 => PdfPageRenderRotation::Degrees270,
+        other => return Err(format!("Unsupported rotation: {}", other)),
+    };
+
+    let config = PdfRenderConfig::new()
+        .set_target_width(target_w)
+        .set_maximum_height(target_h)
+        .rotate(rot, true)
+        .render_form_data(true)
+        .set_format(PdfBitmapFormat::BGRA);
+
+    let bitmap = page
+        .render_with_config(&config)
+        .map_err(|e| format!("PDFium render failed: {}", e))?;
+
+    let actual_w = bitmap.width() as u32;
+    let actual_h = bitmap.height() as u32;
+    let rgba = bitmap.as_rgba_bytes();
+
+    Ok((actual_w, actual_h, rgba))
+}
