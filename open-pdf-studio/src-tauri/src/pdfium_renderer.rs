@@ -335,3 +335,109 @@ pub fn render_thumbnail_to_json(
         data_url, w, h
     ))
 }
+
+// ─── Region / tile rendering ───────────────────────────────────────────────────
+
+/// Render only a sub-rectangle of a PDF page to RGBA pixel bytes. The
+/// output bitmap is sized `(region_w_pt * scale, region_h_pt * scale)` —
+/// vastly smaller than rendering the full page at high zoom.
+///
+/// `region_*_pt` are in PDF user-space POINTS (1pt = 1/72 inch). They
+/// describe which sub-rectangle of the page (origin top-left, before
+/// rotation) to render. `scale` is the zoom factor (1.0 = 100%).
+///
+/// Used by the tile-mode render path for high-zoom viewing — only the
+/// visible viewport region is rasterised, avoiding the giant full-page
+/// bitmap and browser canvas-size limit.
+///
+/// Returns `(bitmap_width_px, bitmap_height_px, rgba_bytes)`.
+///
+/// # Limitations
+/// - `rotation` must be 0 for this release. Non-zero values return `Err`.
+///   Rotation support will be added in a subsequent step.
+pub fn render_page_region_to_rgba(
+    doc: &PdfDocument<'static>,
+    page_index: u32,
+    scale: f32,
+    rotation: i32,
+    region_x_pt: f32,
+    region_y_pt: f32,
+    region_w_pt: f32,
+    region_h_pt: f32,
+) -> Result<(u32, u32, Vec<u8>), String> {
+    if rotation != 0 {
+        return Err(format!(
+            "render_page_region_to_rgba: rotation {} not yet supported (only 0 is implemented)",
+            rotation
+        ));
+    }
+
+    if region_w_pt <= 0.0 || region_h_pt <= 0.0 {
+        return Err(format!(
+            "render_page_region_to_rgba: region dimensions must be positive (got {}x{})",
+            region_w_pt, region_h_pt
+        ));
+    }
+
+    let pages = doc.pages();
+    let page = pages
+        .get(page_index as i32)
+        .map_err(|e| format!("Page {} not found: {}", page_index, e))?;
+
+    // Output bitmap pixel dimensions.
+    let bitmap_w = (region_w_pt * scale).ceil() as i32;
+    let bitmap_h = (region_h_pt * scale).ceil() as i32;
+
+    if bitmap_w <= 0 || bitmap_h <= 0 {
+        return Err(format!(
+            "render_page_region_to_rgba: computed bitmap size {}x{} is invalid",
+            bitmap_w, bitmap_h
+        ));
+    }
+
+    // Build the affine matrix that maps the full page coordinate space to
+    // bitmap pixels, then shifts so that `region_x_pt, region_y_pt` lands
+    // at pixel (0,0).
+    //
+    // PDF user-space convention for FPDF_RenderPageBitmapWithMatrix (via
+    // pdfium-render's `transform()` path):
+    //   x' = a*x + c*y + e
+    //   y' = b*x + d*y + f
+    //
+    //   a = scale_x  (x scale factor)
+    //   d = scale_y  (y scale factor — positive; PDFium handles Y-flip internally)
+    //   e = -region_x_pt * scale_x  (translate so region left edge → pixel 0)
+    //   f = -region_y_pt * scale_y  (translate so region top edge → pixel 0)
+    //   b = c = 0    (no shear / rotation)
+    let scale_x = scale;
+    let scale_y = scale;
+
+    let tx = -region_x_pt * scale_x;
+    let ty = -region_y_pt * scale_y;
+
+    // PdfRenderConfig field order: transform(a, b, c, d, e, f)
+    // We call set_fixed_size so the bitmap is exactly (bitmap_w × bitmap_h)
+    // and use_auto_scaling = false, so no additional scale is baked in.
+    // transform() sets do_render_form_data = false, which causes
+    // FPDF_RenderPageBitmapWithMatrix to be used.
+    let config = PdfRenderConfig::new()
+        .set_fixed_size(bitmap_w, bitmap_h)
+        .transform(scale_x, 0.0, 0.0, scale_y, tx, ty)
+        .map_err(|e| format!("render_page_region_to_rgba: invalid transform matrix: {}", e))?
+        .render_annotations(true)
+        .use_lcd_text_rendering(true)
+        .set_format(PdfBitmapFormat::BGRA);
+
+    let bitmap = page
+        .render_with_config(&config)
+        .map_err(|e| format!("PDFium region render failed: {}", e))?;
+
+    let actual_w = bitmap.width() as u32;
+    let actual_h = bitmap.height() as u32;
+
+    // as_rgba_bytes() handles the BGRA→RGBA conversion automatically (matches
+    // the existing render_page_to_rgba output shape).
+    let rgba = bitmap.as_rgba_bytes();
+
+    Ok((actual_w, actual_h, rgba))
+}
