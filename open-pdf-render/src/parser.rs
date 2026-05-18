@@ -658,17 +658,22 @@ impl DocumentHandle {
 
         // ─── Content-stream size shortcut ────────────────────────────────
         // For pages with very large content streams, the full lopdf operator
-        // decode (Content::decode) takes 500-2800 ms on construction PDFs
-        // (NKD1a page 2: ~2787 ms, Zware vector PDF: ~741 ms). The result
-        // is virtually always Tile anyway — content streams that big have
-        // too many vector commands for the JS-replay path to be faster than
-        // a single PDFium raster. Skip the decode and classify Tile when
-        // the decompressed content stream exceeds this threshold.
+        // decode (Content::decode) takes hundreds to thousands of ms on
+        // construction PDFs and the result is virtually always Tile anyway
+        // — content streams that big have too many vector commands for the
+        // JS-replay path to be faster than a single PDFium raster. Skip
+        // the decode and classify Tile when the decompressed content stream
+        // exceeds this threshold.
         //
-        // Tunable: 1 MB picked empirically — small enough that legitimate
-        // 100-500 KB vector pages still get JS-replay, large enough to
-        // catch the construction-drawing pages that hurt perceived nav.
-        const TILE_CONTENT_THRESHOLD_BYTES: usize = 1_000_000;
+        // Tunable: 500 KB picked empirically.
+        //   - NKD1a p2-7: multi-MB streams, classify instantly as Tile
+        //   - rapport-constructie p26: 902 KB stream — caught by this
+        //     threshold; previously (1 MB threshold) it fell into the slow
+        //     decode path for 1.3 s and the user perceived it as "page
+        //     doesn't open" while waiting
+        //   - Tekst / small report pages: 1-50 KB streams, decode fast,
+        //     stay on JS-replay vector path
+        const TILE_CONTENT_THRESHOLD_BYTES: usize = 500_000;
         let content_bytes = self.get_content_stream(page_id)?;
         if content_bytes.len() > TILE_CONTENT_THRESHOLD_BYTES {
             return Ok(crate::PageType::Tile);

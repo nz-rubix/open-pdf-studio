@@ -201,6 +201,54 @@ function _kickOrchestratorAfterZoom() {
   }, 150);
 }
 
+// ─── ZOOM-FREEZE (rapid-zoom debounce) ──────────────────────────────────────
+// When the user clicks +/- rapidly (or holds it down), each step changes
+// viewport.zoom and the RAF loop normally re-runs renderVectorPage — which
+// can be 100-500 ms per call on complex vector pages (NKD1a, Zware vector PDF).
+// 8 steps = 8 full re-renders = laggy.
+//
+// FREEZE strategy: on the first zoom step, snapshot the current canvas
+// pixels to an OffscreenCanvas. While the freeze is active (every step
+// extends it 150 ms forward), _render() draws the SNAPSHOT stretched to
+// the new viewport.zoom / offset — no vector re-paint, no orchestrator
+// IPC. After 150 ms of zoom-stillness, drop the snapshot and trigger ONE
+// fresh full render at the final zoom level.
+//
+// User experience: each click immediately rescales the visible image
+// (snapshot stretch is sub-ms even at 4K) and the crisp final render
+// settles 150 ms after the last click.
+let _zoomFreezeBitmap = null;     // OffscreenCanvas snapshot, or null
+let _zoomFreezeZoom = 0;          // viewport.zoom at snapshot time
+let _zoomFreezeOffsetX = 0;       // viewport.offsetX at snapshot time
+let _zoomFreezeOffsetY = 0;       // viewport.offsetY at snapshot time
+let _zoomFreezeDpr = 1;           // dpr at snapshot time (so dest math matches)
+let _zoomFreezeTimer = null;
+
+function _captureZoomFreeze() {
+  if (_zoomFreezeBitmap) return;   // already frozen
+  if (!_canvas || _canvas.width <= 0 || _canvas.height <= 0) return;
+  try {
+    const off = new OffscreenCanvas(_canvas.width, _canvas.height);
+    off.getContext('2d').drawImage(_canvas, 0, 0);
+    _zoomFreezeBitmap = off;
+    _zoomFreezeZoom = viewport.zoom;
+    _zoomFreezeOffsetX = viewport.offsetX;
+    _zoomFreezeOffsetY = viewport.offsetY;
+    _zoomFreezeDpr = _getDpr();
+  } catch (e) {
+    _zoomFreezeBitmap = null;       // OffscreenCanvas may not exist on very old WebView; degrade gracefully
+  }
+}
+
+function _scheduleZoomFreezeRelease() {
+  if (_zoomFreezeTimer) clearTimeout(_zoomFreezeTimer);
+  _zoomFreezeTimer = setTimeout(() => {
+    _zoomFreezeTimer = null;
+    _zoomFreezeBitmap = null;
+    viewport.dirty = true;          // trigger ONE fresh full render at the final zoom
+  }, 150);
+}
+
 function _scheduleTileRecheckAfterPan() {
   if (viewport.pageType !== 'raster' || !_canvas) return;
   if (_panTileTimer) clearTimeout(_panTileTimer);
@@ -423,6 +471,47 @@ function _render() {
   const dpr = _getDpr();
   const vpW = _canvas.width / dpr;
   const vpH = _canvas.height / dpr;
+
+  // ─── ZOOM-FREEZE FAST PATH ──────────────────────────────────────────────
+  // During the rapid-zoom debounce window, skip clampAndCenter +
+  // white-background + vector pass entirely. Just stretch the captured
+  // snapshot to the new viewport transform. Sub-ms even at 4K. The proper
+  // render fires once when the debounce timer releases.
+  if (_zoomFreezeBitmap) {
+    _ctx.setTransform(1, 0, 0, 1, 0, 0);
+    _ctx.fillStyle = '#e0e0e0';
+    _ctx.fillRect(0, 0, _canvas.width, _canvas.height);
+    // The snapshot was captured at (_zoomFreezeZoom, _zoomFreezeOffsetX/Y).
+    // For a world point W, its snapshot-pixel was:
+    //   sx_px = (W_x * _zoomFreezeZoom + _zoomFreezeOffsetX) * _zoomFreezeDpr
+    // We want that same world point to appear at the CURRENT pixel:
+    //   cx_px = (W_x * viewport.zoom + viewport.offsetX) * dpr
+    // Solving for the drawImage params (dest rect that maps src(0,0..w,h) → dst):
+    //   k = (viewport.zoom * dpr) / (_zoomFreezeZoom * _zoomFreezeDpr)
+    //   dw = _zoomFreezeBitmap.width * k
+    //   dx = viewport.offsetX * dpr - _zoomFreezeOffsetX * _zoomFreezeDpr * k
+    const k = (viewport.zoom * dpr) / (_zoomFreezeZoom * _zoomFreezeDpr);
+    const dw = _zoomFreezeBitmap.width * k;
+    const dh = _zoomFreezeBitmap.height * k;
+    const dx = viewport.offsetX * dpr - _zoomFreezeOffsetX * _zoomFreezeDpr * k;
+    const dy = viewport.offsetY * dpr - _zoomFreezeOffsetY * _zoomFreezeDpr * k;
+    try {
+      _ctx.drawImage(_zoomFreezeBitmap, dx, dy, dw, dh);
+    } catch {
+      // OffscreenCanvas drawImage shouldn't throw, but if it does just bail
+      // — the next RAF will hit the normal render path once freeze releases.
+    }
+    // Annotation overlay redraw — keep annotations in sync with the
+    // stretched page bitmap. The lightweight redraw reads viewport.zoom
+    // and viewport.offsetX/Y directly so it follows the freeze transform
+    // for free; calling it here just makes sure it runs on every freeze
+    // frame (annotations move smoothly with the page instead of "sticking"
+    // at the pre-zoom position).
+    if (_annotationRedraw) {
+      try { _annotationRedraw(); } catch {}
+    }
+    return;
+  }
 
   // Always clamp + auto-center BEFORE drawing so a page that fits the
   // viewport ends up centered no matter how we got here (zoom out, resize,
@@ -748,6 +837,13 @@ function nextZoomStep(current, direction) {
 // for fit / center-anchored zooms where keeping the page fully visible is
 // preferable.
 function _anchorAt(screenX, screenY, oldZoom, newZoom, strict = false) {
+  // Snapshot BEFORE mutating viewport.zoom/offset so the freeze-render below
+  // can stretch the captured pixels per the new transform. Idempotent —
+  // additional zoom steps within the debounce window reuse the same snapshot
+  // (so the page still anchors to its ORIGINAL appearance, not the previous
+  // stretched freeze frame, which would compound rounding drift).
+  _captureZoomFreeze();
+
   const wx = (screenX - viewport.offsetX) / oldZoom;
   const wy = (screenY - viewport.offsetY) / oldZoom;
   viewport.offsetX = screenX - wx * newZoom;
@@ -759,6 +855,10 @@ function _anchorAt(screenX, screenY, oldZoom, newZoom, strict = false) {
   _anchorActive = true;
   _strictAnchor = strict;
   viewport.dirty = true;
+
+  // Extend the freeze window for another 150 ms (debounce). Final cleanup
+  // (drop snapshot, force one fresh render) happens in the scheduled timer.
+  _scheduleZoomFreezeRelease();
 
   // For raster pages, kick the orchestrator so the new zoom-bucket's bitmap
   // and (if zoom > cap) tile get async-fetched. ensureBitmap dedups

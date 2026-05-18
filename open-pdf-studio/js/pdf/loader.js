@@ -278,7 +278,18 @@ export async function loadPDF(filePath, docIndex, preloadedData = null) {
       window.__TAURI__.core.invoke('analyze_page_type_batch', {
         path: filePath,
         pageIndices: allPages,
-      }).then((results) => {
+      }).then(async (results) => {
+        // Populate the JS-side cache so renderer.js skips the analyze IPC
+        // entirely on subsequent navigations — critical because during
+        // cold-open the IPC queue is saturated by thumbnail invokes and
+        // a single analyze invoke can wait 1+ second despite the Rust
+        // cache being warm.
+        try {
+          const ptcMod = await import('./page-type-cache.js');
+          ptcMod.cacheBatchResults(filePath, results);
+        } catch (e) {
+          console.warn('[PERF] page-type-cache populate failed:', e?.message ?? e);
+        }
         console.log(`[PERF] analyze_page_type_batch ${doc.pdfDoc.numPages} pages: ${(performance.now() - _abT0).toFixed(0)}ms ` +
           `(vector=${results.filter(r => r === 'vector').length}, tile=${results.filter(r => r === 'tile').length})`);
       }).catch((e) => {

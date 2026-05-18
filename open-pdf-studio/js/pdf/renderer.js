@@ -235,9 +235,21 @@ async function _renderPageImpl(pageNum) {
       const userRotation = getPageRotation(pageNum);
       if (!vr.hasCachedCommands(doc.filePath, pageNum, userRotation)) {
         console.log(`[PERF] renderPage(${pageNum}) analyze_page_type START: ${(performance.now() - _rp0).toFixed(0)}ms`);
-        const pageType = await invoke('analyze_page_type', { path: doc.filePath, pageIndex: pageNum - 1 });
-        if (_isStaleDoc(doc)) { resumeThumbnails(); return; }
-        console.log(`[PERF] renderPage(${pageNum}) analyze_page_type=${pageType}: ${(performance.now() - _rp0).toFixed(0)}ms`);
+        // JS-side cache check FIRST — populated by analyze_page_type_batch
+        // at cold-open. Skips the IPC roundtrip (which can be 1+ second
+        // queued behind thumbnail invokes during cold-open) for any page
+        // the batch has classified. The Rust cache remains authoritative
+        // for the rare cold-miss path below.
+        const ptcMod = await import('./page-type-cache.js');
+        let pageType = ptcMod.getCachedPageType(doc.filePath, pageNum - 1);
+        if (pageType) {
+          console.log(`[PERF] renderPage(${pageNum}) analyze_page_type=${pageType} (js-cache): ${(performance.now() - _rp0).toFixed(0)}ms`);
+        } else {
+          pageType = await invoke('analyze_page_type', { path: doc.filePath, pageIndex: pageNum - 1 });
+          if (_isStaleDoc(doc)) { resumeThumbnails(); return; }
+          ptcMod.cachePageType(doc.filePath, pageNum - 1, pageType);
+          console.log(`[PERF] renderPage(${pageNum}) analyze_page_type=${pageType}: ${(performance.now() - _rp0).toFixed(0)}ms`);
+        }
         if (pageType === 'vector') {
           console.log(`[PERF] renderPage(${pageNum}) extract_draw_commands START: ${(performance.now() - _rp0).toFixed(0)}ms`);
           const cmdData = await invoke('extract_draw_commands', {
