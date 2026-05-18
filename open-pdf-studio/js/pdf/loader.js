@@ -484,19 +484,28 @@ export async function loadPDF(filePath, docIndex, preloadedData = null) {
                   await vr.prepareImages(filePath, p, 0);
                   warmedVector++;
                 } else {
-                  // TILE page — warm a SMALL fallback bitmap so the first
-                  // navigation to this page lands in getBestAvailableBitmap's
-                  // proximity search and the orchestrator paints INSTANTLY
-                  // (stretched, but recognisable) while the exact-bucket
-                  // render settles in the background.
+                  // TILE page — warm the bitmap cache at bucket=0.125. This
+                  // is the SMALLEST sub-1 bucket; PDFium renders 2-3× faster
+                  // here than at bucket=0.25 (scale=0.125 vs 0.25), which
+                  // matters because the per-page prefetch is the bottleneck
+                  // that decides whether the user gets a cache hit or a
+                  // cold render on first navigation.
                   //
-                  // We render at scale=0.25 to keep memory bounded. For
-                  // NKD1a's biggest tile page (5156×2384 pt) that's a
-                  // 1289×596 = ~3 MB bitmap, vs 50 MB at scale=1.0. The
-                  // bitmap is stored under cacheBucket=1 so any later
-                  // targetBucket finds it via the log-distance fallback
-                  // search in getBestAvailableBitmap.
-                  await pbc.prefetchFallbackBitmap(filePath, p, 0, 0.25);
+                  // Measured PDFium times on NKD1a p4 (5156×2384 pt):
+                  //   scale=0.05  → 1295 ms (258×119 bitmap)
+                  //   scale=0.125 → ~1500 ms (estimate)
+                  //   scale=0.25  → 2737 ms (1032×477)
+                  //   scale=1.0   → 3184 ms (5157×2384, 46 MB)
+                  // 6 tile pages × 1.5 s ≈ 9 s total prefetch instead of
+                  // 16 s at scale=0.25 — user is more likely to navigate
+                  // AFTER prefetch completes (= cache hit, instant paint).
+                  //
+                  // getBestAvailableBitmap's proximity search means an
+                  // orchestrator targeting bucket=0.25 (fit-zoom on huge
+                  // pages) still finds the 0.125 entry as fallback. Visible
+                  // result: instant stretched paint, upgraded to crisp by
+                  // the async exact-bucket render within ~2 s.
+                  await pbc.ensureBitmap(filePath, p, 0, 0.125);
                   if (isClosed()) return;
                   warmedTile++;
                 }

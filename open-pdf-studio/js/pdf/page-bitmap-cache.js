@@ -47,7 +47,17 @@ function _key(filePath, pageNum, rotation, zoomBucket) {
 // (lower-zoom) tile drawn stretched at higher css zoom — the user
 // reported this as "zoom > 600% suddenly picks a worse-resolution tile".
 export function computeZoomBucket(targetScale) {
-  if (!Number.isFinite(targetScale) || targetScale <= 0) return 1;
+  if (!Number.isFinite(targetScale) || targetScale <= 0) return 0.125;
+  // ─── SUB-1 BUCKETS (huge-page first-paint speedup) ─────────────────────
+  // Without these the orchestrator always renders at scale=1.0 for any
+  // zoom ≤ 1.0, which on a 5156×2384 pt construction page = 5157×2384 px
+  // bitmap = 46 MB and 3+ s of PDFium CPU. At fit-zoom (~0.13) the user
+  // is only displaying a 1005×465 px viewport — rendering at scale=0.25
+  // gives a 1289×596 px bitmap that downsamples crisply, while saving
+  // 500-1000 ms PDFium time and ~95 % of memory per cached bitmap.
+  if (targetScale <= 0.125) return 0.125;
+  if (targetScale <= 0.25) return 0.25;
+  if (targetScale <= 0.5) return 0.5;
   if (targetScale <= 1) return 1;
   if (targetScale <= 2) return 2;
   if (targetScale <= 4) return 4;
@@ -73,7 +83,7 @@ export function getBestAvailableBitmap(filePath, pageNum, rotation, targetBucket
   // buckets that computeZoomBucket can now produce so a tile prefetched at
   // scale=1.0 (bucket=1) is still findable as a fallback at zoom 16x or
   // higher (bucket=16 or 32).
-  const buckets = [1, 2, 4, 8, 16, 32, 64, 128];
+  const buckets = [0.125, 0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, 128];
   const sorted = buckets.slice().sort((a, b) =>
     Math.abs(Math.log2(a) - Math.log2(targetBucket)) -
     Math.abs(Math.log2(b) - Math.log2(targetBucket))
