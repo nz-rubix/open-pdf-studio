@@ -169,6 +169,57 @@ export async function loadPDF(filePath, docIndex, preloadedData = null) {
       try { await window.__TAURI__.core.invoke('allow_fs_scope', { path: filePath }); } catch {}
     }
 
+    // ─── COLD-OPEN PARALLEL PRE-RENDER ───────────────────────────────────────
+    // PDF.js getDocument burns 500-1000 ms on construction PDFs (24 MB NKD1a:
+    // ~590 ms) just parsing xref/catalog/page-tree, blocking the first-page
+    // render. But Rust render_pdf_page doesn't need PDF.js — it reads the
+    // file itself (std::fs) and renders via PDFium. By firing it in parallel
+    // with the JS file-read + getDocument, we can paint a bitmap PREVIEW of
+    // page 1 hundreds of ms before the proper render runs. The proper
+    // vector/raster path paints over it once PDF.js is ready; for vector
+    // pages the bitmap is harmlessly overdrawn by sharper vector commands.
+    //
+    // Race / correctness:
+    //   - !isActive() (user switched tab during async) → skip paint
+    //   - doc.pdfDoc already set (proper render won the race) → skip paint
+    //   - Pre-render fails (parse error, etc.) → silent, normal flow continues
+    //   - scale=1.0 means w pixels = w points; viewport stretches to user zoom
+    //   - originX/originY assumed 0; if MediaBox origin is non-zero (rare),
+    //     preview is briefly mis-positioned by a few pt — corrected once
+    //     proper render fires
+    let _preT0 = performance.now();
+    if (filePath && isTauri()) {
+      window.__TAURI__.core.invoke('render_pdf_page', {
+        path: filePath,
+        pageIndex: 0,
+        scale: 1.0,
+        rotation: 0,
+      }).then(async (rgbaData) => {
+        if (!rgbaData || isClosed() || doc.pdfDoc || !isActive()) return;
+        try {
+          const bytes = rgbaData instanceof Uint8Array ? rgbaData : new Uint8Array(rgbaData);
+          if (bytes.length <= 8) return;
+          const view = new DataView(bytes.buffer, bytes.byteOffset, 8);
+          const w = view.getUint32(0, true);
+          const h = view.getUint32(4, true);
+          const rgba = new Uint8ClampedArray(bytes.buffer, bytes.byteOffset + 8, bytes.length - 8);
+          const imageData = new ImageData(rgba, w, h);
+          const bitmap = await createImageBitmap(imageData);
+          if (isClosed() || doc.pdfDoc || !isActive()) { bitmap.close(); return; }
+          const vp = await import('./pdf-viewport.js');
+          vp.setPage(filePath, 1, w, h, 0, 0, 0);
+          window.__pdfViewport.currentBitmap = bitmap;
+          window.__pdfViewport.pageType = 'raster';
+          window.__pdfViewport.dirty = true;
+          console.log(`[PERF] cold-open preview painted: ${(performance.now() - _preT0).toFixed(0)}ms (${w}x${h})`);
+        } catch (e) {
+          console.warn('[PERF] cold-open preview paint failed:', e?.message ?? e);
+        }
+      }).catch((e) => {
+        console.warn('[PERF] cold-open pre-render failed:', e?.message ?? e);
+      });
+    }
+
     let typedArray;
 
     if (preloadedData) {

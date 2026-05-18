@@ -21,8 +21,12 @@ import {
   thumbnailSelectedPages, selectThumbnailPage,
 } from '../../bridge.js';
 
-// Thumbnail scale (relative to actual page size)
-const THUMBNAIL_SCALE = 0.2;
+// Thumbnail scale (relative to actual page size). The thumbnail panel
+// displays at ~152 px wide; rendering close to that 1:1 saves PDFium
+// work without visible quality loss. 0.14 puts an A4 portrait at
+// ~595*0.14 = 83 pt = ~111 px wide; landscape A0 at ~5156*0.14 = 722 pt
+// → capped to targetW=140 by the JS-replay path.
+const THUMBNAIL_SCALE = 0.14;
 
 // Cache for thumbnail data per document: Map<docId, Map<pageNum, imageDataURL>>
 const thumbnailCache = new Map();
@@ -521,7 +525,7 @@ async function renderThumbnailToDataURL(pdfDoc, pageNum) {
           // limits. For PORTRAIT pages (h > w), 200 px wide may produce a
           // thumbnail taller than the panel — but downstream layout handles
           // that. The original sizing is preserved here for compatibility.
-          const targetW = 200;
+          const targetW = 140;
           const scale = targetW / dims.w;
           const w = Math.max(1, Math.round(dims.w * scale));
           const h = Math.max(1, Math.round(dims.h * scale));
@@ -560,7 +564,7 @@ async function renderThumbnailToDataURL(pdfDoc, pageNum) {
       const result = await invoke('render_thumbnail', {
         path: doc.filePath,
         pageIndex: pageNum - 1,
-        maxWidth: 200,
+        maxWidth: 140,
         skipImages: true,
       });
       const data = JSON.parse(result);

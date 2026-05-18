@@ -187,16 +187,29 @@ pub fn render_page_to_rgba(
         .set_maximum_height(target_h)
         .rotate(rot, true)
         .render_form_data(true)
+        // ANNOTATION OWNERSHIP: PDFium does NOT render /Annot entries; our
+        // own annotation-converter.js reads them into state.documents[]
+        // and the annotation-canvas overlay draws them on top. This means
+        // user deletes/edits via the UI reflect immediately — no need to
+        // re-serialize the PDF + re-render to see the change. The fallback
+        // before this was render_annotations(true) which double-rendered
+        // every annotation (once by PDFium into the bitmap, once by our
+        // overlay) and made deletes invisible until save+reload.
+        //
+        // KNOWN GAP: any /Annot subtype that annotation-converter doesn't
+        // import will not be drawn. The converter currently covers
+        // Highlight, Underline, StrikeOut, Square, Polygon, PolyLine, Ink,
+        // FreeText, Circle, Line, Stamp, and the project's private OPS
+        // subtypes. Exotic subtypes from third-party editors may be lost.
+        .render_annotations(false)
         // FPDF_LCD_TEXT: subpixel antialiased text. Matches what Chromium /
         // Edge use by default.
         .use_lcd_text_rendering(true)
         .set_format(PdfBitmapFormat::BGRA);
-    // KNOWN LIMITATION (v1.51 follow-up): PDFs with OCG (Optional Content
+    // KNOWN LIMITATION (v1.52 follow-up): PDFs with OCG (Optional Content
     // Group) layers that are hidden by default in viewer preferences
-    // (e.g. PDF-XChange editor markup overlays in `*_opm_aw.pdf` files)
     // render those layers VISIBLE because pdfium-render 0.9.1 does not
-    // expose FPDFOCG_IsContentVisible. Edge and PDF-XChange Editor both
-    // filter these layers correctly. Needs custom FFI calls.
+    // expose FPDFOCG_IsContentVisible. Needs custom FFI calls.
 
     let bitmap = page
         .render_with_config(&config)
@@ -427,7 +440,12 @@ pub fn render_page_region_to_rgba(
         .set_fixed_size(bitmap_w, bitmap_h)
         .transform(scale_x, 0.0, 0.0, scale_y, tx, ty)
         .map_err(|e| format!("render_page_region_to_rgba: invalid transform matrix: {}", e))?
-        .render_annotations(true)
+        // ANNOTATION OWNERSHIP: see render_page_to_rgba above. Tiles must
+        // omit /Annot entries too so the overlay-canvas is the single
+        // source of truth at every zoom level. Without this, high-zoom
+        // tiles would still bake annotations into the bitmap and deleted
+        // annotations would persist visually in tile regions.
+        .render_annotations(false)
         .use_lcd_text_rendering(true)
         .set_format(PdfBitmapFormat::BGRA);
 
