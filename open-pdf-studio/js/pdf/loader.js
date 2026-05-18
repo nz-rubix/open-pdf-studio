@@ -227,7 +227,8 @@ export async function loadPDF(filePath, docIndex, preloadedData = null) {
     //     proper render fires
     let _preT0 = performance.now();
     if (filePath && isTauri()) {
-      window.__TAURI__.core.invoke('render_pdf_page', {
+      const { renderPdfPage: _renderPdfPage } = await import('./engine-router.js');
+      _renderPdfPage({
         path: filePath,
         pageIndex: 0,
         scale: 1.0,

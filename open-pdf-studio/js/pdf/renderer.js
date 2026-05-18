@@ -519,7 +519,8 @@ export async function renderPageOffscreen(pageNum) {
     return;
   }
   try {
-    const rgbaData = await invoke('render_pdf_page', {
+    const { renderPdfPage } = await import('./engine-router.js');
+    const rgbaData = await renderPdfPage({
       path: doc.filePath,
       pageIndex: pageNum - 1,
       scale: scale,
@@ -756,7 +757,8 @@ async function renderContinuousPage(pageNum) {
   } else {
     try {
       console.time(label + ' invoke-render');
-      const rgbaData = await invoke('render_pdf_page', {
+      const { renderPdfPage } = await import('./engine-router.js');
+      const rgbaData = await renderPdfPage({
         path: doc.filePath,
         pageIndex: pageNum - 1,
         scale: doc.scale,

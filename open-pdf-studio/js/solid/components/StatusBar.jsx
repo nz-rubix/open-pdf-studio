@@ -155,7 +155,15 @@ export default function StatusBar() {
               "font-weight": "bold",
               "letter-spacing": "0.3px",
             }}>
-              {state.renderEngine}
+              {(() => {
+                const ov = state.renderEngineOverride;
+                if (ov === 'rust-skia') return 'Engine: Rust (alpha)';
+                if (ov === 'pdfium') return 'Engine: PDFium';
+                const e = state.renderEngine || '';
+                if (e.startsWith('Raster')) return 'Engine: PDFium';
+                if (e === 'Vector') return 'Engine: Vector';
+                return e ? `Engine: ${e}` : 'Engine: ?';
+              })()}
             </span>
           </div>
           <div class="status-separator"></div>
@@ -300,9 +308,14 @@ export default function StatusBar() {
               }}>
               {(() => {
                 const ov = state.renderEngineOverride;
-                if (ov === 'rust-skia') return 'Rust (alpha)';
-                if (ov === 'pdfium') return state.renderEngine || 'PDFium';
-                return state.renderEngine; // auto
+                if (ov === 'rust-skia') return 'Engine: Rust (alpha)';
+                if (ov === 'pdfium') return 'Engine: PDFium';
+                // auto — strip the "Raster (...)" / parenthetical decorations
+                // from the renderer-reported engine name and prefix "Engine:"
+                const e = state.renderEngine || '';
+                if (e.startsWith('Raster')) return 'Engine: PDFium';
+                if (e === 'Vector') return 'Engine: Vector';
+                return e ? `Engine: ${e}` : 'Engine: ?';
               })()}
             </span>
             <Show when={state.renderTiming}>

@@ -140,14 +140,11 @@ function _ensureBitmapAtScale(filePath, pageNum, rotation, cacheBucket, renderSc
       // PERF FIX #3: Rust now returns RGBA bytes directly via tauri::ipc::Response.
       // Wire format: [width u32 LE][height u32 LE][rgba bytes...]. No tempfile.
       //
-      // Engine selection: state.renderEngineOverride === 'rust-skia' routes
-      // to our open-pdf-render Skia kernel (alpha). Default / 'pdfium' uses
-      // PDFium via render_pdf_page.
-      const stateMod = await import('../core/state.js');
-      const command = (stateMod?.state?.renderEngineOverride === 'rust-skia')
-        ? 'render_pdf_page_skia'
-        : 'render_pdf_page';
-      const result = await invoke(command, {
+      // Engine selection routed through engine-router so every whole-page
+      // render path (here, loader cold-open preview, renderer.js direct
+      // calls) honors the same state.renderEngineOverride consistently.
+      const { renderPdfPage } = await import('./engine-router.js');
+      const result = await renderPdfPage({
         path: filePath,
         pageIndex: pageNum - 1,
         scale: renderScale,
