@@ -176,6 +176,31 @@ const _WHEEL_TO_VELOCITY = 0.25;
 // into a single re-check 100 ms after the last pan event.
 let _panTileTimer = null;
 
+// Debounce timer for the FULL orchestrator kick (bitmap + tile) triggered by
+// zoom. Without this, each wheel-tick on a huge page (e.g. NKD1a p5, 5156x2384 pt
+// where the whole-page bitmap caps at 1x and every zoom-bucket transition
+// re-renders a tile) queues a Rust render that takes 200-1000 ms each. Five
+// rapid wheels = five queued renders = ~5 seconds wait before the last one
+// (the only non-stale one) lands. With debounce: user keeps wheeling, no
+// Rust call fires; user stops, one render fires for the final zoom level.
+//
+// The synchronous getBestAvailableBitmap fallback inside ensureBitmap-
+// ForCurrentView still surfaces the best cached bitmap at the new zoom
+// transform during the debounce window, so the page never appears blank —
+// only the CRISPNESS upgrade is delayed.
+let _zoomOrchTimer = null;
+function _kickOrchestratorAfterZoom() {
+  if (viewport.pageType !== 'raster') return;
+  if (_zoomOrchTimer) clearTimeout(_zoomOrchTimer);
+  _zoomOrchTimer = setTimeout(() => {
+    _zoomOrchTimer = null;
+    import('./bitmap-orchestrator.js').then(orch => {
+      orch.ensureBitmapForCurrentView();
+      if (_canvas) orch.ensureTileForCurrentView(_canvas);
+    }).catch(() => {});
+  }, 150);
+}
+
 function _scheduleTileRecheckAfterPan() {
   if (viewport.pageType !== 'raster' || !_canvas) return;
   if (_panTileTimer) clearTimeout(_panTileTimer);
@@ -679,12 +704,7 @@ export function fitToViewport() {
   // tile get async-fetched. Mirrors the hook in _anchorAt; fitToViewport
   // does NOT call _anchorAt (it sets viewport.zoom directly), so it needs
   // its own kick.
-  if (viewport.pageType === 'raster') {
-    import('./bitmap-orchestrator.js').then(orch => {
-      orch.ensureBitmapForCurrentView();
-      if (_canvas) orch.ensureTileForCurrentView(_canvas);
-    }).catch(() => {});
-  }
+  _kickOrchestratorAfterZoom();
 }
 
 // ─── Zoom ───────────────────────────────────────────────────────────────────
@@ -744,12 +764,7 @@ function _anchorAt(screenX, screenY, oldZoom, newZoom, strict = false) {
   // and (if zoom > cap) tile get async-fetched. ensureBitmap dedups
   // concurrent requests; the sync fallback in the orchestrator surfaces
   // whatever bitmap is already cached so the canvas never blanks.
-  if (viewport.pageType === 'raster') {
-    import('./bitmap-orchestrator.js').then(orch => {
-      orch.ensureBitmapForCurrentView();
-      if (_canvas) orch.ensureTileForCurrentView(_canvas);
-    }).catch(() => {});
-  }
+  _kickOrchestratorAfterZoom();
 }
 
 // Snap to the next/previous discrete zoom level, anchored at a cursor point.
