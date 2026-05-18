@@ -320,7 +320,16 @@ pub fn render_thumbnail_to_json(
 
     let w_pt = page.width().value;
     let h_pt = page.height().value;
-    let scale = max_width as f32 / w_pt.max(h_pt);
+    // The parameter is named `max_width` and callers (left-panel.js thumbnail
+    // path) treat it as "thumbnail width is exactly this many pixels".
+    // Earlier this used `w_pt.max(h_pt)` (max-axis semantics) which made
+    // portrait pages render at narrower-than-requested widths (e.g. A4
+    // portrait at maxWidth=140 became 99×140 instead of 140×198), giving
+    // visibly different sizes than the JS-replay vector path (which is
+    // strictly width-targeted). Mismatched thumbnail widths in the panel
+    // produced the user-reported "different sizes" issue. Width-target the
+    // scale so both paths produce identical (140×<aspect-h>) thumbnails.
+    let scale = max_width as f32 / w_pt;
 
     let (w, h, rgba) = render_page_to_rgba(doc, page_index, scale, rotation)?;
 
