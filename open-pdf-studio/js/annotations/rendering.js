@@ -81,11 +81,26 @@ function _drawPolarOverlay(ctx, snapResult, scale) {
 // - width === 0 means "no border" (PDF spec) — return 0 untouched
 // - Thin-lines view: clamp to max 1px
 // - Normal view: respect the PDF-defined width with a tiny floor (0.5) so
-//   a non-zero stroke stays visible
+//   a non-zero stroke stays visible.
+// Additionally enforce a 1-screen-pixel minimum when zoomed below 100 %:
+// a 1 pt app-space stroke at 35 % zoom resolves to ~0.35 screen-pixels,
+// which the canvas anti-aliases into a near-invisible ghost. This is the
+// user-visible cause of the "Line doesn't appear" report — the Line tool
+// has no fill to fall back on, unlike Rectangle/Circle/Cloud whose fill
+// keeps the shape visible even when the outline goes sub-pixel.
 function thinLw(width) {
   if (width === 0) return 0;
   if (state.preferences?.thinLines) return Math.min(width, 1);
-  return Math.max(width, 0.25);
+  let lw = Math.max(width, 0.25);
+  const vp = window.__pdfViewport;
+  const scale = (vp && vp.active)
+    ? vp.zoom
+    : (state.documents[state.activeDocumentIndex]?.scale || 1);
+  if (scale > 0 && scale < 1) {
+    const minAppPx = 1 / scale;          // 1 screen pixel in app-coords
+    if (lw < minAppPx) lw = minAppPx;
+  }
+  return lw;
 }
 
 // Pick the textbox edge whose midpoint is closest to (kx, ky).
