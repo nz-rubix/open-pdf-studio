@@ -36,6 +36,10 @@ function tauriInvoke() {
 // any setup step on the user side.
 const CONSOLE_RING = [];
 const CONSOLE_RING_MAX = 500;
+// Expose the ring on window so in-app UI (e.g. MiniLog) can read recent
+// engine events without going through the MCP/IPC round-trip. The MCP
+// tool handler still reads the same array — single source of truth.
+try { window.__consoleRing = CONSOLE_RING; } catch { /* noop */ }
 // Patterns the render pipeline uses: [render], [tile], [wheel-zoom],
 // [PERF], [pre-render], STALE markers. Adjust if more subsystems need
 // capture later.

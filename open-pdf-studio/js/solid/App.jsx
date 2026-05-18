@@ -22,6 +22,7 @@ import { DockedExtPalette, FloatingExtPalette, ExtDockTargets } from './componen
 import { DockedSymbolPalette, FloatingSymbolPalette, SymbolSettingsDialog } from './components/SymbolPalette.jsx';
 import SchedulePanel from './components/SchedulePanel.jsx';
 import AIPanel from './components/AIPanel.jsx';
+import MiniLog from './components/MiniLog.jsx';
 import { getRegisteredPalettes } from '../plugins/palette-registry.js';
 import { leftOrder, rightOrder } from './stores/paletteOrder.js';
 import { useTranslation } from '../i18n/useTranslation.js';
@@ -128,6 +129,7 @@ function DesktopApp() {
       <SymbolSettingsDialog />
       <SchedulePanel />
       <ErrorBoundary fallback={null}><AIPanel /></ErrorBoundary>
+      <ErrorBoundary fallback={null}><MiniLog /></ErrorBoundary>
       <LoadingOverlay />
       <TypeLengthHUD />
     </>
