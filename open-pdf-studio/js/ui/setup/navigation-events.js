@@ -56,9 +56,32 @@ export function setupWheelZoom() {
       // doesn't keep gliding mid-zoom (would tear the cursor anchor away).
       stopPanMomentum();
       if (!viewport.active) {
-        // No PDF loaded (or pre-init). Plain ctrl+wheel events on the empty
-        // placeholder pass through to default browser behavior. preventDefault
-        // already ran above; just bail.
+        // Vector viewport singleton is inactive — this covers continuous
+        // view (renderContinuous explicitly sets viewport.active = false),
+        // blank docs, and any PDF whose viewport didn't activate. Route
+        // through the legacy doc.scale → renderContinuous/renderPage path
+        // via zoomIn/zoomOut, with the same trackpad-pinch accumulator
+        // used by the viewport-active branch below so a single pinch
+        // gesture doesn't slingshot through several zoom levels.
+        if (!activeDoc?.pdfDoc) return;
+        const dy = e.deltaY || 0;
+        if (dy === 0) return;
+        const direction = dy < 0 ? 1 : -1;
+        if (Math.abs(dy) >= ZOOM_DELTA_THRESHOLD) {
+          _zoomAccum = 0;
+          _zoomAccumSign = 0;
+        } else {
+          if (_zoomAccumSign !== 0 && _zoomAccumSign !== direction) _zoomAccum = 0;
+          _zoomAccumSign = direction;
+          _zoomAccum += Math.abs(dy);
+          if (_zoomAccum < ZOOM_DELTA_THRESHOLD) {
+            _resetZoomAccumSoon();
+            return;
+          }
+          _zoomAccum = 0;
+        }
+        const m = await import('../../pdf/renderer.js');
+        if (direction > 0) await m.zoomIn(); else await m.zoomOut();
         return;
       }
       // Always anchor to pdf-canvas rect. The cursor may be over a non-canvas
