@@ -1068,6 +1068,28 @@ export async function setViewMode(mode) {
   const doc = getActiveDocument();
   if (!doc?.pdfDoc) return;
 
+  // Continuous-view only handles uniform-size docs cleanly. Mixed-size docs
+  // (architectural sets: small portrait cover + landscape sheets, NKD1a is
+  // the canonical example) make flex-centering, cursor-anchor and
+  // horizontal scroll fight each other in ways that produce visible
+  // glitches. Detect mixed page sizes and fall back to single-page view —
+  // the per-page toolbar paging then gives a deterministic, glitch-free
+  // read experience for mixed-size content.
+  if (mode === 'continuous' && doc.pdfDoc.numPages > 1) {
+    const sampleCount = Math.min(doc.pdfDoc.numPages, 10);
+    const samples = await Promise.all(
+      Array.from({ length: sampleCount }, (_, i) =>
+        doc.pdfDoc.getPage(i + 1).then(p => p.getViewport({ scale: 1 }))
+      )
+    );
+    const refW = samples[0].width, refH = samples[0].height;
+    const uniform = samples.every(v => Math.abs(v.width - refW) < 1 && Math.abs(v.height - refH) < 1);
+    if (!uniform) {
+      console.log('[viewMode] mixed page sizes — falling back to single-page (continuous requires uniform dimensions)');
+      mode = 'single';
+    }
+  }
+
   if (doc) doc.viewMode = mode;
   const singleContainer = document.getElementById('canvas-container');
   const continuousContainer = document.getElementById('continuous-container');
@@ -1101,10 +1123,14 @@ export async function goToPage(pageNum) {
       pdfContainer.scrollTop = 0;
     }
   } else {
-    // Scroll to page in continuous mode
+    // Jump to the page in continuous mode. Use 'auto' (instant) instead of
+    // 'smooth' — selecting a thumbnail or typing a page number is an explicit
+    // navigation; the smooth-scroll animation made the wrong pages stream
+    // past in the viewport on the way there, which feels broken at large
+    // page counts.
     const pageWrapper = document.querySelector(`.page-wrapper[data-page="${pageNum}"]`);
     if (pageWrapper) {
-      pageWrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      pageWrapper.scrollIntoView({ behavior: 'auto', block: 'start' });
     }
   }
 
