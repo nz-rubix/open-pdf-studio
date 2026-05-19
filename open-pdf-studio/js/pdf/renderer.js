@@ -586,6 +586,10 @@ export async function renderPageOffscreen(pageNum) {
 
 // Track which pages have been rendered in continuous mode
 const _renderedPages = new Set();
+// In-flight dedup — pages currently being rendered. Separate from
+// _renderedPages so a stalled or failed render does NOT permanently block
+// the IntersectionObserver retry path the way a single combined Set did.
+const _renderingPages = new Set();
 let _renderedPagesScale = null; // scale at which pages were rendered
 let _continuousObserver = null;
 
@@ -632,10 +636,17 @@ export function clearLowResCache() {
   _lowResCache.clear();
 }
 
-// Render a single page inside its wrapper (used by lazy rendering)
+// Render a single page inside its wrapper (used by lazy rendering).
+// Only commits to _renderedPages on a successful full render — if any await
+// in the chain throws or aborts (stale doc, Rust IPC failure, empty buffer),
+// finally clears _renderingPages so a subsequent IntersectionObserver fire
+// can retry. The previous one-Set scheme marked the page rendered before any
+// work started, which made transient failures permanently blank.
 async function renderContinuousPage(pageNum) {
-  if (_renderedPages.has(pageNum)) return;
-  _renderedPages.add(pageNum);
+  if (_renderedPages.has(pageNum) || _renderingPages.has(pageNum)) return;
+  _renderingPages.add(pageNum);
+  let _rendered = false;
+  try {
 
   const pageWrapper = document.querySelector(`.page-wrapper[data-page="${pageNum}"]`);
   if (!pageWrapper) return;
@@ -842,6 +853,11 @@ async function renderContinuousPage(pageNum) {
   if (isNewPage) {
     setupContinuousPageEvents(annotationCanvasEl, pageNum);
   }
+  _rendered = true;
+  } finally {
+    _renderingPages.delete(pageNum);
+    if (_rendered) _renderedPages.add(pageNum);
+  }
 }
 
 // Re-render only visible pages at new scale (keeps existing DOM structure)
@@ -852,6 +868,7 @@ export async function reRenderVisibleContinuousPages() {
 
   // Mark all pages as needing re-render at new scale
   _renderedPages.clear();
+  _renderingPages.clear();
   _renderedPagesScale = scale;
 
   // Update wrapper dimensions for new scale without destroying canvases
@@ -908,6 +925,7 @@ export async function renderContinuous(forceRebuild) {
     _continuousObserver = null;
   }
   _renderedPages.clear();
+  _renderingPages.clear();
   _renderedPagesScale = scale;
 
   continuousContainer.innerHTML = '';
@@ -916,16 +934,19 @@ export async function renderContinuous(forceRebuild) {
   clearLinkLayers();
   clearFormLayers();
 
-  // First pass: create all page wrappers with correct dimensions (no rendering)
-  for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+  // First pass: create all page wrappers with correct dimensions (no rendering).
+  // Resolve every page's viewport in parallel — getPage is independent per page,
+  // and the sequential await chain was delaying the IntersectionObserver setup
+  // by N round-trips on a multi-page PDF.
+  const _pageNums = Array.from({ length: pdfDoc.numPages }, (_, i) => i + 1);
+  const _pageInfo = await Promise.all(_pageNums.map(async (pageNum) => {
     const page = await pdfDoc.getPage(pageNum);
     const extraRotation = getPageRotation(pageNum);
     const vpOpts = { scale };
-    if (extraRotation) {
-      vpOpts.rotation = (page.rotate + extraRotation) % 360;
-    }
-    const viewport = page.getViewport(vpOpts);
-
+    if (extraRotation) vpOpts.rotation = (page.rotate + extraRotation) % 360;
+    return { pageNum, viewport: page.getViewport(vpOpts) };
+  }));
+  for (const { pageNum, viewport } of _pageInfo) {
     const pageWrapper = document.createElement('div');
     pageWrapper.className = 'page-wrapper';
     pageWrapper.dataset.page = pageNum;
@@ -971,21 +992,6 @@ export async function renderContinuous(forceRebuild) {
   continuousContainer.querySelectorAll('.page-wrapper').forEach(wrapper => {
     _continuousObserver.observe(wrapper);
   });
-
-  // Fire-and-forget: pre-render low-res previews in background for fast scroll
-  // This runs without blocking — pages that scroll into view get full render via observer
-  if (pdfDoc.numPages > 1) {
-    (async () => {
-      for (let p = 1; p <= Math.min(pdfDoc.numPages, 200); p++) {
-        if (_lowResCache.has(p)) continue;
-        try {
-          await renderLowResPreview(pdfDoc, p, 0, 0);
-        } catch {}
-        // Yield to main thread every 5 pages
-        if (p % 5 === 0) await new Promise(r => setTimeout(r, 0));
-      }
-    })();
-  }
 }
 
 // Setup pointer events for continuous mode pages
@@ -1413,6 +1419,7 @@ export function clearPdfView() {
   // Clear caches
   _lowResCache.clear();
   _renderedPages.clear();
+  _renderingPages.clear();
   _renderedPagesScale = null;
 
   // Clear continuous mode container
