@@ -1072,13 +1072,14 @@ export async function setViewMode(mode) {
   // (architectural sets: small portrait cover + landscape sheets, NKD1a is
   // the canonical example) make flex-centering, cursor-anchor and
   // horizontal scroll fight each other in ways that produce visible
-  // glitches. Detect mixed page sizes and fall back to single-page view —
-  // the per-page toolbar paging then gives a deterministic, glitch-free
-  // read experience for mixed-size content.
+  // glitches. Check EVERY page (not just a sample — a 100-page doc with
+  // one different page at index 50 would otherwise slip through), and fall
+  // back to single-page view if any dimension differs. PDF.js getPage on
+  // a loaded doc is cached metadata access, so checking all pages in
+  // parallel stays sub-100 ms even for huge docs.
   if (mode === 'continuous' && doc.pdfDoc.numPages > 1) {
-    const sampleCount = Math.min(doc.pdfDoc.numPages, 10);
     const samples = await Promise.all(
-      Array.from({ length: sampleCount }, (_, i) =>
+      Array.from({ length: doc.pdfDoc.numPages }, (_, i) =>
         doc.pdfDoc.getPage(i + 1).then(p => p.getViewport({ scale: 1 }))
       )
     );
