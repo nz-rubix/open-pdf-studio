@@ -11,7 +11,9 @@ export function createDocument(filePath: string | null = null): DocumentState {
     pdfDoc: null,
     currentPage: 1,
     scale: 1.5,
-    viewMode: 'single',
+    // Default to continuous (all pages stacked vertically, scroll to navigate).
+    // Users can switch to single-page via the view-mode toggle.
+    viewMode: 'continuous',
     annotations: [],
     textEdits: [],
     watermarks: [],

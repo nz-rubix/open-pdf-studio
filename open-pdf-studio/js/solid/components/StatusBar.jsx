@@ -157,7 +157,7 @@ export default function StatusBar() {
             }}>
               {(() => {
                 const ov = state.renderEngineOverride;
-                if (ov === 'rust-skia') return 'Engine: Rust (alpha)';
+                if (ov === 'rust-skia') return 'Engine: Open PDF.rs (alpha)';
                 if (ov === 'pdfium') return 'Engine: PDFium';
                 const e = state.renderEngine || '';
                 if (e.startsWith('Raster')) return 'Engine: PDFium';
@@ -265,8 +265,8 @@ export default function StatusBar() {
           <div class="status-separator"></div>
           <div class="status-item" title={state.renderTiming || ''}>
             {/* Dropdown replaces the old cycle-on-click badge. Auto / PDFium
-                (Raster) / Onze engine (Rust alpha). Triggers a re-render
-                of the current page on change so the engine swap is visible
+                (Raster) / Open PDF.rs (alpha). Triggers a re-render of the
+                current page on change so the engine swap is visible
                 immediately. */}
             <select
               value={state.renderEngineOverride ?? 'auto'}
@@ -304,7 +304,7 @@ export default function StatusBar() {
               }}>
               <option value="auto" style={{ background: '#222' }}>Engine: Auto</option>
               <option value="pdfium" style={{ background: '#222' }}>Engine: PDFium (Raster)</option>
-              <option value="rust-skia" style={{ background: '#222' }}>Engine: Onze engine (alpha)</option>
+              <option value="rust-skia" style={{ background: '#222' }}>Engine: Open PDF.rs (alpha)</option>
             </select>
             <Show when={state.renderTiming}>
               <span style={{ "font-size": "10px", "margin-left": "4px", "opacity": "0.7" }}>

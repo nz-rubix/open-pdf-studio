@@ -19,6 +19,7 @@ import { hideProperties, showProperties, showMultiSelectionProperties, togglePro
 import { openDialog, aiPanelVisible, setAiPanelVisible, aiIsAuthenticated, aiRequireSignIn } from '../bridge.js';
 import { getTool } from './tool-registry.js';
 import { tryStartGMove, isGMoveModeActive } from './g-move-mode.js';
+import { startCreateSimilar } from './create-similar.js';
 import { toggleFullscreen, exitFullscreen, getFullscreenState } from '../ui/chrome/fullscreen.js';
 import { typeLengthActive, consumeKey as typeLengthConsumeKey } from './type-length-input.js';
 
@@ -34,6 +35,14 @@ const CAD_CHORDS = {
   'tr': () => setTool('trim'),
   'ex': () => setTool('extend'),
   'tx': () => setTool('textbox'),
+  // MV = Move. Same as the single 'G' key (Blender-style) but with the
+  // AutoCAD muscle-memory of "M, V, Enter". Starts G-mode on whatever
+  // annotation(s) are currently selected.
+  'mv': () => tryStartGMove(),
+  // CS = Create Similar. Takes the currently selected annotation, copies
+  // its style (color/lineWidth/opacity/fill) into state.toolOverrides,
+  // and switches to its tool so the next draw uses the same style.
+  'cs': () => { try { startCreateSimilar(); } catch (_) {} },
   // Reserved for future: 'l' line, 'c' circle, 'co' copy, 'mi' mirror, 'ar' array, etc.
 };
 const CHORD_MS = 1200;
