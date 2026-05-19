@@ -80,8 +80,49 @@ export function setupWheelZoom() {
           }
           _zoomAccum = 0;
         }
+        // Cursor anchor: capture the PDF user-space point under the cursor
+        // BEFORE zoom (pageNum + pageX/Y normalized by oldScale, so it's
+        // scale-independent), then after the re-render adjust container
+        // scroll so that same point lands back under the cursor. Uses ONLY
+        // native scrollTop/scrollLeft — no transform. Browser clamps to
+        // valid scroll range, so narrow pages where the container has no
+        // horizontal scroll room simply stay centered (acceptable: the
+        // entire page is visible anyway). Earlier attempt with translateX
+        // fallback accumulated and pushed content off-screen at extreme
+        // zoom levels.
+        const clientX = e.clientX, clientY = e.clientY;
+        const container = document.getElementById('pdf-container');
+        const oldScale = activeDoc.scale;
+        let anchorPageNum = null, anchorPageX = 0, anchorPageY = 0;
+        const elAtPoint = document.elementFromPoint(clientX, clientY);
+        const wrapper = elAtPoint?.closest?.('.page-wrapper');
+        const inner = wrapper?.querySelector('.canvas-container-cont');
+        if (inner && container) {
+          const innerRect = inner.getBoundingClientRect();
+          const localX = Math.max(0, Math.min(innerRect.width, clientX - innerRect.left));
+          const localY = Math.max(0, Math.min(innerRect.height, clientY - innerRect.top));
+          anchorPageNum = parseInt(wrapper.dataset.page, 10);
+          anchorPageX = localX / oldScale;
+          anchorPageY = localY / oldScale;
+        }
+
         const m = await import('../../pdf/renderer.js');
         if (direction > 0) await m.zoomIn(); else await m.zoomOut();
+
+        if (anchorPageNum != null && container) {
+          const newScale = activeDoc.scale;
+          const newWrapper = document.querySelector(`.page-wrapper[data-page="${anchorPageNum}"]`);
+          const newInner = newWrapper?.querySelector('.canvas-container-cont');
+          if (newInner) {
+            const newRect = newInner.getBoundingClientRect();
+            const targetClientX = newRect.left + anchorPageX * newScale;
+            const targetClientY = newRect.top + anchorPageY * newScale;
+            const dxScroll = targetClientX - clientX;
+            const dyScroll = targetClientY - clientY;
+            if (dyScroll !== 0) container.scrollTop += dyScroll;
+            if (dxScroll !== 0) container.scrollLeft += dxScroll;
+          }
+        }
         return;
       }
       // Always anchor to pdf-canvas rect. The cursor may be over a non-canvas
