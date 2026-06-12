@@ -25,8 +25,6 @@ import { useTranslation } from '../../../i18n/useTranslation.js';
 import { setPickerOpen as setParametricPickerOpen } from '../../stores/parametricSymbolStore.js';
 import { savePreferences } from '../../../core/preferences.js';
 import { toggleSchedule, scheduleVisible } from '../../stores/scheduleStore.js';
-import { createFullPageScaleRegion, invalidateScaleRegionCache } from '../../../annotations/scale-region.js';
-import { openDialog } from '../../../bridge.js';
 import { isDynamicScalingEnabled, setDynamicScalingEnabled } from '../../../annotations/dynamic-scaling.js';
 import PrefSelect from '../preferences/PrefSelect.jsx';
 
@@ -148,29 +146,8 @@ export default function CommentTab() {
           </RibbonButtonStack>
         </RibbonGroup>
 
-        <RibbonGroup label={t('measure.scaleGroup') || 'Schaal'}>
-          <RibbonButton id="btn-create-scale-region"
-            title={t('comment.scaleRegion') || 'Draw a scale region with its own calibration'}
-            icon={`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" stroke-dasharray="3 2"/><text x="12" y="16" font-size="8" font-weight="bold" text-anchor="middle" fill="currentColor" stroke="none">1:N</text></svg>`}
-            label={t('comment.scaleRegion') || 'Scale region'}
-            disabled={noPdf() || isPdfAReadOnly()}
-            active={state.currentTool === 'scaleRegion'}
-            onClick={() => setTool('scaleRegion')} />
-          <RibbonButton id="btn-create-scale-region-full-page"
-            title={t('comment.scaleRegionFullPageTitle') || 'Place a scale region covering the whole page'}
-            icon={`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" stroke-dasharray="2 2"/><text x="12" y="15" font-size="7" font-weight="bold" text-anchor="middle" fill="currentColor" stroke="none">1:N</text></svg>`}
-            label={t('comment.scaleRegionFullPage') || 'Schaalgebied op pagina'}
-            disabled={noPdf() || isPdfAReadOnly()}
-            onClick={() => {
-              const ann = createFullPageScaleRegion();
-              if (!ann) return;
-              invalidateScaleRegionCache();
-              const doc = getActiveDocument();
-              if (doc?.viewMode === 'continuous') redrawContinuous();
-              else redrawAnnotations();
-              openDialog('scale-region', { annotationId: ann.id, pageNum: ann.page });
-            }} />
-        </RibbonGroup>
+        {/* Schaal group (Schaalgebied / Schaalgebied op pagina) moved to the
+            Tekenen tab — see DrawingTab.jsx. */}
 
         <RibbonGroup label={t('measure.schedule') || 'TAKE-OFF'}>
           <RibbonButton id="btn-open-schedule"

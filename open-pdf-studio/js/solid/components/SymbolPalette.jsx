@@ -73,6 +73,33 @@ function startDrag(e, fromDocked) {
 
 // --- Select symbol → activate stamp tool with SVG override ---
 function selectSymbol(symbol) {
+  // Parametric entries (NL Tekenwerk: stramien, peilmaat, …) place an
+  // editable parametricSymbol annotation instead of a static stamp — the
+  // click on the page goes through the parametricSymbol tool and the params
+  // stay editable in the properties panel.
+  if (symbol.parametricId) {
+    import('../stores/parametricSymbolStore.js').then(m => {
+      m.setPendingSymbolId(symbol.parametricId);
+      setTool('parametricSymbol');
+    });
+    return;
+  }
+  // Generic tool entries: palette items that simply activate a drawing tool
+  // (e.g. 'mask' — maskeervlak). Keeps future tool-items one-liners.
+  if (symbol.tool) {
+    setTool(symbol.tool);
+    return;
+  }
+  // Wall entries (NL Wanden / IfcWall): activate the wall tool with the
+  // material hatch + default thickness; draw start→end like a line.
+  if (symbol.wall) {
+    state.toolOverrides = {
+      wallPattern: symbol.wall.pattern,
+      wallDikteMm: symbol.wall.dikteMm || 100,
+    };
+    setTool('wall');
+    return;
+  }
   // Set overrides BEFORE setTool — manager.js preserves them for stamp tool
   state.toolOverrides = {
     stampSvg: symbol.svg,
@@ -186,7 +213,7 @@ export function DockedSymbolPalette(props) {
       <div class={`sp-panel sp-docked${side() === 'right' ? ' sp-docked-right' : ''}`}>
         <div class="sp-header">
           <div class="sp-grip" onMouseDown={(e) => startDrag(e, true)} innerHTML={gripSvg} />
-          <span class="sp-title">Symbols</span>
+          <span class="sp-title">Toolpalette</span>
           <button class="sp-settings-btn" title="Settings" onClick={() => setSettingsOpen(true)} innerHTML={settingsSvg} />
           <button class="sp-close-btn" onClick={() => { setSymbolPaletteVisible(false); unregisterPaletteDock('symbols'); saveSymbolPaletteState(); }} innerHTML={closeSvg} />
         </div>
@@ -210,7 +237,7 @@ export function FloatingSymbolPalette() {
           if (e.target.closest('.sp-float-close')) return;
           startDrag(e, false);
         }}>
-          <span class="sp-float-title">Symbols</span>
+          <span class="sp-float-title">Toolpalette</span>
           <button class="sp-settings-btn" title="Settings" onClick={() => setSettingsOpen(true)} innerHTML={settingsSvg} />
           <button class="sp-float-close" onClick={() => { setSymbolPaletteVisible(false); saveSymbolPaletteState(); }} innerHTML={closeSvg} />
         </div>

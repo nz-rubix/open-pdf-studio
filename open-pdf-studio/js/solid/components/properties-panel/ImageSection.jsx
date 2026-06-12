@@ -3,6 +3,43 @@ import { annotProps, sectionVis, updateAnnotProp, resetImageSize, cycleSelectNex
 import CollapsibleSection from './CollapsibleSection.jsx';
 import PrefComboBox from '../preferences/PrefComboBox.jsx';
 import { useTranslation } from '../../../i18n/useTranslation.js';
+import { getActiveDocument } from '../../../core/state.js';
+
+// Linked image actions — the annotation refreshes its bitmap from this file
+// (at link time, on demand and on document open).
+function _selAnn() {
+  const doc = getActiveDocument();
+  const sel = doc?.selectedAnnotations || [];
+  return sel.length === 1 ? sel[0] : null;
+}
+
+async function _linkImageFile() {
+  const ann = _selAnn();
+  if (!ann) return;
+  try {
+    const dlg = window.__TAURI__?.dialog;
+    if (!dlg) return;
+    const file = await dlg.open({
+      title: 'Afbeelding koppelen',
+      filters: [{ name: 'Afbeeldingen', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg'] }],
+      multiple: false,
+    });
+    if (!file) return;
+    const path = typeof file === 'string' ? file : file.path;
+    updateAnnotProp('linkedPath', path);
+    const m = await import('../../../annotations/image-drop.js');
+    await m.refreshLinkedImage(ann);
+  } catch (e) {
+    console.warn('[linked-image] koppelen mislukt:', e);
+  }
+}
+
+async function _refreshLinked() {
+  const ann = _selAnn();
+  if (!ann?.linkedPath) return;
+  const m = await import('../../../annotations/image-drop.js');
+  await m.refreshLinkedImage(ann);
+}
 
 export default function ImageSection() {
   const { t } = useTranslation('properties');
@@ -55,6 +92,34 @@ export default function ImageSection() {
             onClick={() => resetImageSize()}>
             {t('image.resetToOriginal')}
           </button>
+        </div>
+
+        <div class="property-group">
+          <label>{t('image.linkedFile')}</label>
+          <span title={annotProps.linkedPath || ''}
+            style={{ 'font-size': '11px', overflow: 'hidden', 'text-overflow': 'ellipsis', 'white-space': 'nowrap', direction: 'rtl', 'text-align': 'left', color: annotProps.linkedPath ? 'inherit' : '#888' }}>
+            {annotProps.linkedPath ? annotProps.linkedPath.split(/[\\/]/).pop() : t('image.notLinked')}
+          </span>
+        </div>
+
+        <div class="property-group">
+          <label></label>
+          <div style={{ display: 'flex', gap: '4px' }}>
+            <button type="button" class="prop-action-btn" disabled={isLocked()}
+              onClick={() => _linkImageFile()}>
+              {t('image.linkFile')}
+            </button>
+            <Show when={annotProps.linkedPath}>
+              <button type="button" class="prop-action-btn" disabled={isLocked()}
+                onClick={() => _refreshLinked()}>
+                {t('image.refreshLink')}
+              </button>
+              <button type="button" class="prop-action-btn" disabled={isLocked()}
+                onClick={() => updateAnnotProp('linkedPath', '')}>
+                {t('image.unlink')}
+              </button>
+            </Show>
+          </div>
         </div>
       </CollapsibleSection>
     </Show>

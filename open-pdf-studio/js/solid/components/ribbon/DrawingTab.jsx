@@ -15,7 +15,7 @@ import { recordBulkModify } from '../../../core/undo-manager.js';
 import { alignLeft } from '../../../annotations/alignment.js';
 import {
   handIcon, selectCommentsIcon, findIcon,
-  lineIcon, rectIcon, polylineIcon, textboxIcon, noteIcon, ellipseIcon,
+  lineIcon, arrowIcon, drawIcon, rectIcon, polylineIcon, textboxIcon, noteIcon, ellipseIcon,
   calloutIcon, cloudIcon,
   measureDistanceIcon, measureAngleIcon, measurePerimeterIcon,
   alignLeftIcon, alignTopIcon, alignBottomIcon,
@@ -125,6 +125,10 @@ export default function DrawingTab() {
           {/* Row 1 */}
           <RibbonButton size="small" id="dr-line" title={t('comment.line')} icon={lineIcon}
             disabled={ro()} active={state.currentTool === 'line'} onClick={() => setTool('line')} />
+          <RibbonButton size="small" id="dr-arrow" title={t('comment.arrow')} icon={arrowIcon}
+            disabled={ro()} active={state.currentTool === 'arrow'} onClick={() => setTool('arrow')} />
+          <RibbonButton size="small" id="dr-draw" title={t('comment.freehand')} icon={drawIcon}
+            disabled={ro()} active={state.currentTool === 'draw'} onClick={() => setTool('draw')} />
           <RibbonButton size="small" id="dr-rect" title={t('comment.rectangle')} icon={rectIcon}
             disabled={ro()} active={state.currentTool === 'box'} onClick={() => setTool('box')} />
           <RibbonButton size="small" id="dr-arc" title="Arc" icon={arcIcon}
@@ -148,14 +152,22 @@ export default function DrawingTab() {
           <RibbonButton size="small" id="dr-l-shape" title={cs} icon={placeholderIcon} disabled={true} />
           <RibbonButton size="small" id="dr-image" title={t('drawing.image')} icon={imageIcon}
             disabled={ro()} active={state.currentTool === 'image'} onClick={() => setTool('image')} />
-          <RibbonButton size="small" id="dr-scale-region"
-            title={t('comment.scaleRegion') || 'Scale region'}
+        </RibbonGroup>
+
+        {/* SCHAAL — moved here from the Opmerkingen tab: full labelled buttons
+            for Schaalgebied + Schaalgebied op pagina. */}
+        <RibbonGroup label={t('measure.scaleGroup') || 'Schaal'}>
+          <RibbonButton id="btn-create-scale-region"
+            title={t('comment.scaleRegion') || 'Draw a scale region with its own calibration'}
             icon={scaleRegionIcon}
-            disabled={ro()} active={state.currentTool === 'scaleRegion'}
+            label={t('comment.scaleRegion') || 'Schaalgebied'}
+            disabled={ro()}
+            active={state.currentTool === 'scaleRegion'}
             onClick={() => setTool('scaleRegion')} />
-          <RibbonButton size="small" id="dr-scale-region-full-page"
+          <RibbonButton id="btn-create-scale-region-full-page"
             title={t('comment.scaleRegionFullPageTitle') || 'Place a scale region covering the whole page'}
             icon={`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" stroke-dasharray="2 2"/><text x="12" y="15" font-size="7" font-weight="bold" text-anchor="middle" fill="currentColor" stroke="none">1:N</text></svg>`}
+            label={t('comment.scaleRegionFullPage') || 'Schaalgebied op pagina'}
             disabled={ro()}
             onClick={() => {
               const ann = createFullPageScaleRegion();
@@ -171,9 +183,9 @@ export default function DrawingTab() {
         {/* ANNOTATE */}
         <RibbonGroup label={t('drawing.annotate')}>
           <RibbonButtonStack>
-            <RibbonButton size="small" id="dr-aligned" title={t('measure.measureDistance')} icon={measureDistanceIcon} label={t('drawing.aligned')}
-              disabled={ro()} active={state.currentTool === 'measureDistance'} onClick={() => setTool('measureDistance')} />
-            <RibbonButton size="small" id="dr-linear" title={t('measure.measureDistance')} icon={measureDistanceIcon} label={t('drawing.linear')}
+            {/* "Uitgelijnd" + "Lineair" merged into a single Maatlijn button —
+                both fired the same measureDistance tool anyway. */}
+            <RibbonButton size="small" id="dr-dimension" title={t('measure.measureDistance')} icon={measureDistanceIcon} label={t('drawing.dimension') || 'Maatlijn'}
               disabled={ro()} active={state.currentTool === 'measureDistance'} onClick={() => setTool('measureDistance')} />
             <RibbonButton size="small" id="dr-angular" title={t('measure.measureAngle')} icon={measureAngleIcon} label={t('drawing.angular')}
               disabled={ro()} active={state.currentTool === 'measureAngle'} onClick={() => setTool('measureAngle')} />

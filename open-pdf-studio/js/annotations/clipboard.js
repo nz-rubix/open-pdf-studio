@@ -82,10 +82,16 @@ export async function pasteImageFromBlob(blob) {
   const scrollX = pdfContainer.scrollLeft;
   const scrollY = pdfContainer.scrollTop;
 
-  // Default size (max 400px, maintain aspect ratio)
+  // Default annotation size — only cap when the image is REALLY huge so
+  // the user isn't surprised by a paste covering the entire page. The old
+  // 400px cap aggressively downscaled even modest screenshots (e.g. a
+  // Revit detail at 1200×900 → 400×300), which combined with canvas
+  // image-smoothing made every paste look blurry. Use 1500px instead and
+  // rely on `image-smoothing-quality: 'high'` (set in rendering.js) for
+  // the remaining downscale.
   let width = img.naturalWidth;
   let height = img.naturalHeight;
-  const maxSize = 400;
+  const maxSize = 1500;
 
   if (width > maxSize || height > maxSize) {
     const ratio = Math.min(maxSize / width, maxSize / height);

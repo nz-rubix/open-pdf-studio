@@ -1,8 +1,11 @@
-import { createSignal, createMemo, Show } from 'solid-js';
+import { createSignal, createMemo, createEffect, Show, For, onMount } from 'solid-js';
 import Dialog from '../Dialog.jsx';
 import { closeDialog } from '../../stores/dialogStore.js';
-import { createBlankPDF } from '../../../pdf/loader.js';
+import { createBlankPDF, createDocFromTemplate } from '../../../pdf/loader.js';
+import { scanFrames, openFramesFolder } from '../../../pdf/frames.js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
+
+const _cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 const PAPER_SIZES = {
   a0:      { width: 2384, height: 3370, label: 'A0', widthMm: 841, heightMm: 1189 },
@@ -32,6 +35,58 @@ export default function NewDocDialog() {
   const [numPages, setNumPages] = createSignal(1);
   const [customWidth, setCustomWidth] = createSignal(210);
   const [customHeight, setCustomHeight] = createSignal(297);
+  // OpenAEC frame styles: pick a STIJL (detailblad / voorblad / grootformaat
+  // / any new prefix found on disk); the paper-size + orientation controls
+  // below then resolve WHICH frame PDF is used. '' = blanco document.
+  const [frameIndex, setFrameIndex] = createSignal(null); // { stijlen, byStijl }
+  const [stijl, setStijl] = createSignal('');
+
+  onMount(async () => {
+    try {
+      setFrameIndex(await scanFrames());
+    } catch (e) {
+      console.warn('[new-doc] kaders niet leesbaar:', e);
+    }
+  });
+
+  const stijlGroup = () => {
+    const idx = frameIndex();
+    return idx && stijl() ? idx.byStijl.get(stijl()) : null;
+  };
+  // Formats available for the chosen style ('' → all standard sizes)
+  const availableFormats = createMemo(() => {
+    const g = stijlGroup();
+    if (!g) return null;
+    return [...g.formaten].sort();
+  });
+  const orientationAvailable = (orient) => {
+    const g = stijlGroup();
+    if (!g) return true;
+    const richting = orient === 'landscape' ? 'liggend' : 'staand';
+    return g.byKey.has(`${paperSize()}|${richting}`);
+  };
+  const resolvedFrame = () => {
+    const g = stijlGroup();
+    if (!g) return null;
+    const richting = orientation() === 'landscape' ? 'liggend' : 'staand';
+    return g.byKey.get(`${paperSize()}|${richting}`) || null;
+  };
+
+  // Keep paper size + orientation valid for the chosen style.
+  createEffect(() => {
+    const fmts = availableFormats();
+    if (!fmts || fmts.length === 0) return;
+    if (!fmts.includes(paperSize())) setPaperSize(fmts[0]);
+    const g = stijlGroup();
+    if (g) {
+      const richting = orientation() === 'landscape' ? 'liggend' : 'staand';
+      if (!g.byKey.has(`${paperSize()}|${richting}`)) {
+        const other = richting === 'liggend' ? 'portrait' : 'landscape';
+        const otherR = richting === 'liggend' ? 'staand' : 'liggend';
+        if (g.byKey.has(`${paperSize()}|${otherR}`)) setOrientation(other);
+      }
+    }
+  });
 
   const getDimensions = createMemo(() => {
     const size = paperSize();
@@ -84,12 +139,21 @@ export default function NewDocDialog() {
 
   const previewText = createMemo(() => {
     const dims = getDimensions();
-    return `${dims.widthMm} x ${dims.heightMm} mm (${dims.label})`;
+    const base = `${dims.widthMm} x ${dims.heightMm} mm (${dims.label})`;
+    const f = resolvedFrame();
+    return f ? `${base} — ${f.fileName}` : base;
   });
 
   const close = () => closeDialog('new-doc');
 
   const handleOk = () => {
+    const frame = resolvedFrame();
+    if (frame) {
+      // New document FROM the OpenAEC frame matching stijl+formaat+richting.
+      createDocFromTemplate(frame.path);
+      close();
+      return;
+    }
     const dims = getDimensions();
     createBlankPDF(dims.widthPt, dims.heightPt, numPages());
     close();
@@ -118,36 +182,68 @@ export default function NewDocDialog() {
     >
       <div class="new-doc-form">
         <div class="new-doc-row">
-          <label class="new-doc-label">{t('newDoc.paperSize')}</label>
+          <label class="new-doc-label">OpenAEC stijl</label>
           <select
             class="new-doc-select"
-            value={paperSize()}
-            onChange={(e) => setPaperSize(e.target.value)}
+            value={stijl()}
+            onChange={(e) => setStijl(e.target.value)}
+            style="flex:1"
           >
-            <optgroup label={t('newDoc.isoASeries')}>
-              <option value="a0">A0 (841 x 1189 mm)</option>
-              <option value="a1">A1 (594 x 841 mm)</option>
-              <option value="a2">A2 (420 x 594 mm)</option>
-              <option value="a3">A3 (297 x 420 mm)</option>
-              <option value="a4">A4 (210 x 297 mm)</option>
-              <option value="a5">A5 (148 x 210 mm)</option>
-              <option value="a6">A6 (105 x 148 mm)</option>
-            </optgroup>
-            <optgroup label={t('newDoc.isoBSeries')}>
-              <option value="b3">B3 (353 x 500 mm)</option>
-              <option value="b4">B4 (250 x 353 mm)</option>
-              <option value="b5">B5 (176 x 250 mm)</option>
-            </optgroup>
-            <optgroup label={t('newDoc.northAmerican')}>
-              <option value="letter">Letter (8.5 x 11 in)</option>
-              <option value="legal">Legal (8.5 x 14 in)</option>
-              <option value="tabloid">Tabloid (11 x 17 in)</option>
-              <option value="ledger">Ledger (17 x 11 in)</option>
-            </optgroup>
-            <optgroup label={t('newDoc.other')}>
-              <option value="custom">{t('newDoc.customSize')}</option>
-            </optgroup>
+            <option value="">Geen (blanco pagina)</option>
+            <For each={frameIndex()?.stijlen || []}>{(s) => (
+              <option value={s}>{_cap(s)}</option>
+            )}</For>
           </select>
+          <button
+            title="Kaders-map openen — eigen kaders (zelfde naamgeving) verschijnen hier automatisch"
+            style="margin-left:6px;padding:2px 8px;border:1px solid var(--theme-border,#acacac);background:var(--theme-surface,#fff);color:var(--theme-text,#333);cursor:pointer;height:24px"
+            onClick={() => openFramesFolder()}
+          >&#128193;</button>
+        </div>
+        <div class="new-doc-row">
+          <label class="new-doc-label">{t('newDoc.paperSize')}</label>
+          <Show when={availableFormats()} fallback={
+            <select
+              class="new-doc-select"
+              value={paperSize()}
+              onChange={(e) => setPaperSize(e.target.value)}
+            >
+              <optgroup label={t('newDoc.isoASeries')}>
+                <option value="a0">A0 (841 x 1189 mm)</option>
+                <option value="a1">A1 (594 x 841 mm)</option>
+                <option value="a2">A2 (420 x 594 mm)</option>
+                <option value="a3">A3 (297 x 420 mm)</option>
+                <option value="a4">A4 (210 x 297 mm)</option>
+                <option value="a5">A5 (148 x 210 mm)</option>
+                <option value="a6">A6 (105 x 148 mm)</option>
+              </optgroup>
+              <optgroup label={t('newDoc.isoBSeries')}>
+                <option value="b3">B3 (353 x 500 mm)</option>
+                <option value="b4">B4 (250 x 353 mm)</option>
+                <option value="b5">B5 (176 x 250 mm)</option>
+              </optgroup>
+              <optgroup label={t('newDoc.northAmerican')}>
+                <option value="letter">Letter (8.5 x 11 in)</option>
+                <option value="legal">Legal (8.5 x 14 in)</option>
+                <option value="tabloid">Tabloid (11 x 17 in)</option>
+                <option value="ledger">Ledger (17 x 11 in)</option>
+              </optgroup>
+              <optgroup label={t('newDoc.other')}>
+                <option value="custom">{t('newDoc.customSize')}</option>
+              </optgroup>
+            </select>
+          }>
+            {/* Style chosen: only the formats that exist as frame PDFs */}
+            <select
+              class="new-doc-select"
+              value={paperSize()}
+              onChange={(e) => setPaperSize(e.target.value)}
+            >
+              <For each={availableFormats()}>{(f) => (
+                <option value={f}>{f.toUpperCase()}{PAPER_SIZES[f] ? ` (${PAPER_SIZES[f].widthMm} x ${PAPER_SIZES[f].heightMm} mm)` : ''}</option>
+              )}</For>
+            </select>
+          </Show>
         </div>
         <Show when={paperSize() === 'custom'}>
           <div class="new-doc-row new-doc-custom-row">
@@ -176,27 +272,29 @@ export default function NewDocDialog() {
         <div class="new-doc-row">
           <label class="new-doc-label">{t('newDoc.orientation')}</label>
           <div class="new-doc-radio-group">
-            <label class="new-doc-radio-label">
+            <label class="new-doc-radio-label" style={!orientationAvailable('portrait') ? 'opacity:0.4' : ''}>
               <input
                 type="radio"
                 name="new-doc-orientation"
                 value="portrait"
+                disabled={!orientationAvailable('portrait')}
                 checked={orientation() === 'portrait'}
                 onChange={() => setOrientation('portrait')}
               /> {tCommon('portrait')}
             </label>
-            <label class="new-doc-radio-label">
+            <label class="new-doc-radio-label" style={!orientationAvailable('landscape') ? 'opacity:0.4' : ''}>
               <input
                 type="radio"
                 name="new-doc-orientation"
                 value="landscape"
+                disabled={!orientationAvailable('landscape')}
                 checked={orientation() === 'landscape'}
                 onChange={() => setOrientation('landscape')}
               /> {tCommon('landscape')}
             </label>
           </div>
         </div>
-        <div class="new-doc-row">
+        <div class="new-doc-row" style={stijl() ? 'opacity:0.45;pointer-events:none' : ''}>
           <label class="new-doc-label">{t('newDoc.pagesCount')}</label>
           <input
             type="number"

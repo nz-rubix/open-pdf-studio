@@ -7,6 +7,17 @@ import { doorTemplate } from './templates/door.js';
 import { windowTemplate } from './templates/window.js';
 import { stairsTemplate } from './templates/stairs.js';
 import { northTemplate } from './templates/north.js';
+import { stramienTemplate } from './templates/stramien.js';
+import { peilmaatTemplate } from './templates/peilmaat.js';
+import { wandarceringTemplate } from './templates/wandarcering.js';
+import { wapeningVerdelingTemplate } from './templates/wapening-verdeling.js';
+import { beugelTemplate } from './templates/beugel.js';
+import { heaTemplate, hebTemplate, ipeTemplate, unpTemplate, kokerTemplate } from './templates/staalprofiel.js';
+import { vloerTemplates } from './templates/vloer-dxf.js';
+import { ifcSpaceTemplate } from './templates/ifc-space.js';
+import { houtBalkTemplate } from './templates/hout-balk.js';
+import { paalType1Template, paalType2Template } from './templates/paal-aanzicht.js';
+import { boutTemplate } from './templates/bout.js';
 
 const templates = new Map();
 
@@ -18,6 +29,22 @@ register(doorTemplate);
 register(windowTemplate);
 register(stairsTemplate);
 register(northTemplate);
+register(stramienTemplate);
+register(peilmaatTemplate);
+register(wandarceringTemplate);
+register(wapeningVerdelingTemplate);
+register(beugelTemplate);
+register(heaTemplate);
+register(hebTemplate);
+register(ipeTemplate);
+register(unpTemplate);
+register(kokerTemplate);
+for (const t of vloerTemplates) register(t);
+register(ifcSpaceTemplate);
+register(houtBalkTemplate);
+register(paalType1Template);
+register(paalType2Template);
+register(boutTemplate);
 
 export function getTemplate(id) {
   return templates.get(id) || null;

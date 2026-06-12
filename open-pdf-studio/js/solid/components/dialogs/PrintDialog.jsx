@@ -302,15 +302,19 @@ export default function PrintDialog(props) {
   onMount(async () => {
     try {
       const json = await invoke('get_printers');
-      const printers = JSON.parse(json);
-      setPrinterList(printers || []);
+      const parsed = JSON.parse(json);
+      // PowerShell's ConvertTo-Json returns a bare OBJECT when there is only
+      // one printer — normalize to an array so .find/.map always work.
+      const printers = Array.isArray(parsed) ? parsed : (parsed ? [parsed] : []);
+      setPrinterList(printers);
 
-      if (!printers || printers.length === 0) {
+      if (printers.length === 0) {
         setPrintDisabled(true);
         return;
       }
 
-      const defaultPrinter = printers.find(p => p.Default === true);
+      // Preselect the OS default printer (defensive about JSON bool shape).
+      const defaultPrinter = printers.find(p => p.Default === true || p.Default === 'True');
       const printerName = defaultPrinter?.Name || printers[0]?.Name || '';
       setSelectedPrinter(printerName);
       updatePrinterInfo(printerName);

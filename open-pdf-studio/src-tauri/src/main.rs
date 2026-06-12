@@ -1,5 +1,9 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// Prevents the additional console window on Windows, DO NOT REMOVE!!
+// Unconditional (also debug builds): the app must run fully in the
+// background with only its own window. Dev logs stay visible when launched
+// from a terminal (`tauri dev` pipes stdio); double-click runs log nothing,
+// boot errors still land in %TEMP%\opds-detach-diag.log via detach_diag.
+#![windows_subsystem = "windows"]
 
 use clap::Parser;
 

@@ -130,7 +130,9 @@
     "namePlaceholder": "Area name (optional)",
     "scale": "Scale",
     "unit": "Unit",
-    "precision": "Precision (Decimals)"
+    "precision": "Precision (Decimals)",
+    "dimType": "Type",
+    "dimTypeCustom": "Custom"
   },
   "scaleBar": {
     "title": "Scale Bar",
@@ -221,7 +223,12 @@
     "height": "Height",
     "lockAspectRatio": "Lock Aspect Ratio",
     "rotation": "Rotation",
-    "resetToOriginal": "Reset to Original Size"
+    "resetToOriginal": "Reset to Original Size",
+    "linkedFile": "Linked File",
+    "notLinked": "Not linked",
+    "linkFile": "Link…",
+    "refreshLink": "Refresh",
+    "unlink": "Unlink"
   },
   "multiSelect": "{{count}} annotations selected",
   "pdfText": "PDF Text",

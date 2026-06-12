@@ -177,6 +177,7 @@ function annotationToXFDF(ann) {
              `    </underline>\n`;
 
     case 'box':
+    case 'mask':
       return `    <square ${attrs} color="${colorToXFDF(ann.strokeColor || ann.color)}"` +
              (ann.fillColor ? ` interior-color="${colorToXFDF(ann.fillColor)}"` : '') +
              ` width="${ann.lineWidth ?? 2}">\n` +

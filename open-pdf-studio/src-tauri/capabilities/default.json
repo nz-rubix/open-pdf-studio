@@ -1,9 +1,9 @@
 {
   "$schema": "https://schemas.tauri.app/config/2",
   "identifier": "default",
-  "description": "Default capabilities for the main window (desktop)",
+  "description": "Default capabilities for the main window + detached document windows (desktop)",
   "platforms": ["linux", "macOS", "windows"],
-  "windows": ["main"],
+  "windows": ["main", "pdf-*"],
   "permissions": [
     "core:default",
     "core:window:allow-close",
@@ -33,6 +33,7 @@
     "os:default",
     "updater:default",
     "process:allow-restart",
-    "process:allow-exit"
+    "process:allow-exit",
+    "drag:default"
   ]
 }

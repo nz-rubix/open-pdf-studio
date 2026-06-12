@@ -7,27 +7,73 @@ import { updateStatusMessage } from '../ui/chrome/status-bar.js';
 import { annotationCanvas, pdfContainer } from '../ui/dom-elements.js';
 import { readBinaryFile } from '../core/platform.js';
 
-// Add an image file as an annotation on the current page (Tauri: reads by path)
-export async function addImageFromFile(filePath) {
+const MIME_BY_EXT = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+  gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp', svg: 'image/svg+xml',
+};
+
+// (Re)load the bitmap for an image annotation from a file path into the
+// image cache. Used by linked images: at link-time, on demand ("Vernieuwen")
+// and after document open, so the annotation always shows the CURRENT file.
+async function _loadImageFromPath(filePath) {
+  // Paths restored from a saved PDF are outside the fs-plugin scope until
+  // granted (same mechanism the MCP bridge uses for arbitrary paths).
+  try { await window.__TAURI__?.core?.invoke('allow_fs_scope', { path: filePath }); } catch { /* best-effort */ }
+  const data = await readBinaryFile(filePath);
+  const ext = filePath.split('.').pop().toLowerCase();
+  const blob = new Blob([data], { type: MIME_BY_EXT[ext] || 'image/png' });
+  const url = URL.createObjectURL(blob);
+  const img = new Image();
+  img.src = url;
+  await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; });
+  return { img, url };
+}
+
+/**
+ * Refresh a LINKED image annotation from its file (annotation.linkedPath).
+ * Silent failure leaves the embedded/cached bitmap in place (e.g. when the
+ * linked file moved) — the annotation stays visible.
+ */
+export async function refreshLinkedImage(annotation, { silent = false } = {}) {
+  if (!annotation?.linkedPath) return false;
+  try {
+    const { img, url } = await _loadImageFromPath(annotation.linkedPath);
+    if (!annotation.imageId) annotation.imageId = generateImageId();
+    imageCache.set(annotation.imageId, img);
+    annotation.imageData = url;
+    annotation.originalWidth = img.naturalWidth;
+    annotation.originalHeight = img.naturalHeight;
+    if (getActiveDocument()?.viewMode === 'continuous') redrawContinuous();
+    else redrawAnnotations();
+    if (!silent) updateStatusMessage(`Gelinkte afbeelding vernieuwd: ${annotation.linkedPath.split(/[\\/]/).pop()}`);
+    return true;
+  } catch (e) {
+    if (!silent) updateStatusMessage('Gelinkt bestand niet leesbaar — ingesloten versie blijft staan');
+    console.warn('[linked-image] refresh failed:', annotation.linkedPath, e);
+    return false;
+  }
+}
+
+/** Refresh every linked image on a document (fire-and-forget after load). */
+export async function refreshAllLinkedImages(doc) {
+  for (const ann of doc?.annotations || []) {
+    if ((ann.type === 'image' || ann.type === 'stamp') && ann.linkedPath) {
+      await refreshLinkedImage(ann, { silent: true });
+    }
+  }
+}
+
+// Add an image file as an annotation on the current page (Tauri: reads by
+// path). opts.linked: store the file PATH on the annotation so it refreshes
+// from disk (gelinkte afbeelding) instead of being a one-time embed.
+export async function addImageFromFile(filePath, opts = {}) {
   if (!getActiveDocument()?.pdfDoc) {
     updateStatusMessage('Open a PDF first to add images');
     return;
   }
 
   try {
-    const data = await readBinaryFile(filePath);
-    const ext = filePath.split('.').pop().toLowerCase();
-    const mimeMap = {
-      png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-      gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp', svg: 'image/svg+xml'
-    };
-    const mime = mimeMap[ext] || 'image/png';
-    const blob = new Blob([data], { type: mime });
-    const url = URL.createObjectURL(blob);
-
-    const img = new Image();
-    img.src = url;
-    await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; });
+    const { img, url } = await _loadImageFromPath(filePath);
 
     const imageId = generateImageId();
     imageCache.set(imageId, img);
@@ -60,6 +106,7 @@ export async function addImageFromFile(filePath) {
       rotation: 0,
       imageId,
       imageData: url,
+      linkedPath: opts.linked ? filePath : undefined,
       originalWidth: img.naturalWidth,
       originalHeight: img.naturalHeight,
       lockAspectRatio: true,

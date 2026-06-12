@@ -74,6 +74,10 @@ export function getAnnotationBounds(ann: Annotation): AnnotationBounds | null {
     case 'cloudPolyline':
     case 'measureArea':
     case 'measurePerimeter':
+    case 'filledArea':
+      // filledArea moves by shifting its points — bounds must derive from
+      // the points too, NOT the static x/y/width/height captured at creation
+      // (those don't update on move, leaving the selection box behind).
       if (!ann.points || ann.points.length === 0) return null;
       const plMinX = Math.min(...ann.points.map(p => p.x));
       const plMinY = Math.min(...ann.points.map(p => p.y));
@@ -104,6 +108,7 @@ export function getAnnotationBounds(ann: Annotation): AnnotationBounds | null {
     case 'comment':
       return { x: ann.x!, y: ann.y!, width: ann.width || 24, height: ann.height || 24 };
     case 'box':
+    case 'mask':
     case 'circle':
     case 'highlight':
     case 'polygon':

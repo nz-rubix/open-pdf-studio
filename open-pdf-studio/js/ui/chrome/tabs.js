@@ -165,6 +165,9 @@ export function switchToTab(index) {
   updateQuickAccessButtons();
   updateWindowTitle();
 
+  // Persist the new active-tab index (debounced) for session restore.
+  window.__OPDS_SESSION_SAVE__?.();
+
   // Update PDF/A read-only tool state and bar for the new document
   import('../../tools/manager.js').then(m => m.updatePdfAToolState());
   if (newDoc && newDoc.pdfaCompliance) {
@@ -215,6 +218,13 @@ export async function closeTab(index, force = false) {
     await unlockFile(doc.filePath);
   }
 
+  // Delete the temp backing file of an untitled (never-saved) blank doc.
+  if (doc.isUntitled && doc.filePath) {
+    try {
+      if (window.__TAURI__?.fs?.remove) await window.__TAURI__.fs.remove(doc.filePath);
+    } catch (e) { console.warn('[blank-pdf] temp cleanup on close failed:', e); }
+  }
+
   // Clear thumbnail cache for this document
   clearThumbnailCache(doc.id);
 
@@ -238,6 +248,9 @@ export async function closeTab(index, force = false) {
   // Update tab bar UI
   updateTabBar();
   updateQuickAccessButtons();
+
+  // Keep the persisted session in sync (debounced) — survives dev reloads.
+  window.__OPDS_SESSION_SAVE__?.();
 
   return true;
 }

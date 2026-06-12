@@ -658,6 +658,13 @@
   color: #fff;
 }
 
+/* OpenAEC platform account: brand-kit amber so the two accounts in the
+   title bar are visually distinct (Impertio = theme accent). */
+.openaec-avatar {
+  background: #d97706;
+}
+.openaec-account-btn.openaec-busy svg { opacity: 0.5; }
+
 /* ── Dropdown panel ── */
 
 .account-dropdown {

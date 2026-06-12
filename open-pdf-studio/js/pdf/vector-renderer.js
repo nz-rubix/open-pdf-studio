@@ -203,11 +203,18 @@ export function renderVectorPage(ctx, filePath, pageNum, transform, rotation) {
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let pos = 16; // skip 16-byte header (x0, y0, w, h)
 
-  // Apply caller transform, then Y-flip, then translate to MediaBox origin
-  // PDF content is drawn in MediaBox coordinates (which can start at -846, -595 etc.)
+  // Apply caller transform, then Y-flip, then translate to MediaBox origin.
+  // PDF content is drawn in MediaBox coordinates (which can start at -846, -595
+  // etc.) for AutoCAD/Revit/Vectorworks-exported PDFs with centered coordinate
+  // systems. After the Y-flip we need to translate by `+y0` (not `-y0`) to
+  // map PDF bottom-left (x0,y0) onto canvas (0, pageH). The old `-y0` happened
+  // to work when y0 == 0 (standard PDFs) but pushed content 2*|y0| points
+  // off-canvas for AutoCAD PDFs — visible as "dark stripes" because only the
+  // small portion still inside the viewport got drawn. See:
+  // Zware vector PDF p18 regression (29% diff before fix).
   ctx.setTransform(transform.a, transform.b, transform.c, transform.d, transform.e, transform.f);
   ctx.transform(1, 0, 0, -1, 0, pageH);   // Y-flip
-  ctx.translate(-x0, -y0);                  // Shift to MediaBox origin
+  ctx.translate(-x0, y0);                  // Shift to MediaBox origin
 
   while (pos < bytes.length) {
     const op = bytes[pos++];

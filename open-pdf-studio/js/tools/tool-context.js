@@ -72,9 +72,17 @@ export function resolvePointerCoords(e) {
     const ctx = annotationCtx || canvas.getContext('2d');
     const rect = canvas.getBoundingClientRect();
 
-    // Vector viewport mode: use viewport transform for coordinate conversion
+    // Vector viewport mode: use viewport transform for coordinate conversion.
+    // Same guard as renderer.js zoomIn/Out: only honour the viewport if THIS
+    // doc actually uses it. Blank in-memory docs (filePath===null) are drawn
+    // via the PDF.js fallback path in renderer.js — they read coords from
+    // doc.scale + the annotation-canvas rect. If we'd let the viewport's
+    // stale zoom/offset (from a previously-open real PDF) drive the coord
+    // math here, every click on a blank-doc tab would land far off the page
+    // → user sees "tool draws nothing" while the annotation actually exists
+    // somewhere outside the canvas area.
     const vp = window.__pdfViewport;
-    if (vp && vp.active) {
+    if (vp && vp.active && doc?.filePath) {
       const screenX = e.clientX - rect.left;
       const screenY = e.clientY - rect.top;
       // Annotations use app-space: (0,0) = page top-left, Y-down, scale=1
@@ -109,11 +117,13 @@ export function resolvePointerCoords(e) {
  * Call ctx.save() before and ctx.restore() after.
  */
 export function applyToolTransform(ctx) {
+  const doc = getActiveDocument();
   const vp = window.__pdfViewport;
-  if (vp && vp.active) {
+  // Same blank-doc guard as resolvePointerCoords — blank in-memory docs
+  // bypass the viewport singleton and use doc.scale via the PDF.js path.
+  if (vp && vp.active && doc?.filePath) {
     ctx.setTransform(vp.zoom, 0, 0, vp.zoom, vp.offsetX, vp.offsetY);
   } else {
-    const doc = getActiveDocument();
     const scale = doc?.scale || 1.5;
     ctx.scale(scale, scale);
   }
@@ -124,9 +134,10 @@ export function applyToolTransform(ctx) {
  * Vector mode: viewport zoom. Legacy mode: doc.scale.
  */
 export function getEffectiveScale() {
-  const vp = window.__pdfViewport;
-  if (vp && vp.active) return vp.zoom;
   const doc = getActiveDocument();
+  const vp = window.__pdfViewport;
+  // Same blank-doc guard as resolvePointerCoords.
+  if (vp && vp.active && doc?.filePath) return vp.zoom;
   return doc?.scale || 1.5;
 }
 

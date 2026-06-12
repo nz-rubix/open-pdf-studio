@@ -32,7 +32,10 @@ function setupDragDrop() {
   }
 }
 
-// Tauri v2: use onDragDropEvent for reliable file paths
+// Tauri v2: use onDragDropEvent for reliable file paths.
+// Also drives the cross-instance tab re-dock UX: when a PDF (e.g. a tab being
+// dragged out of ANOTHER app instance) hovers over this window's tab bar we
+// show a highlight, and dropping docks it as a new tab.
 function setupTauriDragDrop() {
   try {
     const webview = window.__TAURI__?.webviewWindow;
@@ -40,7 +43,29 @@ function setupTauriDragDrop() {
 
     const currentWebview = webview.getCurrentWebviewWindow();
     currentWebview.onDragDropEvent(async (event) => {
-      if (event.payload.type !== 'drop') return;
+      const t = event.payload.type;
+
+      // enter / over: while a drag hovers the window, light up the tab bar as
+      // the dock target (the "where it will land" preview the user asked for).
+      if (t === 'over' || t === 'enter') {
+        updateDockHighlight(event.payload.position);
+        return;
+      }
+      if (t === 'leave') {
+        clearDockHighlight();
+        return;
+      }
+      if (t !== 'drop') return;
+
+      clearDockHighlight();
+
+      // Self-drop guard: if THIS instance started the drag (dragging its own
+      // tab out) and the drop landed back on itself, don't re-open a duplicate
+      // — just flag it so the drag-out side keeps the tab in place.
+      if (window.__OPDS_DRAGGING_OUT__) {
+        window.__OPDS_SELF_DROP__ = true;
+        return;
+      }
 
       const paths = event.payload.paths;
       if (!paths || paths.length === 0) return;
@@ -59,6 +84,26 @@ function setupTauriDragDrop() {
     console.warn('Failed to setup Tauri drag-drop:', e);
     setupHtmlDragDrop();
   }
+}
+
+// Show/hide the tab-bar dock highlight based on whether the drag cursor is
+// near the top of the window (over the document tab bar). `position` is in
+// physical pixels relative to the window's top-left.
+function updateDockHighlight(position) {
+  const tabs = document.getElementById('document-tabs');
+  if (!tabs) return;
+  // Convert the physical cursor Y to CSS px and test against the tab bar rect
+  // plus a generous catch margin below it.
+  const dpr = window.devicePixelRatio || 1;
+  const cssY = (position?.y ?? 0) / dpr;
+  const rect = tabs.getBoundingClientRect();
+  const overBar = cssY >= rect.top - 8 && cssY <= rect.bottom + 40;
+  tabs.classList.toggle('drag-dock-target', overBar);
+}
+
+function clearDockHighlight() {
+  const tabs = document.getElementById('document-tabs');
+  if (tabs) tabs.classList.remove('drag-dock-target');
 }
 
 // HTML5 fallback: read files via FileReader
@@ -145,4 +190,9 @@ export function setupEventListeners() {
   setupDragDrop();
   setupWheelZoom();
   setupPanelResize();
+
+  // Track the cursor in app-space for the move engine — required for the
+  // "hover an annotation and press G/mv" grab (it was exported but never
+  // installed, so hover-grab silently did nothing).
+  import('../tools/g-move-mode.js').then(m => m.installGMoveMouseTracker());
 }

@@ -35,6 +35,12 @@ export function hideContextMenu() {
 
 export function initContextMenus() {
   document.addEventListener('contextmenu', (e) => {
+    // Shift+right-click = 2D-cursor gesture (tool-dispatcher) — never a menu
+    // and never a tool switch.
+    if (e.shiftKey) {
+      e.preventDefault();
+      return;
+    }
     const nonDrawTools = ['select', 'hand'];
     // Check if any multi-click tool is in progress
     const isMultiClickActive = state.isDrawingPolyline || state.isDrawingCloudPolyline ||
@@ -50,6 +56,11 @@ export function initContextMenus() {
   if (annotationCanvas) {
     annotationCanvas.addEventListener('contextmenu', (e) => {
       if (!getActiveDocument()?.pdfDoc) return;
+      // Shift+right-click = 2D-cursor placement, no context menu.
+      if (e.shiftKey) {
+        e.preventDefault();
+        return;
+      }
 
       // Let tool handle its own right-click behavior (polyline finish, measurement finish, etc.)
       // These are handled via the pointerdown handler with e.button === 2

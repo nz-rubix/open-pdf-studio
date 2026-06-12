@@ -39,6 +39,25 @@ export default function Dialog(props) {
     isDragging = false;
   }
 
+  // Keep the dialog inside the window. Runs after mount (dialog may be larger
+  // than a small window — CSS centering would push the title bar off-screen)
+  // and on window resize (a dragged dialog keeps absolute coords). Top-left
+  // wins the clamp so the draggable title bar always stays reachable.
+  function clampToViewport() {
+    if (!dialogRef || !overlayRef) return;
+    const overlayRect = overlayRef.getBoundingClientRect();
+    const dialogRect = dialogRef.getBoundingClientRect();
+    const curX = dialogRect.left - overlayRect.left;
+    const curY = dialogRect.top - overlayRect.top;
+    const newX = Math.max(0, Math.min(curX, overlayRect.width - dialogRect.width));
+    const newY = Math.max(0, Math.min(curY, overlayRect.height - dialogRect.height));
+    if (Math.abs(newX - curX) < 0.5 && Math.abs(newY - curY) < 0.5) return;
+    dialogRef.style.left = newX + 'px';
+    dialogRef.style.top = newY + 'px';
+    dialogRef.style.transform = 'none';
+    dialogRef.style.position = 'absolute';
+  }
+
   function onKeyDown(e) {
     if (e.key === 'Escape') {
       props.onClose?.();
@@ -85,12 +104,16 @@ export default function Dialog(props) {
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
     document.addEventListener('keydown', onKeyDown);
+    window.addEventListener('resize', clampToViewport);
+    // Clamp after first layout (content height is only known then)
+    requestAnimationFrame(clampToViewport);
   });
 
   onCleanup(() => {
     document.removeEventListener('mousemove', onMouseMove);
     document.removeEventListener('mouseup', onMouseUp);
     document.removeEventListener('keydown', onKeyDown);
+    window.removeEventListener('resize', clampToViewport);
   });
 
   return (

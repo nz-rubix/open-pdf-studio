@@ -1,7 +1,7 @@
 import { state, getActiveDocument } from '../../core/state.js';
 import { cloneAnnotation } from '../../annotations/factory.js';
 import { recordModify } from '../../core/undo-manager.js';
-import { calculateArea, formatMeasurement, arcControlPoint, expandArcPoints } from '../../annotations/measurement.js';
+import { calculateArea, formatMeasurement, formatDimensionText, arcControlPoint, expandArcPoints } from '../../annotations/measurement.js';
 import { applyToolTransform } from '../tool-context.js';
 import {
   enterTypeLengthMode,
@@ -14,6 +14,17 @@ import {
 // Last cursor position for measurement tools — used when Enter commits at
 // typed length so we know the direction.
 const _measureCursor = { x: 0, y: 0 };
+
+// Direction anchors frozen at the moment the user starts TYPING a length —
+// keeps a Shift-straightened segment straight while typing digits (Shift
+// can't stay held for numbers). Cleared when the buffer empties or the
+// segment commits. One for the dimension click-2 flow, one for the
+// area/perimeter multi-click flow.
+const _dimDirLock = { x: null, y: null };
+const _macDirLock = { x: null, y: null };
+// Previous-frame preview point for the multi-click flow (the lock anchor —
+// captured BEFORE the first typed character arrived).
+const _macPrev = { x: 0, y: 0 };
 
 // Default hatch options for area measurement preview (red diagonal lines at 45°)
 const DEFAULT_AREA_HATCH = { pattern: 'diagonal-left', color: '#ff0000', scale: 100, angle: 0 };
@@ -35,6 +46,7 @@ export const measureDistanceTool = {
     if (e.button === 2) {
       state.dimPoints = [];
       state.isDrawingDimension = false;
+      _dimDirLock.x = null; _dimDirLock.y = null;
       ctx.redraw();
       return;
     }
@@ -52,11 +64,15 @@ export const measureDistanceTool = {
     } else if (state.dimPoints.length === 1) {
       // Click 2: second measurement point
       let pt2X = dimX, pt2Y = dimY;
-      // Honor typed length if buffer active
+      // Honor typed length if buffer active — along the LOCKED direction
+      // (the preview already applied it into _measureCursor).
       if (typeLengthHasBuffer()) {
         const last = state.dimPoints[0];
-        const ep = applyToEndpoint(last.x, last.y, x, y);
+        const dirX = _dimDirLock.x ?? _measureCursor.x;
+        const dirY = _dimDirLock.y ?? _measureCursor.y;
+        const ep = applyToEndpoint(last.x, last.y, dirX, dirY);
         pt2X = ep.x; pt2Y = ep.y;
+        _dimDirLock.x = null; _dimDirLock.y = null;
         // Skip further snap-modifications
         state.dimPoints.push({ x: pt2X, y: pt2Y });
         exitTypeLengthMode();
@@ -81,7 +97,12 @@ export const measureDistanceTool = {
       if (e.ctrlKey) finalPt = ctx.snapDistanceTo10(state.dimPoints[0].x, state.dimPoints[0].y, pt2X, pt2Y);
       state.dimPoints.push(finalPt);
     } else if (state.dimPoints.length === 2) {
-      // Click 3: offset point — defines dimension line position
+      // Click 3: picks WHICH SIDE of the element the dimension line goes.
+      // The offset distance itself is FIXED (standard drafting offset) so the
+      // dimension line stays anchored close to the measured element and the
+      // extension lines never grow long — regardless of where the user
+      // clicks. Configurable via preferences (measureDistFixedOffset, in
+      // PDF points).
       const p1 = state.dimPoints[0];
       const p2 = state.dimPoints[1];
       const lineAngle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
@@ -89,7 +110,9 @@ export const measureDistanceTool = {
       const perpY = Math.cos(lineAngle);
       const offDx = dimX - p1.x;
       const offDy = dimY - p1.y;
-      const perpDist = offDx * perpX + offDy * perpY;
+      const perpSide = (offDx * perpX + offDy * perpY) >= 0 ? 1 : -1;
+      const fixedOff = state.preferences?.measureDistFixedOffset ?? 18;
+      const perpDist = perpSide * fixedOff;
       const startX = p1.x + perpDist * perpX;
       const startY = p1.y + perpDist * perpY;
       const endX = p2.x + perpDist * perpX;
@@ -98,7 +121,12 @@ export const measureDistanceTool = {
       const prefs = state.preferences;
       const currentPage = getActiveDocument()?.currentPage || 1;
       const dist = ctx.calculateDistance(startX, startY, endX, endY, currentPage);
-      const hasScaleSource = getActiveDocument()?.annotations?.some(a => a.type === 'scaleBar' || a.type === 'viewport');
+      // Scale inheritance: when the document has ANY scale source — a scale
+      // region (schaalgebied), scale bar or viewport — the dimension inherits
+      // its scale from that source (calculateDistance resolves the innermost
+      // scale region at the measured point). The manual preference scale only
+      // applies when no source exists at all.
+      const hasScaleSource = getActiveDocument()?.annotations?.some(a => a.type === 'scaleRegion' || a.type === 'scaleBar' || a.type === 'viewport');
       const dimScale = hasScaleSource ? 0 : (prefs.measureDistDimScale || 0);
       const dimUnit = hasScaleSource ? dist.unit : (prefs.measureDistDimUnit || dist.unit);
       // mm shows whole numbers (no decimals); other units use the user pref.
@@ -107,9 +135,11 @@ export const measureDistanceTool = {
       let mText;
       if (dimScale) {
         const pixelDist = Math.sqrt((endX - startX) ** 2 + (endY - startY) ** 2);
-        mText = `${(pixelDist * dimScale).toFixed(dimPrecision)} ${dimUnit}`;
+        const v = (pixelDist * dimScale).toFixed(dimPrecision);
+        // mm is the implied drawing unit on dimensions — no suffix.
+        mText = dimUnit === 'mm' ? v : `${v} ${dimUnit}`;
       } else {
-        mText = ctx.formatMeasurement(dist);
+        mText = formatDimensionText(dist);
       }
       const ann = ctx.createAnnotation({
         type: 'measureDistance',
@@ -123,6 +153,9 @@ export const measureDistanceTool = {
         color: prefs.measureDistStrokeColor,
         strokeColor: prefs.measureDistStrokeColor,
         lineWidth: prefs.measureDistLineWidth,
+        fontSize: prefs.measureDistFontSize || undefined,
+        dimType: prefs.measureDistDimType || undefined,
+        dimExtension: prefs.measureDistDimExtension !== false, // default ON
         opacity: (prefs.measureDistOpacity || 100) / 100,
         measureText: mText,
         measureValue: dist.value,
@@ -157,14 +190,6 @@ export const measureDistanceTool = {
     let dimSnapX = snap.snapped ? snap.x : x;
     let dimSnapY = snap.snapped ? snap.y : y;
     state.lastSnapResult = snap.snapped ? snap : null;
-    // Type-length lock for click-2 preview (only when 1 point set)
-    if (typeLengthHasBuffer() && state.dimPoints.length === 1) {
-      const last = state.dimPoints[0];
-      const ep = applyToEndpoint(last.x, last.y, x, y);
-      dimSnapX = ep.x; dimSnapY = ep.y;
-      state.lastSnapResult = null;
-    }
-
     // Shift+snap angle constraint
     if (!snap.snapped && e.shiftKey && prefs.enableAngleSnap) {
       const last = state.dimPoints[state.dimPoints.length - 1];
@@ -175,6 +200,28 @@ export const measureDistanceTool = {
       dimSnapX = last.x + len * Math.cos(snapped);
       dimSnapY = last.y + len * Math.sin(snapped);
     }
+
+    // Type-length for the click-2 preview, with DIRECTION LOCK: the first
+    // buffered character freezes the current (possibly Shift-straightened)
+    // direction; mouse movement no longer changes it while typing.
+    if (typeLengthHasBuffer() && state.dimPoints.length === 1) {
+      if (_dimDirLock.x == null) {
+        _dimDirLock.x = _measureCursor.x;
+        _dimDirLock.y = _measureCursor.y;
+      }
+      const last = state.dimPoints[0];
+      const ep = applyToEndpoint(last.x, last.y, _dimDirLock.x, _dimDirLock.y);
+      dimSnapX = ep.x; dimSnapY = ep.y;
+      state.lastSnapResult = null;
+    } else if (!typeLengthHasBuffer()) {
+      _dimDirLock.x = null;
+      _dimDirLock.y = null;
+    }
+
+    // Track the SNAPPED cursor (object/shift-angle/lock applied) as the
+    // direction anchor for Enter-committed typed lengths.
+    _measureCursor.x = dimSnapX;
+    _measureCursor.y = dimSnapY;
 
     ctx.redraw();
     canvasCtx.save();
@@ -188,7 +235,11 @@ export const measureDistanceTool = {
     const sHead = prefs.measureDistStartHead || 'openCircle';
     const eHead = prefs.measureDistEndHead || 'openCircle';
     const hSize = prefs.measureDistHeadSize || 12;
-    const hasScaleSourcePreview = getActiveDocument()?.annotations?.some(a => a.type === 'scaleBar' || a.type === 'viewport');
+    const fSize = prefs.measureDistFontSize || undefined;
+    const dimExt = prefs.measureDistDimExtension !== false; // default ON
+    // Same scale-inheritance rule as the commit path: any scale source
+    // (scale region / bar / viewport) wins over the manual preference scale.
+    const hasScaleSourcePreview = getActiveDocument()?.annotations?.some(a => a.type === 'scaleRegion' || a.type === 'scaleBar' || a.type === 'viewport');
     const dimScale = hasScaleSourcePreview ? 0 : (prefs.measureDistDimScale || 0);
     const dimUnit = prefs.measureDistDimUnit || '';
     // mm shows whole numbers (no decimals); other units use the user pref.
@@ -198,10 +249,11 @@ export const measureDistanceTool = {
     function dimMeasureText(sx, sy, ex, ey) {
       if (dimScale) {
         const pixelDist = Math.sqrt((ex - sx) ** 2 + (ey - sy) ** 2);
-        return `${(pixelDist * dimScale).toFixed(dimPrecision)} ${dimUnit}`;
+        const v = (pixelDist * dimScale).toFixed(dimPrecision);
+        return dimUnit === 'mm' ? v : `${v} ${dimUnit}`;
       }
       const d = ctx.calculateDistance(sx, sy, ex, ey, getActiveDocument()?.currentPage);
-      return ctx.formatMeasurement(d);
+      return formatDimensionText(d);
     }
 
     if (state.dimPoints.length === 1) {
@@ -211,7 +263,7 @@ export const measureDistanceTool = {
       }
       ctx.drawDimension(canvasCtx, {
         startX: p1.x, startY: p1.y, endX: dimSnapX, endY: dimSnapY,
-        startHead: sHead, endHead: eHead, headSize: hSize,
+        startHead: sHead, endHead: eHead, headSize: hSize, fontSize: fSize,
         color: dimColor, measureText: dimMeasureText(p1.x, p1.y, dimSnapX, dimSnapY)
       });
     } else if (state.dimPoints.length === 2) {
@@ -221,7 +273,11 @@ export const measureDistanceTool = {
       const perpY = Math.cos(lineAngle);
       const offDx = dimSnapX - p1.x;
       const offDy = dimSnapY - p1.y;
-      const perpDist = offDx * perpX + offDy * perpY;
+      // Same fixed-offset rule as the click-3 commit: cursor picks the side,
+      // the distance is the standard offset — preview matches the result.
+      const perpSide = (offDx * perpX + offDy * perpY) >= 0 ? 1 : -1;
+      const fixedOff = prefs.measureDistFixedOffset ?? 18;
+      const perpDist = perpSide * fixedOff;
       const dStartX = p1.x + perpDist * perpX;
       const dStartY = p1.y + perpDist * perpY;
       const dEndX = p2.x + perpDist * perpX;
@@ -229,7 +285,8 @@ export const measureDistanceTool = {
       ctx.drawDimension(canvasCtx, {
         startX: dStartX, startY: dStartY, endX: dEndX, endY: dEndY,
         leaderStartX: p1.x, leaderStartY: p1.y, leaderEndX: p2.x, leaderEndY: p2.y,
-        startHead: sHead, endHead: eHead, headSize: hSize,
+        startHead: sHead, endHead: eHead, headSize: hSize, fontSize: fSize,
+        extension: dimExt,
         color: dimColor, measureText: dimMeasureText(dStartX, dStartY, dEndX, dEndY)
       });
     }
@@ -260,6 +317,7 @@ function _commitMeasureDistanceClick2(ctx, e) {
   const last = state.dimPoints[0];
   const ep = applyToEndpoint(last.x, last.y, _measureCursor.x, _measureCursor.y);
   state.dimPoints.push({ x: ep.x, y: ep.y });
+  _dimDirLock.x = null; _dimDirLock.y = null;
   exitTypeLengthMode();
   state._typeLengthCommit = null;
   ctx.redraw();
@@ -348,15 +406,8 @@ function _measureMultiClickDown(ctx, e, toolType) {
   let ptX = snap.snapped ? snap.x : x;
   let ptY = snap.snapped ? snap.y : y;
 
-  // Type-length lock: when buffer is non-empty and we have a previous point,
-  // constrain this click to the typed length in the cursor direction.
-  if (typeLengthHasBuffer() && state.measurePoints.length > 0) {
-    const last = state.measurePoints[state.measurePoints.length - 1];
-    const ep = applyToEndpoint(last.x, last.y, x, y);
-    ptX = ep.x; ptY = ep.y;
-  }
-
-  // Angle snap when Shift held
+  // Angle snap when Shift held (ortho) — FIRST, so a typed length below is
+  // applied along the straightened direction instead of the raw diagonal.
   if (!snap.snapped && e.shiftKey && prefs.enableAngleSnap && state.measurePoints.length > 0) {
     const last = state.measurePoints[state.measurePoints.length - 1];
     const dx = x - last.x, dy = y - last.y;
@@ -365,6 +416,18 @@ function _measureMultiClickDown(ctx, e, toolType) {
     const snapped = ctx.snapAngle(angle, prefs.angleSnapDegrees) * (Math.PI / 180);
     ptX = last.x + length * Math.cos(snapped);
     ptY = last.y + length * Math.sin(snapped);
+  }
+
+  // Type-length lock: when buffer is non-empty and we have a previous point,
+  // constrain this click to the typed length along the LOCKED direction
+  // (frozen at first keystroke) or, without a lock, the direction above.
+  if (typeLengthHasBuffer() && state.measurePoints.length > 0) {
+    const last = state.measurePoints[state.measurePoints.length - 1];
+    const dirX = _macDirLock.x ?? ptX;
+    const dirY = _macDirLock.y ?? ptY;
+    const ep = applyToEndpoint(last.x, last.y, dirX, dirY);
+    ptX = ep.x; ptY = ep.y;
+    _macDirLock.x = null; _macDirLock.y = null;
   }
 
   // Ctrl: snap distance to nearest N units
@@ -505,14 +568,6 @@ function _measureMultiClickMove(ctx, e, toolType) {
   let snapY = snap.snapped ? snap.y : y;
   let nearFirst = false;
 
-  // Type-length lock for preview
-  if (typeLengthHasBuffer() && state.measurePoints.length > 0) {
-    const last = state.measurePoints[state.measurePoints.length - 1];
-    const ep = applyToEndpoint(last.x, last.y, x, y);
-    snapX = ep.x; snapY = ep.y;
-    state.lastSnapResult = null;
-  }
-
   // Snap to first point when near (close shape hint) for measureArea
   if (isArea && state.measurePoints.length >= 3) {
     const first = state.measurePoints[0];
@@ -523,6 +578,8 @@ function _measureMultiClickMove(ctx, e, toolType) {
     }
   }
 
+  // Shift = ortho/angle snap FIRST, so a typed length follows the
+  // straightened direction (same rule as the line and dimension tools).
   if (!snap.snapped && !nearFirst && e.shiftKey && prefs.enableAngleSnap) {
     const last = state.measurePoints[state.measurePoints.length - 1];
     const dx = x - last.x, dy = y - last.y;
@@ -533,11 +590,35 @@ function _measureMultiClickMove(ctx, e, toolType) {
     snapY = last.y + length * Math.sin(snapped);
   }
 
+  // Type-length lock for preview — DIRECTION LOCKED: the first buffered
+  // character freezes the previous-frame (possibly ortho'd) direction so the
+  // segment stays straight while typing, wherever the mouse goes.
+  if (!nearFirst && typeLengthHasBuffer() && state.measurePoints.length > 0) {
+    if (_macDirLock.x == null) {
+      _macDirLock.x = _macPrev.x;
+      _macDirLock.y = _macPrev.y;
+    }
+    const last = state.measurePoints[state.measurePoints.length - 1];
+    const ep = applyToEndpoint(last.x, last.y, _macDirLock.x, _macDirLock.y);
+    snapX = ep.x; snapY = ep.y;
+    state.lastSnapResult = null;
+  } else if (!typeLengthHasBuffer()) {
+    _macDirLock.x = null;
+    _macDirLock.y = null;
+  }
+
   if (!nearFirst && e.ctrlKey) {
     const last = state.measurePoints[state.measurePoints.length - 1];
     const s = ctx.snapDistanceTo10(last.x, last.y, snapX, snapY);
     snapX = s.x; snapY = s.y;
   }
+
+  // The Enter-commit helper places the next vertex along this preview point —
+  // keep it in sync with everything applied above (snap, ortho, ctrl, lock).
+  _measureCursor.x = snapX;
+  _measureCursor.y = snapY;
+  _macPrev.x = snapX;
+  _macPrev.y = snapY;
 
   ctx.redraw();
   canvasCtx.save();
@@ -705,6 +786,8 @@ function _measureDeactivate(ctx) {
     state.measureHoles = [];
     ctx.redraw();
   }
+  _macDirLock.x = null; _macDirLock.y = null;
+  _dimDirLock.x = null; _dimDirLock.y = null;
   exitTypeLengthMode();
   state._typeLengthCommit = null;
 }
@@ -717,6 +800,7 @@ function _commitMeasureSegmentByLength(ctx, toolType) {
   const last = state.measurePoints[state.measurePoints.length - 1];
   const ep = applyToEndpoint(last.x, last.y, _measureCursor.x, _measureCursor.y);
   state.measurePoints.push({ x: ep.x, y: ep.y });
+  _macDirLock.x = null; _macDirLock.y = null;
   setTypeLengthStart(ep.x, ep.y);
   ctx.redraw();
 }

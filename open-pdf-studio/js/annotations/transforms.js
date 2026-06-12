@@ -1,7 +1,7 @@
 import { HANDLE_TYPES } from '../core/constants.js';
 import { state } from '../core/state.js';
 import { snapAngle } from '../utils/helpers.js';
-import { calculateDistance, calculateArea, calculatePerimeter, formatMeasurement, snapDistanceTo10 } from './measurement.js';
+import { calculateDistance, calculateArea, calculatePerimeter, formatMeasurement, formatDimensionText, snapDistanceTo10 } from './measurement.js';
 
 // Compute measurement text for a dimension annotation, using its own scale if available
 function computeDimensionText(ann) {
@@ -14,9 +14,11 @@ function computeDimensionText(ann) {
     // mm shows whole numbers (no decimals); other units use annotation.measurePrecision.
     const prec = (unit === 'mm') ? 0
       : (ann.measurePrecision !== undefined ? ann.measurePrecision : 2);
-    return `${scaledVal.toFixed(prec)} ${unit}`;
+    // mm is the implied drawing unit on dimensions — no suffix.
+    const v = scaledVal.toFixed(prec);
+    return unit === 'mm' ? v : `${v} ${unit}`;
   }
-  return formatMeasurement(calculateDistance(ann.startX, ann.startY, ann.endX, ann.endY, ann.page));
+  return formatDimensionText(calculateDistance(ann.startX, ann.startY, ann.endX, ann.endY, ann.page));
 }
 
 // Recalculate callout leader line geometry from box position and arrow tip.
@@ -220,6 +222,7 @@ export function applyResize(annotation, handleType, deltaX, deltaY, originalAnn,
 
   switch (annotation.type) {
     case 'box':
+    case 'mask':
     case 'circle':
     case 'highlight':
     case 'polygon':
@@ -371,6 +374,7 @@ export function applyResize(annotation, handleType, deltaX, deltaY, originalAnn,
       }
       break;
 
+    case 'wall':
     case 'line':
     case 'arrow':
       if (handleType === HANDLE_TYPES.LINE_START) {
@@ -982,190 +986,225 @@ export function applyResize(annotation, handleType, deltaX, deltaY, originalAnn,
   annotation.modifiedAt = new Date().toISOString();
 }
 
+// ── THE single move primitive ───────────────────────────────────────────────
+// applyMove is a geometry-FIELD walker, not a per-type switch: it translates
+// every known position-bearing field that exists on the annotation. Every
+// annotation kind — built-ins (text, line, arc, circle, dimensions, areas),
+// parametric symbols, plugin types and FUTURE types — moves through this one
+// function and gets correct G/MV/drag behaviour for free, as long as its
+// geometry lives in any of these conventional fields. NEVER add per-type
+// move code in tools or panels; extend the field tables here instead.
+const _MOVE_SCALAR_PAIRS = [
+  ['x', 'y'],
+  ['startX', 'startY'],
+  ['endX', 'endY'],
+  ['leaderStartX', 'leaderStartY'],
+  ['leaderEndX', 'leaderEndY'],
+  ['labelX', 'labelY'],
+  ['cx', 'cy'],
+];
+// Nested {x,y} objects (measureAngle vertices, plugin point-markers, …)
+const _MOVE_POINT_OBJECTS = ['at', 'vertex', 'point1', 'point2'];
+// Arrays of {x,y} points (polylines, freehand paths, spline control points, …)
+const _MOVE_POINT_ARRAYS = ['points', 'path', 'controlPoints', 'vertices'];
+
+function _movePoint(p, dx, dy) {
+  return {
+    ...p,
+    x: typeof p.x === 'number' ? p.x + dx : p.x,
+    y: typeof p.y === 'number' ? p.y + dy : p.y,
+  };
+}
+
+export function applyMoveGeneric(annotation, dx, dy) {
+  for (const [kx, ky] of _MOVE_SCALAR_PAIRS) {
+    if (typeof annotation[kx] === 'number') annotation[kx] += dx;
+    if (typeof annotation[ky] === 'number') annotation[ky] += dy;
+  }
+  for (const k of _MOVE_POINT_OBJECTS) {
+    const o = annotation[k];
+    if (o && typeof o === 'object') {
+      if (typeof o.x === 'number') o.x += dx;
+      if (typeof o.y === 'number') o.y += dy;
+    }
+  }
+  for (const k of _MOVE_POINT_ARRAYS) {
+    if (Array.isArray(annotation[k])) {
+      annotation[k] = annotation[k].map(p => _movePoint(p, dx, dy));
+    }
+  }
+  // Hole contours move rigidly with the outer polygon (donuts).
+  if (Array.isArray(annotation.holes)) {
+    annotation.holes = annotation.holes.map(h =>
+      Array.isArray(h) ? h.map(p => _movePoint(p, dx, dy)) : h
+    );
+  }
+  // Text-markup rects + PDF quadPoints ([x1,y1,...,x4,y4] flat arrays).
+  if (Array.isArray(annotation.rects)) {
+    annotation.rects = annotation.rects.map(r => ({ ...r, x: r.x + dx, y: r.y + dy }));
+  }
+  if (Array.isArray(annotation.quadPoints)) {
+    annotation.quadPoints = annotation.quadPoints.map(quad =>
+      Array.isArray(quad) ? quad.map((v, i) => v + (i % 2 === 0 ? dx : dy)) : quad
+    );
+  }
+  // Textbox leader arrows (tip/knee) move rigidly with the box.
+  if (Array.isArray(annotation.leaders)) {
+    annotation.leaders = annotation.leaders.map(l => ({
+      ...l,
+      tipX: typeof l.tipX === 'number' ? l.tipX + dx : l.tipX,
+      tipY: typeof l.tipY === 'number' ? l.tipY + dy : l.tipY,
+      kneeX: typeof l.kneeX === 'number' ? l.kneeX + dx : l.kneeX,
+      kneeY: typeof l.kneeY === 'number' ? l.kneeY + dy : l.kneeY,
+    }));
+  }
+}
+
 // Apply move to annotation
 export function applyMove(annotation, deltaX, deltaY) {
   if (annotation.locked) return;
 
-  switch (annotation.type) {
-    case 'box':
-    case 'highlight':
-    case 'polygon':
-    case 'cloud':
-    case 'textbox':
-      annotation.x += deltaX;
-      annotation.y += deltaY;
-      // Shift textbox leaders (tip/knee) so they move rigidly with the box.
-      if (annotation.type === 'textbox' && Array.isArray(annotation.leaders)) {
-        annotation.leaders = annotation.leaders.map(l => ({
-          ...l,
-          tipX: l.tipX + deltaX,
-          tipY: l.tipY + deltaY,
-          kneeX: l.kneeX + deltaX,
-          kneeY: l.kneeY + deltaY,
-        }));
-      }
-      break;
+  if (annotation.type === 'callout') {
+    // Special semantics: moving a callout moves only the TEXT BOX — the
+    // arrow tip stays anchored and the leader is recomputed.
+    annotation.x += deltaX;
+    annotation.y += deltaY;
+    recalcCalloutLeader(annotation);
+  } else {
+    applyMoveGeneric(annotation, deltaX, deltaY);
+  }
 
-    case 'callout':
-      // Move only the text box - arrow tip stays anchored
-      annotation.x += deltaX;
-      annotation.y += deltaY;
-      // Recalculate leader line from new box position to fixed arrow
-      recalcCalloutLeader(annotation);
-      break;
+  annotation.modifiedAt = new Date().toISOString();
+}
 
-    case 'circle':
-      annotation.x += deltaX;
-      annotation.y += deltaY;
-      break;
+// ── Generic rotate walker ────────────────────────────────────────────────
+// THE per-type rotate primitive for the interactive 'RO' session (see
+// g-rotate-mode.js). Mirrors applyMove's contract: ONE walker over the same
+// field tables, so every current and future annotation type rotates without
+// per-type code elsewhere.
+//
+// Semantics:
+//  * Point-bearing fields (start/end pairs, points[], holes, leaders, …)
+//    rotate exactly around the shared pivot — a multi-selection orbits as a
+//    rigid group.
+//  * Rect-anchored types (x/y/width/height) orbit by their CENTRE (their
+//    visual spin happens around the own centre via the rotation field, so
+//    the anchor must follow the centre, not the top-left corner).
+//  * Types that render a `rotation` field additionally get
+//    rotation = original.rotation + deg.
 
-    case 'line':
-    case 'arrow':
-      annotation.startX += deltaX;
-      annotation.startY += deltaY;
-      annotation.endX += deltaX;
-      annotation.endY += deltaY;
-      break;
+// Types whose renderer honours annotation.rotation (same set as the rotate
+// handle + applyRotation, plus the table/scalebar widgets).
+const _ROTATION_FIELD_TYPES = new Set([
+  'image', 'stamp', 'signature', 'comment', 'box', 'mask', 'circle', 'highlight',
+  'polygon', 'cloud', 'textbox', 'parametricSymbol', 'scaleBar', 'scheduleTable'
+]);
 
-    case 'measureDistance':
-      annotation.startX += deltaX;
-      annotation.startY += deltaY;
-      annotation.endX += deltaX;
-      annotation.endY += deltaY;
-      if (annotation.leaderStartX !== undefined) {
-        annotation.leaderStartX += deltaX;
-        annotation.leaderStartY += deltaY;
-        annotation.leaderEndX += deltaX;
-        annotation.leaderEndY += deltaY;
-      }
-      break;
+export function applyRotateGeneric(annotation, original, pivotX, pivotY, deg) {
+  if (annotation.locked) return;
+  const rad = (deg * Math.PI) / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const rotX = (px, py) => pivotX + (px - pivotX) * cos - (py - pivotY) * sin;
+  const rotY = (px, py) => pivotY + (px - pivotX) * sin + (py - pivotY) * cos;
+  const rotPoint = (p) => {
+    if (!p || typeof p.x !== 'number' || typeof p.y !== 'number') return p;
+    return { ...p, x: rotX(p.x, p.y), y: rotY(p.x, p.y) };
+  };
 
-    case 'measureAngle':
-      if (annotation.point1) { annotation.point1.x += deltaX; annotation.point1.y += deltaY; }
-      if (annotation.vertex) { annotation.vertex.x += deltaX; annotation.vertex.y += deltaY; }
-      if (annotation.point2) { annotation.point2.x += deltaX; annotation.point2.y += deltaY; }
-      break;
+  // Anchor (x/y): rect-anchored types orbit by centre; bare x/y is a point.
+  if (typeof annotation.x === 'number' && typeof annotation.y === 'number') {
+    if (typeof annotation.width === 'number' && typeof annotation.height === 'number') {
+      const cx = annotation.x + annotation.width / 2;
+      const cy = annotation.y + annotation.height / 2;
+      annotation.x = rotX(cx, cy) - annotation.width / 2;
+      annotation.y = rotY(cx, cy) - annotation.height / 2;
+    } else {
+      const nx = rotX(annotation.x, annotation.y);
+      const ny = rotY(annotation.x, annotation.y);
+      annotation.x = nx;
+      annotation.y = ny;
+    }
+  }
+  if (_ROTATION_FIELD_TYPES.has(annotation.type)) {
+    annotation.rotation = ((((original?.rotation || 0) + deg) % 360) + 360) % 360;
+  }
 
-    case 'comment':
-    case 'text':
-      annotation.x += deltaX;
-      annotation.y += deltaY;
-      break;
-
-    case 'draw':
-      if (annotation.path) {
-        annotation.path = annotation.path.map(p => ({
-          x: p.x + deltaX,
-          y: p.y + deltaY
-        }));
+  // Pure point fields rotate exactly around the pivot (skip the x/y anchor —
+  // handled above).
+  for (const [kx, ky] of _MOVE_SCALAR_PAIRS) {
+    if (kx === 'x') continue;
+    if (typeof annotation[kx] === 'number' && typeof annotation[ky] === 'number') {
+      const nx = rotX(annotation[kx], annotation[ky]);
+      const ny = rotY(annotation[kx], annotation[ky]);
+      annotation[kx] = nx;
+      annotation[ky] = ny;
+    }
+  }
+  for (const k of _MOVE_POINT_OBJECTS) {
+    const o = annotation[k];
+    if (o && typeof o === 'object' && typeof o.x === 'number' && typeof o.y === 'number') {
+      const nx = rotX(o.x, o.y);
+      const ny = rotY(o.x, o.y);
+      o.x = nx;
+      o.y = ny;
+    }
+  }
+  for (const k of _MOVE_POINT_ARRAYS) {
+    if (Array.isArray(annotation[k])) {
+      annotation[k] = annotation[k].map(rotPoint);
+    }
+  }
+  if (Array.isArray(annotation.holes)) {
+    annotation.holes = annotation.holes.map(h => (Array.isArray(h) ? h.map(rotPoint) : h));
+  }
+  // Axis-aligned markup rects can't tilt — orbit their anchor rigidly.
+  if (Array.isArray(annotation.rects)) {
+    annotation.rects = annotation.rects.map(r => ({ ...r, x: rotX(r.x, r.y), y: rotY(r.x, r.y) }));
+  }
+  if (Array.isArray(annotation.quadPoints)) {
+    annotation.quadPoints = annotation.quadPoints.map(quad => {
+      if (!Array.isArray(quad)) return quad;
+      const out = quad.slice();
+      for (let i = 0; i + 1 < out.length; i += 2) {
+        const nx = rotX(out[i], out[i + 1]);
+        const ny = rotY(out[i], out[i + 1]);
+        out[i] = nx;
+        out[i + 1] = ny;
       }
-      break;
-
-    case 'polyline':
-    case 'cloudPolyline':
-    case 'measureArea':
-    case 'measurePerimeter':
-    case 'filledArea':
-      if (annotation.points) {
-        annotation.points = annotation.points.map(p => ({
-          x: p.x + deltaX,
-          y: p.y + deltaY
-        }));
+      return out;
+    });
+  }
+  // Textbox leader arrows (tip/knee) rotate with the box.
+  if (Array.isArray(annotation.leaders)) {
+    annotation.leaders = annotation.leaders.map(l => {
+      const out = { ...l };
+      if (typeof out.tipX === 'number' && typeof out.tipY === 'number') {
+        const nx = rotX(out.tipX, out.tipY);
+        const ny = rotY(out.tipX, out.tipY);
+        out.tipX = nx;
+        out.tipY = ny;
       }
-      // Move holes along with the outer polygon
-      if ((annotation.type === 'measureArea' || annotation.type === 'filledArea') && annotation.holes) {
-        annotation.holes = annotation.holes.map(hole =>
-          hole.map(p => ({ x: p.x + deltaX, y: p.y + deltaY }))
-        );
+      if (typeof out.kneeX === 'number' && typeof out.kneeY === 'number') {
+        const nx = rotX(out.kneeX, out.kneeY);
+        const ny = rotY(out.kneeX, out.kneeY);
+        out.kneeX = nx;
+        out.kneeY = ny;
       }
-      // Move label position along with the polygon
-      if (annotation.type === 'measureArea' && annotation.labelX != null && annotation.labelY != null) {
-        annotation.labelX += deltaX;
-        annotation.labelY += deltaY;
+      return out;
+    });
+  }
+  // Callout: the arrow tip rotates around the pivot; the leader (knee/arm)
+  // is then recomputed from the new box↔tip relation, like applyMove does.
+  if (annotation.type === 'callout') {
+    for (const [ax, ay] of [['arrowX', 'arrowY'], ['armOriginX', 'armOriginY']]) {
+      if (typeof annotation[ax] === 'number' && typeof annotation[ay] === 'number') {
+        const nx = rotX(annotation[ax], annotation[ay]);
+        const ny = rotY(annotation[ax], annotation[ay]);
+        annotation[ax] = nx;
+        annotation[ay] = ny;
       }
-      break;
-
-    case 'image':
-    case 'stamp':
-    case 'signature':
-    case 'viewport':
-    case 'scaleRegion':
-    case 'scaleBar':
-    case 'scheduleTable':
-    case 'parametricSymbol':
-      annotation.x += deltaX;
-      annotation.y += deltaY;
-      break;
-
-    case 'textHighlight':
-    case 'textStrikethrough':
-    case 'textUnderline':
-      // Move bounding box
-      annotation.x += deltaX;
-      annotation.y += deltaY;
-      // Move individual rects
-      if (annotation.rects) {
-        annotation.rects = annotation.rects.map(r => ({
-          x: r.x + deltaX,
-          y: r.y + deltaY,
-          width: r.width,
-          height: r.height
-        }));
-      }
-      // Move quadPoints if present
-      if (annotation.quadPoints) {
-        annotation.quadPoints = annotation.quadPoints.map(quad => {
-          // quadPoints: [x1,y1,x2,y2,x3,y3,x4,y4]
-          return [
-            quad[0] + deltaX, quad[1] + deltaY,  // top-left
-            quad[2] + deltaX, quad[3] + deltaY,  // top-right
-            quad[4] + deltaX, quad[5] + deltaY,  // bottom-left
-            quad[6] + deltaX, quad[7] + deltaY   // bottom-right
-          ];
-        });
-      }
-      break;
-
-    default:
-      // Generic move for plugin-registered types (e.g. symitech.schade,
-      // symitech.scheur, symitech.vloer-contour). Without this branch any
-      // annotation whose type isn't in the built-in switch would silently
-      // refuse to move when dragged with the hand-tool.
-      // Strategy: shift any of the well-known position-bearing fields that
-      // are present on the annotation. Plugins that need custom semantics
-      // can still opt out by setting `annotation.locked = true` (handled
-      // at the top of this function).
-      if (typeof annotation.x === 'number') annotation.x += deltaX;
-      if (typeof annotation.y === 'number') annotation.y += deltaY;
-      if (typeof annotation.startX === 'number') annotation.startX += deltaX;
-      if (typeof annotation.startY === 'number') annotation.startY += deltaY;
-      if (typeof annotation.endX === 'number') annotation.endX += deltaX;
-      if (typeof annotation.endY === 'number') annotation.endY += deltaY;
-      // Nested position-bearing fields used by point-marker plugin types
-      // (symitech.schade, symitech.reeks, symitech.doorvoer.point-marker store
-      // their coordinate as `at: {x, y}` rather than top-level x/y).
-      if (annotation.at && typeof annotation.at === 'object') {
-        if (typeof annotation.at.x === 'number') annotation.at.x += deltaX;
-        if (typeof annotation.at.y === 'number') annotation.at.y += deltaY;
-      }
-      // Center-coordinate variants (e.g. circle/ellipse-shaped plugin types).
-      if (typeof annotation.cx === 'number') annotation.cx += deltaX;
-      if (typeof annotation.cy === 'number') annotation.cy += deltaY;
-      if (Array.isArray(annotation.points)) {
-        annotation.points = annotation.points.map(p => ({
-          ...p,
-          x: typeof p.x === 'number' ? p.x + deltaX : p.x,
-          y: typeof p.y === 'number' ? p.y + deltaY : p.y,
-        }));
-      }
-      if (Array.isArray(annotation.path)) {
-        annotation.path = annotation.path.map(p => ({
-          ...p,
-          x: typeof p.x === 'number' ? p.x + deltaX : p.x,
-          y: typeof p.y === 'number' ? p.y + deltaY : p.y,
-        }));
-      }
-      break;
+    }
+    recalcCalloutLeader(annotation);
   }
 
   annotation.modifiedAt = new Date().toISOString();
@@ -1176,7 +1215,7 @@ export function applyRotation(annotation, mouseX, mouseY, originalAnn) {
   if (annotation.locked) return;
 
   // Supported types for rotation
-  const rotationTypes = ['image', 'stamp', 'signature', 'comment', 'box', 'circle', 'highlight', 'polygon', 'cloud', 'textbox', 'parametricSymbol'];
+  const rotationTypes = ['image', 'stamp', 'signature', 'comment', 'box', 'mask', 'circle', 'highlight', 'polygon', 'cloud', 'textbox', 'parametricSymbol'];
   if (!rotationTypes.includes(annotation.type)) return;
 
   // Calculate center of annotation

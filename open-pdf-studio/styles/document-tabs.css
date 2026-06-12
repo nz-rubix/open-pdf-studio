@@ -1,6 +1,7 @@
 /* Document Tabs Bar */
 .document-tabs {
   display: flex;
+  position: relative; /* anchor for the .drag-dock-target drop-zone label */
   background: var(--theme-tab-bg);
   border-bottom: 1px solid var(--theme-tab-border);
   height: 28px;
@@ -103,6 +104,29 @@
 
 .document-tab.drop-target {
   border-left: 2px solid var(--theme-tab-active-accent);
+}
+
+/* Cross-instance re-dock drop zone: when a PDF is dragged from another app
+   instance over this window's tab bar, the bar lights up to preview where the
+   tab will land. Windows-style flat accent — inset glow + accent underline. */
+.document-tabs.drag-dock-target {
+  background: rgba(0, 120, 215, 0.12);
+  box-shadow: inset 0 0 0 2px var(--theme-tab-active-accent, #0078d7);
+}
+
+.document-tabs.drag-dock-target::after {
+  content: 'Sleep hier om te koppelen';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 4px;
+  padding: 2px 10px;
+  background: var(--theme-tab-active-accent, #0078d7);
+  color: #fff;
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 50;
 }
 
 .document-tabs-empty {

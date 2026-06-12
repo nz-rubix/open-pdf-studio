@@ -59,6 +59,27 @@ export function startTextEditing(annotation) {
   const centerX = canvasRect.left + offX + (annotation.x + width / 2) * scale;
   const centerY = canvasRect.top + offY + (annotation.y + height / 2) * scale;
 
+  // Build a CSS font-family fallback chain matching shapes.js
+  // drawTextboxContent — some editors emit "SegoeUI" (no space)
+  // which neither Canvas nor CSS resolves to the installed Segoe UI family
+  // without the camelCase-expanded variant in the fallback list. Without
+  // this, edit-mode textarea silently falls back to the browser default
+  // (Times Serif on Windows), giving a font that differs from what the
+  // canvas renders → user sees one shape while editing, another after
+  // commit.
+  const rawFontFamily = annotation.fontFamily || 'Arial';
+  const _cssQuote = s => `"${s.replace(/"/g, '\\"')}"`;
+  const _expanded = rawFontFamily.replace(/([a-z])([A-Z])/g, '$1 $2');
+  const _chain = [];
+  if (_expanded !== rawFontFamily) _chain.push(_cssQuote(_expanded));
+  _chain.push(/[\s"',]/.test(rawFontFamily) ? _cssQuote(rawFontFamily) : rawFontFamily);
+  _chain.push('sans-serif');
+  const cssFontFamily = _chain.join(', ');
+
+  // Match the canvas padding (lineWidth, no minimum) so wrap-points line
+  // up. Was `2 * scale` which added a 2pt margin the canvas no longer has.
+  const editPadding = (annotation.lineWidth ?? 0) * scale;
+
   // Build style object for the textarea overlay
   const styleObj = {
     position: 'fixed',
@@ -67,12 +88,12 @@ export function startTextEditing(annotation) {
     width: `${scaledWidth}px`,
     height: `${scaledHeight}px`,
     'font-size': `${(annotation.fontSize || 14) * scale}px`,
-    'font-family': annotation.fontFamily || 'Arial',
+    'font-family': cssFontFamily,
     color: annotation.textColor || annotation.color || '#000000',
     'background-color': annotation.fillColor && annotation.fillColor !== 'transparent'
       ? annotation.fillColor : '#ffffff',
     border: `${(annotation.lineWidth ?? 1) * scale}px solid ${annotation.strokeColor || '#000000'}`,
-    padding: `${2 * scale}px`,
+    padding: `${editPadding}px`,
     'box-sizing': 'border-box',
     resize: 'none',
     outline: 'none',
@@ -89,7 +110,9 @@ export function startTextEditing(annotation) {
   if (annotation.textAlign) styleObj['text-align'] = annotation.textAlign;
   // Line spacing: CSS line-height adds half-leading above first line.
   // To show spacing only below text, we shift the textarea up inside a clipping wrapper.
-  const ls = annotation.lineSpacing || 1.5;
+  // Match shapes.js DEFAULT_LINE_SPACING (=1.2) so the edit overlay shows
+  // the same line gap the canvas will draw on commit.
+  const ls = annotation.lineSpacing || 1.2;
   styleObj['line-height'] = ls;
   const halfLeading = ((ls - 1) * (annotation.fontSize || 14) * scale) / 2;
   // Pass halfLeading offset to the overlay component via a custom property

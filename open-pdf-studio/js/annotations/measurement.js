@@ -229,6 +229,14 @@ function applyRounding(value, unit) {
   return Math.round(value / step) * step;
 }
 
+// Dimension-label formatter (maatlijnen): same as formatMeasurement, but in
+// mm the unit suffix is OMITTED — NL drafting convention writes "436", not
+// "436 mm" (mm is the implied drawing unit). Other units keep their suffix.
+export function formatDimensionText(measurement) {
+  const s = formatMeasurement(measurement);
+  return (measurement?.unit || 'mm') === 'mm' ? s.replace(/\s*mm$/, '') : s;
+}
+
 // Format measurement for display
 // Default: mm → no decimals; m/cm → 1 decimal; ft/in → 2 decimals
 // Distances in mm >= 1000 are automatically shown as meters
@@ -358,7 +366,7 @@ export function recalculateAllMeasurements() {
       ann.measureValue = value;
       ann.measureUnit = scale.unit;
       ann.measureScale = undefined; // Clear legacy per-annotation scale so formatMeasurement uses the scaleBar
-      ann.measureText = formatMeasurement({ value, unit: scale.unit });
+      ann.measureText = formatDimensionText({ value, unit: scale.unit });
     } else if (ann.type === 'measureArea') {
       if (ann.points && ann.points.length >= 3) {
         // Use position-aware scale directly instead of calculateArea's global fallback

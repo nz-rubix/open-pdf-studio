@@ -55,6 +55,9 @@ export default function TextEditOverlay() {
       const cancelFn = onCancel();
       if (cancelFn) cancelFn();
       hideTextEditOverlay();
+      // Escape exits the WHOLE place-text flow: back to the select tool so
+      // the next click doesn't drop another textbox.
+      import('../../tools/manager.js').then(m => m.setTool && m.setTool('select')).catch(() => {});
       return;
     }
     // Ctrl+B → toggle bold, Ctrl+I → italic, Ctrl+U → underline
@@ -98,7 +101,12 @@ export default function TextEditOverlay() {
 
   const textareaStyle = createMemo(() => {
     const s = overlayStyle();
-    const offset = s['--text-offset'] || '0px';
+    // --text-offset (half-leading) is no longer used to shift the textarea
+    // up — the canvas now puts half-leading ABOVE the first line too (so
+    // both top and bottom leading are equal, matching reference viewers). The
+    // browser's default CSS line-height puts the same half-leading at the
+    // top of the first line natively, so the textarea sits in the right
+    // place without any compensating shift.
     // Copy all styles except position/size/transform (handled by wrapper)
     const ts = { ...s };
     delete ts.position;
@@ -115,14 +123,27 @@ export default function TextEditOverlay() {
       ts['font-style'] = ann.fontItalic ? 'italic' : 'normal';
       ts['text-decoration'] = ann.fontUnderline ? 'underline' : 'none';
       if (ann.textColor) ts.color = ann.textColor;
-      if (ann.fontFamily) ts['font-family'] = ann.fontFamily;
+      if (ann.fontFamily) {
+        // Mirror the camelCase-expanded fallback chain used by shapes.js
+        // drawTextboxContent — otherwise reactive prop-panel updates would
+        // overwrite the carefully-built chain with the raw "SegoeUI"
+        // single-token form that CSS can't resolve.
+        const raw = ann.fontFamily;
+        const q = v => `"${v.replace(/"/g, '\\"')}"`;
+        const exp = raw.replace(/([a-z])([A-Z])/g, '$1 $2');
+        const ch = [];
+        if (exp !== raw) ch.push(q(exp));
+        ch.push(/[\s"',]/.test(raw) ? q(raw) : raw);
+        ch.push('sans-serif');
+        ts['font-family'] = ch.join(', ');
+      }
     }
-    // Make textarea fill the wrapper, shifted up by halfLeading
+    // Make textarea fill the wrapper exactly (no half-leading shift now).
     ts.position = 'absolute';
     ts.left = '0';
-    ts.top = `-${offset}`;
+    ts.top = '0';
     ts.width = '100%';
-    ts.height = `calc(100% + ${offset})`;
+    ts.height = '100%';
     return ts;
   });
 

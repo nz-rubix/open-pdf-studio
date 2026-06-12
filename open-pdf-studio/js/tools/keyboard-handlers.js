@@ -1,7 +1,9 @@
 import { state, getActiveDocument, selectAllOnPage, clearSelection } from '../core/state.js';
 import { undo, redo, recordAdd, recordBulkDelete, recordDelete, recordModify, recordBulkModify, recordClearPage } from '../core/undo-manager.js';
 import { setTool } from './manager.js';
-import { showPreferencesDialog } from '../core/preferences.js';
+import { showPreferencesDialog, setAsDefaultStyle } from '../core/preferences.js';
+import { getAnnotationType } from '../plugins/annotation-type-registry.js';
+import { copyAndMove } from './edit-ops.js';
 import { showDocPropertiesDialog, showNewDocDialog } from '../ui/chrome/dialogs.js';
 import { copyAnnotation, copyAnnotations } from '../annotations/clipboard.js';
 import { redrawAnnotations, redrawContinuous } from '../annotations/rendering.js';
@@ -19,12 +21,44 @@ import { hideProperties, showProperties, showMultiSelectionProperties, togglePro
 import { openDialog, aiPanelVisible, setAiPanelVisible, aiIsAuthenticated, aiRequireSignIn } from '../bridge.js';
 import { getTool } from './tool-registry.js';
 import { tryStartGMove, isGMoveModeActive } from './g-move-mode.js';
+import { tryStartGRotate, isGRotateModeActive } from './g-rotate-mode.js';
 import { toggleFullscreen, exitFullscreen, getFullscreenState } from '../ui/chrome/fullscreen.js';
-import { typeLengthActive, consumeKey as typeLengthConsumeKey } from './type-length-input.js';
+import { typeLengthActive, consumeKey as typeLengthConsumeKey, typeLengthCursor } from './type-length-input.js';
 
 function redraw() {
   if (getActiveDocument()?.viewMode === 'continuous') redrawContinuous();
   else redrawAnnotations();
+}
+
+// Live preview while TYPING a measurement: re-fire the normal pointermove
+// pipeline at the last known cursor position so the active tool re-renders
+// its rubber-band with the new constrained length ("5" → "50" → "500" grows
+// on screen as you type). One generic mechanism for every tool — line,
+// arrow, dimension, area, hatch area, polyline — no per-tool preview code.
+function _refreshTypeLengthPreview(srcEvent) {
+  try {
+    const pos = typeLengthCursor();
+    if (!pos || (pos.x === 0 && pos.y === 0)) { redraw(); return; }
+    let target = document.elementFromPoint(pos.x, pos.y);
+    target = target && target.closest
+      ? (target.closest('#annotation-canvas') || target.closest('.annotation-canvas'))
+      : null;
+    if (!target) target = document.getElementById('annotation-canvas');
+    if (!target) { redraw(); return; }
+    const ev = new PointerEvent('pointermove', {
+      clientX: pos.x,
+      clientY: pos.y,
+      bubbles: true,
+      cancelable: true,
+      pointerType: 'mouse',
+      shiftKey: !!srcEvent?.shiftKey,
+      ctrlKey: !!srcEvent?.ctrlKey,
+      altKey: !!srcEvent?.altKey,
+    });
+    target.dispatchEvent(ev);
+  } catch (_) {
+    redraw();
+  }
 }
 
 // ── CAD-style two-letter command chords (AutoCAD-style command line) ──
@@ -34,8 +68,65 @@ const CAD_CHORDS = {
   'tr': () => setTool('trim'),
   'ex': () => setTool('extend'),
   'tx': () => setTool('textbox'),
-  // Reserved for future: 'l' line, 'c' circle, 'co' copy, 'mi' mirror, 'ar' array, etc.
+  'cs': () => createSimilarFromSelection(),
+  // 'mv' = Move: same engine as the G key, but AutoCAD-style — first click
+  // picks the (object-snapped) BASE point, second click drops. ALL
+  // interactive moving funnels through g-move-mode.js (one move session,
+  // applyMove as the single per-type primitive).
+  'mv': () => tryStartGMove({ basePoint: true }),
+  // 'tl' = Toggle Lineweight display (CAD LWDISPLAY): draw everything with a
+  // max 1pt hairline instead of true widths. Pure display toggle —
+  // annotation lineWidth values stay untouched.
+  'tl': () => {
+    state.preferences.thinLines = !state.preferences.thinLines;
+    // '[render]' prefix lands in the MCP console ring → observable in tests.
+    console.log('[render] thinLines =', state.preferences.thinLines);
+    import('../core/preferences.js').then(m => m.savePreferences && m.savePreferences()).catch(() => {});
+    redraw();
+  },
+  // 'co' = Copy: duplicate + move via the EDIT-OPS layer (edit-ops.js) —
+  // the one place where target resolution, cloning and the move session
+  // live. Never reimplement copying per-tool or per-type.
+  'co': () => copyAndMove(),
+  // 'ro' = Rotate: interactive rotate session around the joint selection
+  // centre (g-rotate-mode.js — applyRotateGeneric as the single per-type
+  // primitive, same walker tables as move). Shift = angle snap.
+  'ro': () => tryStartGRotate(),
+  // Reserved for future: 'l' line, 'c' circle, 'mi' mirror, 'ar' array, etc.
 };
+
+// "CS" — Create Similar (BricsCAD-style): take the selected annotation,
+// persist its style as the default for its type, and activate the tool that
+// draws that type. The next annotation the user draws comes out identical in
+// style to the selected one. Works for every annotation type that has a
+// matching tool (which is all built-ins: annotation.type === tool name).
+function createSimilarFromSelection() {
+  const doc = getActiveDocument();
+  const selArr = doc?.selectedAnnotations || [];
+  const sel = selArr.length >= 1 ? selArr[0] : (doc?.selectedAnnotation || null);
+  if (!sel) return; // nothing selected → no-op
+
+  // Style of the selected annotation becomes the tool default for its type
+  // (same mechanism as the context-menu "Set as Default Style").
+  try { setAsDefaultStyle(sel); } catch (_) {}
+
+  // Walls carry their material + thickness through toolOverrides (the same
+  // channel the palette uses) so the NEXT wall comes out identical.
+  if (sel.type === 'wall') {
+    state.toolOverrides = {
+      wallPattern: sel.hatchPattern || 'nen47-metselwerk-baksteen',
+      wallDikteMm: sel.dikteMm || 100,
+      wallIsolatieType: sel.isolatieType,
+    };
+  }
+
+  // Built-in annotation types share their tool's name; plugin types resolve
+  // via the annotation-type registry (the dispatcher handles those tools).
+  const toolName = sel.type;
+  if (getTool(toolName) || getAnnotationType(toolName)) {
+    setTool(toolName);
+  }
+}
 const CHORD_MS = 1200;
 let _chordBuffer = '';
 let _chordTimer = null;
@@ -133,8 +224,9 @@ export async function handleKeydown(e) {
       if (result.committed && typeof state._typeLengthCommit === 'function') {
         state._typeLengthCommit(result.length);
       } else {
-        // Buffer changed → request redraw so preview reflects new constrained endpoint
-        redraw();
+        // Buffer changed → re-run the tool's preview at the current cursor so
+        // the rubber-band live-updates to the typed length while typing.
+        _refreshTypeLengthPreview(e);
       }
       return;
     }
@@ -169,7 +261,7 @@ export async function handleKeydown(e) {
 
   // G-key Blender-style move mode (issue #210) — only trigger when not already
   // in G-mode (g-move-mode.js intercepts subsequent keys at capture phase).
-  if (!ctrl && !shift && !e.altKey && !isGMoveModeActive() && (e.key === 'g' || e.key === 'G')) {
+  if (!ctrl && !shift && !e.altKey && !isGMoveModeActive() && !isGRotateModeActive() && (e.key === 'g' || e.key === 'G')) {
     if (tryStartGMove()) {
       e.preventDefault();
       return;
@@ -180,7 +272,7 @@ export async function handleKeydown(e) {
   // "L"=Line, "C"=Circle, "M"=Move, "CO"=Copy, "TR"=Trim, "EX"=Extend, ...).
   // Buffer alphabetic keys for ~1.2s; on each keystroke check for a match.
   // No modifier keys (ctrl/alt) and not while a tool is mid-operation.
-  if (!ctrl && !e.altKey && /^[a-zA-Z]$/.test(e.key) && !isGMoveModeActive() && !typeLengthActive()) {
+  if (!ctrl && !e.altKey && /^[a-zA-Z]$/.test(e.key) && !isGMoveModeActive() && !isGRotateModeActive() && !typeLengthActive()) {
     if (_cadChordTry(e.key.toLowerCase())) {
       e.preventDefault();
       return;
@@ -467,17 +559,15 @@ export async function handleKeydown(e) {
     }
     // Always clear any lingering polar anchor on Escape
     import('./snap-engine.js').then(m => m.clearPolarAnchor && m.clearPolarAnchor()).catch(() => {});
-    // If annotations are selected, deselect them first
+    // ESC always jumps to the select tool, regardless of whether
+    // annotations are selected. Selection is also cleared in the same
+    // gesture (so a second ESC isn't needed). Ribbon tab stays put.
     if ((getActiveDocument()?.selectedAnnotations || []).length > 0) {
       clearSelection();
       hideProperties();
       redraw();
-      return;
     }
-    // Otherwise switch to hand tool (default)
-    setTool('hand');
-    // Switch to Home ribbon tab
-    switchToTab('home');
+    setTool('select');
   }
 
   // View shortcuts

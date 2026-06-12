@@ -157,6 +157,26 @@ export async function convertPdfAnnotation(annot, pageNum, viewport, stampImageM
           lineWidth: annot.borderStyle?.width || 1,
         });
       }
+      // Maskeer (wipeout): Square + OPS_Subtype 'mask' — restore as the
+      // dedicated type so the fixed white-cover rendering applies again.
+      if (extraColors.opsSubtype === 'mask') {
+        const mkRect = convertRect(annot.rect);
+        return createAnnotation({
+          ...baseProps,
+          type: 'mask',
+          x: mkRect.x,
+          y: mkRect.y,
+          width: mkRect.width,
+          height: mkRect.height,
+          rotation: extraColors.rotation || 0,
+          color: colorArrayToHex(annot.color, '#9a9a9a'),
+          strokeColor: colorArrayToHex(annot.color, '#9a9a9a'),
+          fillColor: '#ffffff',
+          lineWidth: extraColors.borderWidth ?? annot.borderStyle?.width ?? 0.75,
+          borderStyle: 'dash-dot',
+          opacity: 1,
+        });
+      }
       // Check for scheduleTable custom type
       if (extraColors.opsSubtype === 'scheduleTable') {
         const stRect = convertRect(annot.rect);
@@ -314,6 +334,28 @@ export async function convertPdfAnnotation(annot, pageNum, viewport, stampImageM
         const lc = extraColors.lineCoords || annot.lineCoordinates;
         const [lsx, lsy] = convertPoint(lc[0], lc[1]);
         const [lex, ley] = convertPoint(lc[2], lc[3]);
+
+        // Wall segment: /Line centreline + OPS thickness/material metadata.
+        if (extraColors.opsSubtype === 'wall') {
+          return createAnnotation({
+            ...baseProps,
+            type: 'wall',
+            startX: lsx,
+            startY: lsy,
+            endX: lex,
+            endY: ley,
+            dikteMm: extraColors.opsDikteMm ?? 100,
+            hatchPattern: extraColors.opsHatchPattern || 'none',
+            hatchColor: extraColors.opsHatchColor || undefined,
+            // undefined → the material's own density (WALL_MATERIALS.dens)
+            hatchScale: extraColors.opsHatchScale ?? undefined,
+            hatchAngle: extraColors.opsHatchAngle ?? 0,
+            isolatieType: extraColors.opsIsolatieType || undefined,
+            color: colorArrayToHex(annot.color, '#000000'),
+            strokeColor: colorArrayToHex(annot.color, '#000000'),
+            lineWidth: extraColors.borderWidth ?? annot.borderStyle?.width ?? 0.7,
+          });
+        }
 
         // Check if this is a measurement annotation (use pdf.js IT + colorMap fallback)
         const isMeasureDist = extraColors.opsSubtype === 'measureDistance' ||
@@ -1066,7 +1108,25 @@ export async function convertPdfAnnotation(annot, pageNum, viewport, stampImageM
         stampProps.lockAspectRatio = true;
       }
 
-      return createAnnotation(stampProps);
+      // LINKED image: remember the source path and refresh the bitmap from
+      // disk (async, silent — the embedded version stays as fallback when
+      // the file is gone).
+      if (extraColors.opsLinkedPath) {
+        stampProps.linkedPath = extraColors.opsLinkedPath;
+      }
+      // Stamps the app saved from an IMAGE annotation (Name 'Image', bitmap
+      // embedded) round-trip back to type 'image' so the image properties
+      // (size, aspect lock, linked file) stay editable after reopen.
+      if (dataUrl && (pdfName === 'Image' || stampProps.linkedPath)) {
+        stampProps.type = 'image';
+      }
+      const _stampAnn = createAnnotation(stampProps);
+      if (_stampAnn?.linkedPath) {
+        import('../../annotations/image-drop.js')
+          .then(m => m.refreshLinkedImage(_stampAnn, { silent: true }))
+          .catch(() => {});
+      }
+      return _stampAnn;
     }
   }
 

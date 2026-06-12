@@ -38,6 +38,7 @@
 
 import { createSignal } from 'solid-js';
 import { getMeasureScale } from '../annotations/measurement.js';
+import { getActiveDocument } from '../core/state.js';
 
 // ── SolidJS signals exposed to the HUD overlay ─────────────────────────────
 const [_buffer, _setBuffer] = createSignal('');
@@ -279,7 +280,12 @@ export function applyToEndpoint(startX, startY, cursorX, cursorY) {
     return { x: cursorX, y: cursorY, constrained: false };
   }
   const r = parseCoordBuffer(_buffer());
-  const pxPerUnit = getMeasureScale().pixelsPerUnit || 1;
+  // Resolve the scale AT THE ANCHOR POINT: when drawing inside a scale region
+  // (schaalgebied) the typed value must be interpreted in THAT region's
+  // scale/unit, not the document/global scale. getMeasureScale prioritises
+  // the innermost region containing the point.
+  const _page = getActiveDocument()?.currentPage;
+  const pxPerUnit = getMeasureScale(_page, startX, startY).pixelsPerUnit || 1;
 
   switch (r.kind) {
     case 'length': {

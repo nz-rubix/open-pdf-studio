@@ -4,7 +4,7 @@ import { hexToColorArray } from '../utils/colors.js';
 import { markDocumentSaved, updateWindowTitle } from '../ui/chrome/tabs.js';
 import { isTauri, invoke, readBinaryFile, writeBinaryFile, saveFileDialog, unlockFile, lockFile } from '../core/platform.js';
 import { getCachedPdfBytes, setCachedPdfBytes, hidePdfABar } from './loader.js';
-import { PDFDocument, PDFString, PDFName, PDFArray, PDFStream, degrees,
+import { PDFDocument, PDFString, PDFHexString, PDFName, PDFArray, PDFStream, degrees,
   PDFTextField, PDFCheckBox, PDFDropdown, PDFRadioGroup, PDFOptionList } from 'pdf-lib';
 import { getAnnotationStorage, getAnnotIdToFieldName } from './form-layer.js';
 import { getAnnotationType } from '../plugins/annotation-type-registry.js';
@@ -23,8 +23,11 @@ import { catmullRomSpline } from '../tools/tools/spline-tool.js';
 export async function savePDF(saveAsPath = null) {
   const activeDoc = getActiveDocument();
   const currentPath = activeDoc?.filePath;
-  if (!currentPath && !saveAsPath) {
-    // Untitled document — redirect to Save As
+  // Redirect to "Save As" for untitled docs. These now have a temp-file
+  // `filePath` (so they render via the real pipeline), so we ALSO check the
+  // `isUntitled` flag — otherwise "Save" would silently overwrite the temp
+  // file and the user would never be asked where to keep their document.
+  if ((!currentPath || activeDoc?.isUntitled) && !saveAsPath) {
     return await savePDFAs();
   }
 
@@ -214,6 +217,7 @@ export async function savePDF(saveAsPath = null) {
             break;
           }
 
+          case 'mask': // wipeout — Square with white IC + OPS_Subtype (set below)
           case 'box': {
             // Square annotation
             let bx1 = convertX(ann.x);
@@ -257,6 +261,12 @@ export async function savePDF(saveAsPath = null) {
             // Add interior color (fill) if specified
             if (ann.fillColor && ann.fillColor !== 'none') {
               annDictObj.IC = hexToColorArray(ann.fillColor);
+            }
+            // Maskeer round-trips via the subtype key; other viewers see a
+            // plain white-filled square (correct degradation).
+            if (ann.type === 'mask') {
+              annDictObj.OPS_Subtype = PDFString.of('mask');
+              annDictObj.IC = hexToColorArray('#ffffff');
             }
 
             if (ann.rotation) annDictObj.OPS_Rotation = ann.rotation;
@@ -931,6 +941,10 @@ export async function savePDF(saveAsPath = null) {
 
             if (ann.rotation) stampDictObj.OPS_Rotation = ann.rotation;
             if (ann.stampName) stampDictObj.OPS_StampName = PDFString.of(ann.stampName);
+            // Linked image (an image that round-tripped as a stamp keeps
+            // its source path across saves). Hex string: literal PDFString
+            // would corrupt Windows backslashes (\r, \n... are escapes).
+            if (ann.linkedPath) stampDictObj.OPS_LinkedPath = PDFHexString.fromText(ann.linkedPath);
 
             annotDict = context.obj(stampDictObj);
 
@@ -1038,6 +1052,11 @@ export async function savePDF(saveAsPath = null) {
             };
 
             if (ann.rotation) imgDictObj.OPS_Rotation = ann.rotation;
+            // Linked image: store the source path so the app refreshes the
+            // bitmap from disk on reopen (the embed below stays as a
+            // self-contained fallback for other viewers). Hex string: literal
+            // PDFString would corrupt Windows backslashes (\r, \n... are escapes).
+            if (ann.linkedPath) imgDictObj.OPS_LinkedPath = PDFHexString.fromText(ann.linkedPath);
 
             annotDict = context.obj(imgDictObj);
 
@@ -1529,6 +1548,47 @@ export async function savePDF(saveAsPath = null) {
             break;
           }
 
+          case 'wall': {
+            // Wall segment: persisted as a /Line along the centreline with
+            // private OPS metadata (thickness + material hatch) so the wall
+            // reconstructs fully when re-opened in this app, while other
+            // viewers still show at least the centreline.
+            const wx1 = convertX(ann.startX);
+            const wy1 = convertY(ann.startY);
+            const wx2 = convertX(ann.endX);
+            const wy2 = convertY(ann.endY);
+            const wPad = Math.max(borderWidth, 4);
+            const wDict = {
+              Type: 'Annot',
+              Subtype: 'Line',
+              Rect: [
+                Math.min(wx1, wx2) - wPad, Math.min(wy1, wy2) - wPad,
+                Math.max(wx1, wx2) + wPad, Math.max(wy1, wy2) + wPad,
+              ],
+              L: [wx1, wy1, wx2, wy2],
+              C: hexToColorArray(ann.strokeColor || ann.color || '#000000'),
+              CA: opacity,
+              T: PDFString.of(ann.author || 'User'),
+              Contents: PDFString.of(ann.subject || ''),
+              M: PDFString.of(new Date().toISOString()),
+              F: computeAnnotFlags(ann),
+              OPS_Subtype: PDFString.of('wall'),
+              OPS_DikteMm: ann.dikteMm ?? 100,
+            };
+            annotDict = context.obj(wDict);
+            annotDict.set(PDFName.of('BS'), buildBorderStyle(context, borderWidth, 'solid'));
+            if (ann.hatchPattern && ann.hatchPattern !== 'none') {
+              annotDict.set(PDFName.of('OPS_HatchPattern'), PDFString.of(ann.hatchPattern));
+              if (ann.hatchColor) annotDict.set(PDFName.of('OPS_HatchColor'), PDFString.of(ann.hatchColor));
+              if (ann.hatchScale != null) annotDict.set(PDFName.of('OPS_HatchScale'), context.obj(ann.hatchScale));
+              if (ann.hatchAngle != null) annotDict.set(PDFName.of('OPS_HatchAngle'), context.obj(ann.hatchAngle));
+            }
+            if (ann.isolatieType) {
+              annotDict.set(PDFName.of('OPS_IsolatieType'), PDFString.of(ann.isolatieType));
+            }
+            break;
+          }
+
           case 'parametricSymbol': {
             // Persist as /Square with private OPS metadata so the bbox is
             // visible in non-supporting viewers and the symbol can be
@@ -1740,12 +1800,14 @@ export async function savePDFAs() {
   const savePath = await saveFileDialog(defaultPath);
 
   if (savePath) {
+    const wasUntitled = !!doc?.isUntitled || !currentPath;
+    const tempPath = doc?.isUntitled ? currentPath : null;
     const success = await savePDF(savePath);
 
     // If saved to a new path, update the current path and UI
     if (success && savePath !== currentPath) {
-      // Clean up memory cache if this was an untitled doc
-      if (doc && !currentPath) {
+      // Clean up the in-memory original-bytes cache for untitled docs.
+      if (doc && wasUntitled) {
         const memKey = `__memory__${doc.id}`;
         const { clearCachedPdfBytes } = await import('./loader.js');
         clearCachedPdfBytes(memKey);
@@ -1754,8 +1816,18 @@ export async function savePDFAs() {
       if (doc) {
         doc.filePath = savePath;
         doc.fileName = savePath ? savePath.split(/[\\/]/).pop() : 'Untitled';
+        doc.isUntitled = false; // now a real, user-chosen file
       }
       updateWindowTitle();
+      // Session now contains the new path (debounced persist).
+      window.__OPDS_SESSION_SAVE__?.();
+
+      // Delete the temp backing file now that the doc lives at its real path.
+      if (tempPath) {
+        try {
+          if (window.__TAURI__?.fs?.remove) await window.__TAURI__.fs.remove(tempPath);
+        } catch (e) { console.warn('[blank-pdf] temp cleanup failed:', e); }
+      }
     }
     return success || false;
   }

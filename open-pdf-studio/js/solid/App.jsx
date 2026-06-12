@@ -16,6 +16,9 @@ import DialogHost from './components/DialogHost.jsx';
 import ContextMenu from './components/ContextMenu.jsx';
 import LoadingOverlay from './components/LoadingOverlay.jsx';
 import TypeLengthHUD from './components/TypeLengthHUD.jsx';
+import KeystrokeOverlay from './components/KeystrokeOverlay.jsx';
+import BoxSizeOverlay from './components/BoxSizeOverlay.jsx';
+import SketchModeBar from './components/SketchModeBar.jsx';
 import CompareView from './components/compare/CompareView.jsx';
 import { DockedToolPalette, FloatingToolPalette, DockTargets, PaletteContextMenu } from './components/ToolPalette.jsx';
 import { DockedExtPalette, FloatingExtPalette, ExtDockTargets } from './components/ExtensionToolPalette.jsx';
@@ -129,9 +132,12 @@ function DesktopApp() {
       <SymbolSettingsDialog />
       <SchedulePanel />
       <ErrorBoundary fallback={null}><AIPanel /></ErrorBoundary>
-      <ErrorBoundary fallback={null}><MiniLog /></ErrorBoundary>
+      {/* MiniLog floating engine-log overlay removed per user request. */}
       <LoadingOverlay />
       <TypeLengthHUD />
+      <KeystrokeOverlay />
+      <BoxSizeOverlay />
+      <SketchModeBar />
     </>
   );
 }

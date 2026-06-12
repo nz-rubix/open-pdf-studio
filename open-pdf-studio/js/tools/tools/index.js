@@ -35,6 +35,7 @@ export function registerAllTools() {
 
   // Shapes (all use the same drag-to-create pattern)
   registerTool('box', shapeTool);
+  registerTool('mask', shapeTool);
   registerTool('circle', shapeTool);
   registerTool('highlight', shapeTool);
   registerTool('cloud', shapeTool);
@@ -47,6 +48,9 @@ export function registerAllTools() {
   // Lines
   registerTool('line', lineTool);
   registerTool('arrow', lineTool);
+  // Walls share the click-click line flow (incl. type-length + ortho); the
+  // band rendering/joins live in annotations/rendering/walls.js.
+  registerTool('wall', lineTool);
   registerTool('arc', arcTool);
   registerTool('spline', splineTool);
 

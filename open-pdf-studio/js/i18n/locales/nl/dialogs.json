@@ -69,7 +69,11 @@
     "atTheEnd": "Aan het einde",
     "count": "Aantal:",
     "paperSize": "Papierformaat:",
-    "sameAsCurrentPage": "Zelfde als huidige pagina"
+    "sameAsCurrentPage": "Zelfde als huidige pagina",
+    "orientation": "Richting:",
+    "autoOrientation": "Automatisch",
+    "portrait": "Staand",
+    "landscape": "Liggend"
   },
   "extractPages": {
     "title": "Pagina's extraheren",

@@ -1,6 +1,10 @@
 import { state, getActiveDocument } from '../../core/state.js';
 import { recordAdd } from '../../core/undo-manager.js';
 import { redrawAnnotations } from '../../annotations/rendering.js';
+// Edit-ops contract: duplication via cloneForInsert, translation via the
+// generic applyMove field-walker — NO per-type offset code in tools.
+import { cloneForInsert } from '../edit-ops.js';
+import { applyMoveGeneric } from '../../annotations/transforms.js';
 
 const _arrayState = { basePoint: null, count: 3, mode: 'linear' };
 
@@ -32,26 +36,8 @@ export const arrayTool = {
     for (const srcAnn of selected) {
       for (let i = 1; i < count; i++) {
         const frac = i / (count - 1 || 1);
-        const offsetX = dx * frac;
-        const offsetY = dy * frac;
-        const copy = JSON.parse(JSON.stringify(srcAnn));
-        copy.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + '_' + i;
-        copy.createdAt = new Date().toISOString();
-        copy.modifiedAt = new Date().toISOString();
-
-        if (copy.startX !== undefined) { copy.startX += offsetX; copy.startY += offsetY; }
-        if (copy.endX !== undefined) { copy.endX += offsetX; copy.endY += offsetY; }
-        if (copy.x !== undefined) { copy.x += offsetX; copy.y += offsetY; }
-        if (copy.centerX !== undefined) { copy.centerX += offsetX; copy.centerY += offsetY; }
-        if (copy.points) {
-          copy.points = copy.points.map(p => ({ ...p, x: p.x + offsetX, y: p.y + offsetY }));
-        }
-        if (copy.leaderStartX !== undefined) { copy.leaderStartX += offsetX; copy.leaderStartY += offsetY; }
-        if (copy.leaderEndX !== undefined) { copy.leaderEndX += offsetX; copy.leaderEndY += offsetY; }
-        if (copy.vertices) {
-          copy.vertices = copy.vertices.map(v => ({ ...v, x: v.x + offsetX, y: v.y + offsetY }));
-        }
-
+        const copy = cloneForInsert(srcAnn);
+        applyMoveGeneric(copy, dx * frac, dy * frac);
         doc.annotations.push(copy);
         recordAdd(copy);
       }

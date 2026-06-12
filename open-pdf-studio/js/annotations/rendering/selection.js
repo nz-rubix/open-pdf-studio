@@ -54,6 +54,7 @@ export function drawSelectionHandles(ctx, annotation) {
       break;
     }
     case 'box':
+    case 'mask':
     case 'polygon':
     case 'cloud':
     case 'highlight':

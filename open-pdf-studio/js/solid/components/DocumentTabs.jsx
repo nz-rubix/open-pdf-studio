@@ -1,6 +1,67 @@
 import { For, Show, createSignal, onCleanup } from 'solid-js';
 import { state } from '../../core/state.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
+import { invoke } from '../../core/platform.js';
+
+// Detach threshold — how far the mouse must travel BELOW the tab bar
+// during drag before we treat it as a "detach to new window" gesture.
+const DETACH_VERTICAL_PX = 60;
+
+// Cached current-window label (set once on first mount). All windows ask
+// Rust for their own label so cross-window dock IPC can identify the source.
+let _currentWindowLabel = null;
+async function getCurrentWindowLabel() {
+  if (_currentWindowLabel !== null) return _currentWindowLabel;
+  try {
+    _currentWindowLabel = await invoke('current_window_label');
+  } catch {
+    _currentWindowLabel = 'main';
+  }
+  return _currentWindowLabel;
+}
+
+// Right-click context menu (Chrome-style "Open in new window" etc.)
+const [ctxMenu, setCtxMenu] = createSignal(null);
+
+async function detachTabToNewWindow(index) {
+  const doc = state.documents[index];
+  if (!doc) return;
+  const pdfPath = doc.filePath || '';
+  console.log('[detach] requested for index', index, 'pdfPath:', pdfPath);
+  // Untitled docs are backed by a TEMP file that this window owns and deletes
+  // on close — handing it to another process would leave a dangling reference.
+  // Require an explicit save first.
+  if (!pdfPath || doc.isUntitled) {
+    alert('Sla het document eerst op voor je het naar een ander venster sleept.');
+    return;
+  }
+  try {
+    const label = await invoke('spawn_window_with_pdf', { pdfPath });
+    console.log('[detach] spawn_window_with_pdf returned label:', label);
+    // Close the source tab AFTER the new window is spawned so the user
+    // visually sees the tab leave the parent.
+    await closeTabAndMaybeCloseWindow(index);
+  } catch (e) {
+    console.error('[detach] spawn_window_with_pdf failed:', e);
+    alert('Window losmaken mislukt: ' + (e?.message || e));
+  }
+}
+
+// Close a tab in the current window. If this empties out a NON-main window
+// (i.e. a previously detached one) destroy the window too — the detached
+// window has no reason to keep hanging around as an empty shell.
+async function closeTabAndMaybeCloseWindow(index) {
+  const { closeTab } = await import('../../ui/chrome/tabs.js');
+  closeTab(index);
+  const label = await getCurrentWindowLabel();
+  if (label && label !== 'main' && state.documents.length === 0) {
+    try {
+      await invoke('close_window_by_label', { label });
+    } catch (e) {
+      console.warn('close_window_by_label failed:', e);
+    }
+  }
+}
 
 const [editingIndex, setEditingIndex] = createSignal(-1);
 const [dropTargetIndex, setDropTargetIndex] = createSignal(-1);
@@ -126,6 +187,83 @@ function onDocMouseMove(e) {
   } else {
     setDropTargetIndex(-1);
   }
+
+  // Detach / re-dock hand-off: once the cursor leaves the tab bar vertically,
+  // stop our mouse-based tracking and start a NATIVE OS file-drag of the PDF.
+  // The OS drag is what lets the user drop onto ANOTHER app instance's tab bar
+  // (cross-process re-dock) — browser mouse events can't cross window/process
+  // boundaries, the OS drag-drop layer can. Started ONCE per drag.
+  const tabBarRect = tabsContainer.getBoundingClientRect();
+  const verticalOutside =
+       e.clientY > tabBarRect.bottom + DETACH_VERTICAL_PX
+    || e.clientY < tabBarRect.top    - DETACH_VERTICAL_PX;
+  if (verticalOutside && !dragState.nativeDragStarted) {
+    dragState.nativeDragStarted = true;
+    const from = dragState.fromIndex;
+    // Tear down mouse tracking — the OS drag loop owns the pointer now.
+    document.removeEventListener('mousemove', onDocMouseMove);
+    document.removeEventListener('mouseup', onDocMouseUp);
+    document.body.style.userSelect = '';
+    dragState = null;
+    setDraggingIndex(-1);
+    setDropTargetIndex(-1);
+    startNativeTabDrag(from);
+  }
+}
+
+// Start a native OS file-drag of a tab's PDF. The OS handles where it lands:
+//   * dropped on another OPDS instance  → that instance docks it as a tab
+//     (its onDragDropEvent), and we close our tab here;
+//   * dropped on empty space            → classic detach into a new window;
+//   * dropped back on ourselves         → no-op (self-drop guard keeps the tab).
+async function startNativeTabDrag(index) {
+  const doc = state.documents[index];
+  if (!doc) return;
+  const pdfPath = doc.filePath || '';
+  // Untitled docs live in a temp file this window owns — don't drag them to
+  // other instances (the temp file would be deleted out from under them).
+  if (!pdfPath || doc.isUntitled) {
+    alert('Sla het document eerst op voor je het naar een ander venster sleept.');
+    return;
+  }
+  // Mark THIS instance as the drag source so our own drop handler ignores a
+  // drop that lands back on us (no duplicate tab).
+  window.__OPDS_DRAGGING_OUT__ = pdfPath;
+  window.__OPDS_SELF_DROP__ = false;
+  try {
+    const [{ startDrag }, { invoke }] = await Promise.all([
+      import('@crabnebula/tauri-plugin-drag'),
+      import('../../core/platform.js'),
+    ]);
+    const icon = await invoke('drag_icon_path').catch(() => '');
+    await startDrag({ item: [pdfPath], icon }, (payload) => {
+      const result = payload?.result;
+      const wasSelf = !!window.__OPDS_SELF_DROP__;
+      window.__OPDS_DRAGGING_OUT__ = null;
+      window.__OPDS_SELF_DROP__ = false;
+      if (result === 'Dropped' && !wasSelf) {
+        // Accepted by another instance/app → the tab moved; remove it here.
+        closeTabAndMaybeCloseWindow(index);
+      } else if (result === 'Cancelled') {
+        // Dropped on empty space → classic detach into its own new window.
+        detachTabToNewWindow(index);
+      }
+      // 'Dropped' + wasSelf → dropped back on us; keep the tab as-is.
+    });
+  } catch (e) {
+    window.__OPDS_DRAGGING_OUT__ = null;
+    console.warn('native tab drag failed, falling back to detach:', e);
+    detachTabToNewWindow(index);
+  }
+}
+
+// Hide the context menu when clicking anywhere else / pressing Escape.
+function hideCtxMenu() { setCtxMenu(null); }
+
+function handleTabContextMenu(e, index) {
+  e.preventDefault();
+  e.stopPropagation();
+  setCtxMenu({ x: e.clientX, y: e.clientY, index });
 }
 
 function onDocMouseUp(e) {
@@ -143,6 +281,10 @@ function onDocMouseUp(e) {
   const target = dropTargetIndex();
   setDropTargetIndex(-1);
 
+  // NB: detach / cross-instance re-dock is no longer handled here — once the
+  // cursor leaves the tab bar vertically, onDocMouseMove hands off to a native
+  // OS drag (startNativeTabDrag) and tears down these listeners. So a mouseUp
+  // that reaches here is always an IN-BAR reorder.
   if (!wasStarted || target === -1 || target === from) return;
 
   // Track which doc is active by its id
@@ -166,9 +308,21 @@ function onDocMouseUp(e) {
 export default function DocumentTabs() {
   const { t } = useTranslation('statusbar');
 
+  // Close the tab context menu on outside click / Escape.
+  const onDocClick = (e) => {
+    if (!ctxMenu()) return;
+    if (e.target && e.target.closest && e.target.closest('.document-tab-ctxmenu')) return;
+    setCtxMenu(null);
+  };
+  const onDocKeyDown = (e) => { if (e.key === 'Escape') setCtxMenu(null); };
+  document.addEventListener('mousedown', onDocClick, true);
+  document.addEventListener('keydown', onDocKeyDown);
+
   onCleanup(() => {
     document.removeEventListener('mousemove', onDocMouseMove);
     document.removeEventListener('mouseup', onDocMouseUp);
+    document.removeEventListener('mousedown', onDocClick, true);
+    document.removeEventListener('keydown', onDocKeyDown);
   });
 
   return (
@@ -189,6 +343,7 @@ export default function DocumentTabs() {
             onAuxClick={(e) => handleMiddleClick(e, i())}
             onDblClick={(e) => handleDoubleClick(e, i())}
             onMouseDown={(e) => handleMouseDown(e, i())}
+            onContextMenu={(e) => handleTabContextMenu(e, i())}
           >
             <span class="document-tab-modified">{doc.modified ? '*' : ''}</span>
             <Show when={editingIndex() === i()} fallback={
@@ -208,6 +363,40 @@ export default function DocumentTabs() {
       </For>
 
       <div class="document-tabs-add" title={t('openPdfFile')} onClick={handleAddClick}>+</div>
+
+      {/* Right-click context menu for tabs — Chrome-style. Rendered inline
+          because there are only one-or-two items and the existing global
+          context-menu store is tightly coupled to annotation operations. */}
+      <Show when={ctxMenu()}>
+        <div
+          class="document-tab-ctxmenu"
+          style={{
+            position: 'fixed',
+            top: `${ctxMenu().y}px`,
+            left: `${ctxMenu().x}px`,
+            background: '#fff',
+            border: '1px solid #7a7a7a',
+            'box-shadow': '2px 2px 6px rgba(0,0,0,0.25)',
+            'z-index': 2000,
+            'min-width': '200px',
+            'font-size': '13px',
+          }}
+          onMouseLeave={hideCtxMenu}
+        >
+          <div
+            style={{ padding: '6px 14px', cursor: 'pointer' }}
+            onMouseEnter={(e) => e.currentTarget.style.background = '#cce4f7'}
+            onMouseLeave={(e) => e.currentTarget.style.background = ''}
+            onClick={() => { const idx = ctxMenu().index; hideCtxMenu(); detachTabToNewWindow(idx); }}
+          >Open in nieuw venster</div>
+          <div
+            style={{ padding: '6px 14px', cursor: 'pointer', 'border-top': '1px solid #d4d4d4' }}
+            onMouseEnter={(e) => e.currentTarget.style.background = '#cce4f7'}
+            onMouseLeave={(e) => e.currentTarget.style.background = ''}
+            onClick={() => { const idx = ctxMenu().index; hideCtxMenu(); import('../../ui/chrome/tabs.js').then(m => m.closeTab(idx)); }}
+          >Tab sluiten</div>
+        </div>
+      </Show>
     </div>
   );
 }

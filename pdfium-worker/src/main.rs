@@ -1,3 +1,9 @@
+// Release builds: hide the console window so each spawned worker process
+// doesn't pop a black terminal next to the Tauri main window. Debug builds
+// keep the console so logs are visible during development. Mirrors the
+// pattern in open-pdf-studio/src-tauri/src/main.rs.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod protocol;
 mod render;
 mod shm;
@@ -10,19 +16,21 @@ use std::io::{BufRead, Write};
 
 fn main() -> Result<()> {
     // Slot is passed as argv[1] (set by the spawner). Default to 0 for
-    // standalone testing.
+    // standalone testing. Namespace (owning app PID) is argv[2] so multiple
+    // app instances don't collide on the same SHM file; default "0".
     let slot: u32 = std::env::args().nth(1)
         .and_then(|s| s.parse().ok())
         .unwrap_or(0);
+    let ns: String = std::env::args().nth(2).unwrap_or_else(|| "0".to_string());
 
     let renderer = Renderer::new().context("init Renderer")?;
-    let mut shm_region = Shm::create(slot).context("init SHM")?;
+    let mut shm_region = Shm::create(&ns, slot).context("init SHM")?;
 
     // Emit ready message — main process waits for this before
     // sending render requests.
     let ready = Response::Ready {
         op: "ready".to_string(),
-        shm_name: format!("pdfium-worker-{}.shm", slot),
+        shm_name: format!("pdfium-worker-{}-{}.shm", ns, slot),
         shm_size: shm::SHM_SIZE as u64,
     };
     writeln!(std::io::stdout(), "{}", serde_json::to_string(&ready)?)?;

@@ -373,6 +373,242 @@ fn handle_tools_list() -> Value {
                     "required": ["page"],
                     "additionalProperties": false
                 }
+            },
+            {
+                "name": "app_set_tool",
+                "description": "Switch the LIVE app's active tool, exactly like clicking the ribbon button. Accepts any registered tool name, e.g. select, hand, line, arrow, draw, box, circle, polyline, spline, arc, filledArea, textbox, callout, comment, stamp, highlight, editText, measureDistance, measureArea, measurePerimeter, measureAngle, scaleRegion, trim, extend. Returns the tool that is actually active afterwards (PDF/A read-only mode can refuse the switch).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "tool": { "type": "string", "description": "Registered tool name." }
+                    },
+                    "required": ["tool"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_get_current_tool",
+                "description": "Return the LIVE app's currently active tool name (state.currentTool).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_create_annotation",
+                "description": "Create an annotation on the LIVE app's active document WITHOUT synthetic mouse input. Builds the same object the interactive tool would, pushes it onto the document, records an undo step and redraws. Geometry goes in `props` (page coordinates at 100% zoom): line/arrow/measureDistance need startX/startY/endX/endY; box/circle/highlight/cloud/polygon/textbox/callout/scaleRegion need x/y/width/height; polyline/filledArea/measureArea/measurePerimeter need points:[{x,y},...]; spline needs controlPoints; draw needs path; comment needs x/y. Optional style props (color, strokeColor, fillColor, lineWidth, opacity, text, fontSize, scaleString, units, leaderStartX/Y, leaderEndX/Y, ...) override the tool defaults. measure* annotations get measureText computed from the document scale automatically. Returns the new annotation id.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "enum": ["line", "arrow", "box", "circle", "highlight", "cloud", "polygon", "polyline", "spline", "draw", "filledArea", "textbox", "callout", "comment", "measureDistance", "measureArea", "measurePerimeter", "scaleRegion"]
+                        },
+                        "page":  { "type": "integer", "minimum": 1, "description": "1-based target page. Defaults to the current page." },
+                        "props": { "type": "object", "description": "Geometry + style properties for the annotation." }
+                    },
+                    "required": ["type", "props"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_list_annotations",
+                "description": "List the active document's annotations as compact JSON (id, type, page, core geometry, colors, text/measureText). Optionally filter to one page.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "page": { "type": "integer", "minimum": 1, "description": "Only annotations on this 1-based page." }
+                    },
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_get_annotation",
+                "description": "Return the full JSON-safe property set of one annotation by id (functions/DOM refs stripped).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string" }
+                    },
+                    "required": ["id"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_update_annotation",
+                "description": "Merge `props` onto an existing annotation (geometry, color, lineWidth, text, ...). Records a modify-undo step, recomputes measureText when measurement geometry changed, and redraws. `id` and `type` are immutable.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "id":    { "type": "string" },
+                        "props": { "type": "object", "description": "Property patch to merge onto the annotation." }
+                    },
+                    "required": ["id", "props"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_delete_annotation",
+                "description": "Delete an annotation by id (records a delete-undo step and redraws).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string" }
+                    },
+                    "required": ["id"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_select_annotation",
+                "description": "Select one annotation by id so the properties panel and selection handles show it, exactly like clicking it with the select tool.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string" }
+                    },
+                    "required": ["id"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_clear_selection",
+                "description": "Clear the annotation selection and hide the properties panel.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_undo",
+                "description": "Undo the last annotation/page edit on the active document (same as Ctrl+Z).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_redo",
+                "description": "Redo the last undone edit on the active document (same as Ctrl+Y).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_list_tabs",
+                "description": "List all open document tabs: index, fileName, filePath, modified flag, active flag, pageCount, isUntitled, currentPage, annotationCount.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_switch_tab",
+                "description": "Activate the document tab at `index` (0-based, see app_list_tabs).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "index": { "type": "integer", "minimum": 0 }
+                    },
+                    "required": ["index"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_close_tab",
+                "description": "Close the document tab at `index` (0-based). If the document has unsaved changes the call fails unless force=true — it never opens a save dialog, so the bridge stays headless-safe.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "index": { "type": "integer", "minimum": 0 },
+                        "force": { "type": "boolean", "default": false, "description": "Discard unsaved changes." }
+                    },
+                    "required": ["index"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_new_blank_pdf",
+                "description": "Create a new blank PDF document in a new tab (page size in PDF points; A4 portrait = 595 x 842).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "widthPt":  { "type": "number", "exclusiveMinimum": 0 },
+                        "heightPt": { "type": "number", "exclusiveMinimum": 0 },
+                        "pages":    { "type": "integer", "minimum": 1, "default": 1 }
+                    },
+                    "required": ["widthPt", "heightPt"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_save_pdf",
+                "description": "Save the active document with all annotations baked in. With `path`, saves to that file. Without `path`, saves in place — fails (instead of opening a file picker) when the document is untitled or has no real path.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "path": { "type": "string", "description": "Absolute target path. Omit to save in place." }
+                    },
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_set_view_mode",
+                "description": "Switch the active document between 'single' page view and 'continuous' scroll view.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "mode": { "type": "string", "enum": ["single", "continuous"] }
+                    },
+                    "required": ["mode"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_fit_page",
+                "description": "Zoom the active document so the whole page fits the viewport (same as the Fit Page button). Returns the resulting zoom.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_fit_width",
+                "description": "Zoom the active document so the page width fills the viewport (same as the Fit Width button). Returns the resulting zoom.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_get_page_count",
+                "description": "Return the active document's page count and current page.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_set_measure_scale",
+                "description": "Set the active document's measurement scale calibration (pixels per unit + unit, e.g. ~2.835 px/mm for 1:1 at 72 dpi) and recalculate every measurement annotation.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "pixelsPerUnit": { "type": "number", "exclusiveMinimum": 0 },
+                        "unit":          { "type": "string", "description": "Unit name, e.g. mm, cm, m, in, ft." }
+                    },
+                    "required": ["pixelsPerUnit", "unit"],
+                    "additionalProperties": false
+                }
             }
         ]
     })
@@ -410,6 +646,27 @@ async fn handle_tools_call(state: &AppState, params: &Value) -> Result<Value, (i
         "app_zoom_anchor_test"   => tool_app_request(state, "mcp:zoom-anchor-test",   &arguments, Duration::from_secs(30)).await,
         "app_clear_caches"       => tool_app_request(state, "mcp:clear-caches",       &arguments, Duration::from_secs(10)).await,
         "app_go_to_page"         => tool_app_request(state, "mcp:go-to-page",         &arguments, Duration::from_secs(15)).await,
+        "app_set_tool"           => tool_app_request(state, "mcp:set-tool",           &arguments, Duration::from_secs(10)).await,
+        "app_get_current_tool"   => tool_app_request(state, "mcp:get-current-tool",   &arguments, Duration::from_secs(5)).await,
+        "app_create_annotation"  => tool_app_request(state, "mcp:create-annotation",  &arguments, Duration::from_secs(15)).await,
+        "app_list_annotations"   => tool_app_request(state, "mcp:list-annotations",   &arguments, Duration::from_secs(10)).await,
+        "app_get_annotation"     => tool_app_request(state, "mcp:get-annotation",     &arguments, Duration::from_secs(10)).await,
+        "app_update_annotation"  => tool_app_request(state, "mcp:update-annotation",  &arguments, Duration::from_secs(15)).await,
+        "app_delete_annotation"  => tool_app_request(state, "mcp:delete-annotation",  &arguments, Duration::from_secs(15)).await,
+        "app_select_annotation"  => tool_app_request(state, "mcp:select-annotation",  &arguments, Duration::from_secs(10)).await,
+        "app_clear_selection"    => tool_app_request(state, "mcp:clear-selection",    &arguments, Duration::from_secs(10)).await,
+        "app_undo"               => tool_app_request(state, "mcp:undo",               &arguments, Duration::from_secs(15)).await,
+        "app_redo"               => tool_app_request(state, "mcp:redo",               &arguments, Duration::from_secs(15)).await,
+        "app_list_tabs"          => tool_app_request(state, "mcp:list-tabs",          &arguments, Duration::from_secs(5)).await,
+        "app_switch_tab"         => tool_app_request(state, "mcp:switch-tab",         &arguments, Duration::from_secs(15)).await,
+        "app_close_tab"          => tool_app_request(state, "mcp:close-tab",          &arguments, Duration::from_secs(15)).await,
+        "app_new_blank_pdf"      => tool_app_request(state, "mcp:new-blank-pdf",      &arguments, Duration::from_secs(60)).await,
+        "app_save_pdf"           => tool_app_request(state, "mcp:save-pdf",           &arguments, Duration::from_secs(120)).await,
+        "app_set_view_mode"      => tool_app_request(state, "mcp:set-view-mode",      &arguments, Duration::from_secs(30)).await,
+        "app_fit_page"           => tool_app_request(state, "mcp:fit-page",           &arguments, Duration::from_secs(15)).await,
+        "app_fit_width"          => tool_app_request(state, "mcp:fit-width",          &arguments, Duration::from_secs(15)).await,
+        "app_get_page_count"     => tool_app_request(state, "mcp:get-page-count",     &arguments, Duration::from_secs(5)).await,
+        "app_set_measure_scale"  => tool_app_request(state, "mcp:set-measure-scale",  &arguments, Duration::from_secs(15)).await,
         other => Err((
             jsonrpc_error::METHOD_NOT_FOUND,
             format!("method not found: {other}"),
@@ -1149,6 +1406,50 @@ mod tests {
             "app_scroll",
             "app_key",
             "app_type",
+        ] {
+            assert!(names.contains(&tool), "missing tool: {tool} (got {names:?})");
+            let descr = arr.iter().find(|t| t["name"] == tool).unwrap();
+            assert_eq!(
+                descr["inputSchema"]["type"], "object",
+                "{tool} schema must be an object"
+            );
+            assert_eq!(
+                descr["inputSchema"]["additionalProperties"], false,
+                "{tool} should reject unknown fields"
+            );
+        }
+    }
+
+    /// Confirms every app-control tool (tools/annotations/tabs/view/scale)
+    /// is registered with a well-formed input schema. Catches drift between
+    /// the descriptor list and the dispatch arms.
+    #[test]
+    fn tools_list_advertises_app_control_tools() {
+        let v = handle_tools_list();
+        let arr = v["tools"].as_array().expect("tools is an array");
+        let names: Vec<&str> = arr.iter().map(|t| t["name"].as_str().unwrap()).collect();
+        for tool in [
+            "app_set_tool",
+            "app_get_current_tool",
+            "app_create_annotation",
+            "app_list_annotations",
+            "app_get_annotation",
+            "app_update_annotation",
+            "app_delete_annotation",
+            "app_select_annotation",
+            "app_clear_selection",
+            "app_undo",
+            "app_redo",
+            "app_list_tabs",
+            "app_switch_tab",
+            "app_close_tab",
+            "app_new_blank_pdf",
+            "app_save_pdf",
+            "app_set_view_mode",
+            "app_fit_page",
+            "app_fit_width",
+            "app_get_page_count",
+            "app_set_measure_scale",
         ] {
             assert!(names.contains(&tool), "missing tool: {tool} (got {names:?})");
             let descr = arr.iter().find(|t| t["name"] == tool).unwrap();

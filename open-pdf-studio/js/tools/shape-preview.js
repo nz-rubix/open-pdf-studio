@@ -17,8 +17,11 @@ export function drawShapePreview(currentX, currentY, e) {
   redrawAnnotations();
   const doc = getActiveDocument();
   const vp = window.__pdfViewport;
+  // Blank docs (no filePath) bypass the viewport singleton — see
+  // tool-context.js for the full rationale.
+  const useViewport = vp && vp.active && doc?.filePath;
   annotationCtx.save();
-  if (vp && vp.active) {
+  if (useViewport) {
     // Vector viewport: use same transform as annotation rendering
     annotationCtx.setTransform(vp.zoom, 0, 0, vp.zoom, vp.offsetX, vp.offsetY);
   } else {
@@ -52,7 +55,7 @@ export function drawShapePreview(currentX, currentY, e) {
 
   // Draw snap indicator overlay
   if (state.lastSnapResult && state.lastSnapResult.snapped) {
-    const snapScale = (vp && vp.active) ? vp.zoom : (doc?.scale || 1.5);
+    const snapScale = useViewport ? vp.zoom : (doc?.scale || 1.5);
     drawSnapIndicator(annotationCtx, state.lastSnapResult, snapScale);
   }
 

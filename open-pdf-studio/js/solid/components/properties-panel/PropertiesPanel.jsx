@@ -3,6 +3,7 @@ import { panelVisible, panelCollapsed, setPanelCollapsed, annotProps, sectionVis
 import { useTranslation } from '../../../i18n/useTranslation.js';
 import PanelHeader from './PanelHeader.jsx';
 import DocInfoView from './DocInfoView.jsx';
+import DimensionTypeSection from './DimensionTypeSection.jsx';
 import GeneralSection from './GeneralSection.jsx';
 import RepliesSection from './RepliesSection.jsx';
 import AppearanceSection from './AppearanceSection.jsx';
@@ -19,6 +20,7 @@ import CustomFieldsSection from './CustomFieldsSection.jsx';
 import CustomPluginPanel from './CustomPluginPanel.jsx';
 import CollapsibleSection from './CollapsibleSection.jsx';
 import ParametricSymbolSection from './ParametricSymbolSection.jsx';
+import WallSection from './WallSection.jsx';
 
 export default function PropertiesPanel() {
   const { t } = useTranslation('properties');
@@ -41,6 +43,8 @@ export default function PropertiesPanel() {
           <div class="properties-panel visible" id="properties-panel">
             <PanelHeader />
             <DocInfoView />
+            {/* Dimension type selector pinned at the very top for maatlijnen */}
+            <DimensionTypeSection />
             <GeneralSection />
             <RepliesSection />
             <AppearanceSection />
@@ -103,9 +107,15 @@ export default function PropertiesPanel() {
                     disabled={annotProps.locked === true || annotProps.locked === 'mixed'}
                     onChange={(e) => updateAnnotProp('scaleRegionScale', e.target.value)}
                   >
-                    {['1:10','1:20','1:25','1:50','1:75','1:100','1:125','1:150','1:200','1:250','1:300','1:400','1:500','1:1000','1:2000','1:5000'].map(s =>
-                      <option value={s}>{s}</option>
-                    )}
+                    {(() => {
+                      // Standard drawing scales; prepend the region's current
+                      // value when it's a custom one so the select never
+                      // shows blank.
+                      const presets = ['1:200','1:100','1:50','1:20','1:10','1:5','1:2','1:1'];
+                      const cur = annotProps.scaleRegionScale || '1:100';
+                      const list = presets.includes(cur) ? presets : [cur, ...presets];
+                      return list.map(s => <option value={s}>{s}</option>);
+                    })()}
                   </select>
                 </div>
                 <div class="property-group">
@@ -121,6 +131,24 @@ export default function PropertiesPanel() {
                     <option value="in">in</option>
                     <option value="ft">ft</option>
                   </select>
+                </div>
+                {/* Real-world size of the region itself, in its own scale +
+                    units — editable, resizes the region (top-left anchored). */}
+                <div class="property-group">
+                  <label>Breedte ({annotProps.scaleRegionUnits || 'mm'})</label>
+                  <input type="number" step="1" min="1"
+                    value={annotProps.scaleRegionWidth ?? ''}
+                    disabled={annotProps.locked === true || annotProps.locked === 'mixed'}
+                    onChange={(e) => updateAnnotProp('scaleRegionWidth', e.target.value)}
+                  />
+                </div>
+                <div class="property-group">
+                  <label>Hoogte ({annotProps.scaleRegionUnits || 'mm'})</label>
+                  <input type="number" step="1" min="1"
+                    value={annotProps.scaleRegionHeight ?? ''}
+                    disabled={annotProps.locked === true || annotProps.locked === 'mixed'}
+                    onChange={(e) => updateAnnotProp('scaleRegionHeight', e.target.value)}
+                  />
                 </div>
               </CollapsibleSection>
             </Show>
@@ -166,6 +194,7 @@ export default function PropertiesPanel() {
               </CollapsibleSection>
             </Show>
             <ParametricSymbolSection />
+            <WallSection />
             <TextFormatSection />
             <ParagraphSection />
             <ContentSection />

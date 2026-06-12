@@ -390,6 +390,7 @@
     "image": "Afbeelding",
     "aligned": "Uitgelijnd",
     "linear": "Lineair",
+    "dimension": "Maatlijn",
     "angular": "Hoek",
     "spotCoord": "Coördinaat",
     "radius": "Straal",

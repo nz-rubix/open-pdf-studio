@@ -1,8 +1,15 @@
+// The MCP `tools/list` descriptor table in mcp_server.rs is one large
+// `serde_json::json!` literal; its recursive macro expansion exceeds the
+// default limit of 128 once the tool count grew past ~30.
+#![recursion_limit = "256"]
+
+mod accounts;
 mod auth;
 pub mod mcp_app_bridge;
 pub mod mcp_server;
 pub mod pdfium_renderer;
 pub mod render_to_png;
+pub mod window_mgmt;
 pub mod worker_pool;
 
 pub struct StartupOpts {
@@ -406,59 +413,136 @@ fn get_printers() -> Result<String, String> {
     }
 }
 
-/// Print a PDF file to a specific printer using ShellExecuteW.
-/// Uses separate arguments to avoid PowerShell command injection.
+/// Print a PDF file to a specific printer.
+///
+/// Implementation: rasterise each page via the in-proc PDFium renderer and
+/// blit it onto the printer device context with GDI (StretchDIBits). This is
+/// ASSOCIATION-INDEPENDENT — the previous ShellExecuteW("printto") approach
+/// broke with SE_ERR_NOASSOC (code 31) whenever this app itself is the
+/// default .pdf handler, because our ProgID registers no printto verb.
 #[tauri::command]
 fn print_pdf(path: String, printer: String) -> Result<bool, String> {
     #[cfg(target_os = "windows")]
     {
-        // Validate path exists and is a file
-        let p = std::path::Path::new(&path);
-        if !p.is_file() {
-            return Err("File does not exist".to_string());
-        }
-
-        // Use ShellExecuteW directly with the "printto" verb — no shell interpolation
+        use windows_sys::Win32::Graphics::Gdi::{
+            CreateDCW, DeleteDC, StretchDIBits, GetDeviceCaps, SetStretchBltMode,
+            BITMAPINFO, BITMAPINFOHEADER,
+            BI_RGB, DIB_RGB_COLORS, SRCCOPY, HORZRES, VERTRES, LOGPIXELSX, HALFTONE,
+        };
+        // The StartDoc/EndDoc print-job family lives under Storage::Xps in
+        // windows-sys (print spooler document API), not under Graphics::Gdi.
+        use windows_sys::Win32::Storage::Xps::{
+            StartDocW, EndDoc, AbortDoc, StartPage, EndPage, DOCINFOW,
+        };
         use std::os::windows::ffi::OsStrExt;
         use std::ffi::OsStr;
+        use std::sync::Arc;
 
         fn to_wide(s: &str) -> Vec<u16> {
             OsStr::new(s).encode_wide().chain(std::iter::once(0)).collect()
         }
 
-        #[link(name = "shell32")]
-        extern "system" {
-            fn ShellExecuteW(
-                hwnd: *mut std::ffi::c_void,
-                operation: *const u16,
-                file: *const u16,
-                parameters: *const u16,
-                directory: *const u16,
-                show_cmd: i32,
-            ) -> isize;
+        let p = std::path::Path::new(&path);
+        if !p.is_file() {
+            return Err("File does not exist".to_string());
         }
 
-        let verb = to_wide("printto");
-        let file = to_wide(&path);
-        let params = to_wide(&format!("\"{}\"", printer));
-        const SW_HIDE: i32 = 0;
-
-        let result = unsafe {
-            ShellExecuteW(
-                std::ptr::null_mut(),
-                verb.as_ptr(),
-                file.as_ptr(),
-                params.as_ptr(),
-                std::ptr::null(),
-                SW_HIDE,
-            )
-        };
-
-        if result as usize > 32 {
-            Ok(true)
-        } else {
-            Err(format!("ShellExecute failed with code {}", result))
+        // Load the document via PDFium (no doc-cache: print is a cold path
+        // and the temp file is deleted shortly after).
+        let bytes = std::fs::read(&path).map_err(|e| format!("Read PDF: {e}"))?;
+        let handle = pdfium_renderer::PdfiumDocumentHandle::load_from_bytes(Arc::new(bytes))?;
+        let page_count = handle.document().pages().len() as u32;
+        if page_count == 0 {
+            return Err("PDF has no pages".to_string());
         }
+
+        unsafe {
+            let printer_w = to_wide(&printer);
+            let hdc = CreateDCW(std::ptr::null(), printer_w.as_ptr(), std::ptr::null(), std::ptr::null());
+            if hdc.is_null() {
+                return Err(format!("Cannot open printer '{printer}'"));
+            }
+
+            let dpi = GetDeviceCaps(hdc, LOGPIXELSX as i32).max(96);
+            let dev_w = GetDeviceCaps(hdc, HORZRES as i32);
+            let dev_h = GetDeviceCaps(hdc, VERTRES as i32);
+
+            let doc_name = to_wide(
+                p.file_name().and_then(|n| n.to_str()).unwrap_or("Document"),
+            );
+            let di = DOCINFOW {
+                cbSize: std::mem::size_of::<DOCINFOW>() as i32,
+                lpszDocName: doc_name.as_ptr(),
+                lpszOutput: std::ptr::null(),
+                lpszDatatype: std::ptr::null(),
+                fwType: 0,
+            };
+            if StartDocW(hdc, &di) <= 0 {
+                DeleteDC(hdc);
+                return Err("StartDoc failed (print job rejected)".to_string());
+            }
+
+            // Render at device DPI, capped at 300 to bound memory on plotters.
+            let scale = (dpi.min(300) as f32) / 72.0;
+
+            for i in 0..page_count {
+                let (w, h, mut rgba) =
+                    match pdfium_renderer::render_page_to_rgba(handle.document(), i, scale, 0) {
+                        Ok(r) => r,
+                        Err(e) => {
+                            AbortDoc(hdc);
+                            DeleteDC(hdc);
+                            return Err(format!("Render page {} failed: {e}", i + 1));
+                        }
+                    };
+                // RGBA → BGRA (GDI DIB byte order)
+                for px in rgba.chunks_exact_mut(4) {
+                    px.swap(0, 2);
+                }
+
+                // Fit page into the printable area, preserve aspect, centre.
+                let sx = dev_w as f64 / w as f64;
+                let sy = dev_h as f64 / h as f64;
+                let s = sx.min(sy);
+                let dw = ((w as f64) * s).round() as i32;
+                let dh = ((h as f64) * s).round() as i32;
+                let dx = (dev_w - dw) / 2;
+                let dy = (dev_h - dh) / 2;
+
+                let mut bmi: BITMAPINFO = std::mem::zeroed();
+                bmi.bmiHeader = BITMAPINFOHEADER {
+                    biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                    biWidth: w as i32,
+                    biHeight: -(h as i32), // top-down DIB
+                    biPlanes: 1,
+                    biBitCount: 32,
+                    biCompression: BI_RGB as u32,
+                    biSizeImage: 0,
+                    biXPelsPerMeter: 0,
+                    biYPelsPerMeter: 0,
+                    biClrUsed: 0,
+                    biClrImportant: 0,
+                };
+
+                StartPage(hdc);
+                SetStretchBltMode(hdc, HALFTONE as i32);
+                StretchDIBits(
+                    hdc,
+                    dx, dy, dw, dh,
+                    0, 0, w as i32, h as i32,
+                    rgba.as_ptr() as *const std::ffi::c_void,
+                    &bmi,
+                    DIB_RGB_COLORS,
+                    SRCCOPY,
+                );
+                EndPage(hdc);
+            }
+
+            EndDoc(hdc);
+            DeleteDC(hdc);
+        }
+
+        Ok(true)
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -849,8 +933,7 @@ fn discard_spool_pdf(path: String) -> Result<bool, String> {
 /// Windows: `cmd /C start "" "<path>"` — the empty title argument prevents
 /// `start` from interpreting the path as a window title (a long-standing
 /// quoting quirk). The shell `start` verb honours the user's default app
-/// association for .pdf, so users with Acrobat, Foxit, PDF-XChange, etc.
-/// installed all hit their preferred reader.
+/// association for .pdf, so whichever reader the user prefers opens it.
 ///
 /// macOS: `open "<path>"` honours `LSHandlerContentType` for .pdf.
 /// Linux: `xdg-open "<path>"` honours the `application/pdf` MIME default.
@@ -1702,30 +1785,40 @@ pub fn run(opts: StartupOpts) {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_drag::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_store::Builder::default().build());
 
-    // Single-instance and updater plugins are desktop-only
+    // Single-instance and updater plugins are desktop-only.
+    //
+    // A DETACHED document window is launched as its own app process with the
+    // `OPDS_DETACHED=1` env var (see window_mgmt::spawn_window_with_pdf). Such
+    // a process must NOT register single-instance — otherwise it would just
+    // forward its PDF arg to the original instance and exit, instead of
+    // becoming an independent window. So we skip the plugin when detached.
     #[cfg(not(target_os = "android"))]
     {
-        builder = builder
-            .plugin(tauri_plugin_single_instance::init(|app: &tauri::AppHandle, argv: Vec<String>, _cwd: String| {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.unminimize();
-                    let _ = window.set_focus();
-                }
-                let files: Vec<String> = argv.iter()
-                    .filter(|arg: &&String| arg.to_lowercase().ends_with(".pdf") && !arg.starts_with('-'))
-                    .cloned()
-                    .collect();
-                for path in &files {
-                    let _ = app.fs_scope().allow_file(path);
-                }
-                if !files.is_empty() {
-                    let _ = app.emit("open-files", &files);
-                }
-            }))
-            .plugin(tauri_plugin_updater::Builder::new().build());
+        let is_detached = std::env::var("OPDS_DETACHED").as_deref() == Ok("1");
+        if !is_detached {
+            builder = builder
+                .plugin(tauri_plugin_single_instance::init(|app: &tauri::AppHandle, argv: Vec<String>, _cwd: String| {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.unminimize();
+                        let _ = window.set_focus();
+                    }
+                    let files: Vec<String> = argv.iter()
+                        .filter(|arg: &&String| arg.to_lowercase().ends_with(".pdf") && !arg.starts_with('-'))
+                        .cloned()
+                        .collect();
+                    for path in &files {
+                        let _ = app.fs_scope().allow_file(path);
+                    }
+                    if !files.is_empty() {
+                        let _ = app.emit("open-files", &files);
+                    }
+                }));
+        }
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     }
 
     builder
@@ -1903,6 +1996,19 @@ pub fn run(opts: StartupOpts) {
             auth::auth_current_user,
             auth::auth_get_access_token,
             auth::auth_userinfo,
+            accounts::accounts_sign_in,
+            accounts::accounts_get_user,
+            accounts::accounts_sign_out,
+            accounts::accounts_fetch,
+            accounts::accounts_upload_file,
+            accounts::accounts_download_file,
+            window_mgmt::spawn_window_with_pdf,
+            window_mgmt::try_dock_pdf_at_screen,
+            window_mgmt::close_window_by_label,
+            window_mgmt::current_window_label,
+            window_mgmt::exit_detached_process,
+            window_mgmt::drag_icon_path,
+            window_mgmt::detach_diag,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

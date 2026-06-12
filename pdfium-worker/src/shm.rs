@@ -12,15 +12,25 @@ pub struct Shm {
 }
 
 impl Shm {
-    /// Create (or replace) the SHM backing file under the OS temp dir.
-    /// File name is `pdfium-worker-{slot}.shm` so main and worker can
-    /// memmap the same path.
-    pub fn create(slot: u32) -> Result<Self> {
-        let path = format!(
-            "{}/pdfium-worker-{}.shm",
+    /// Build the SHM backing-file path for a given namespace + slot. The
+    /// namespace is the OWNING app process id, so multiple app instances
+    /// (e.g. a detached document window running as its own process) never
+    /// collide on the same `pdfium-worker-*.shm` file. Main and worker must
+    /// compute the SAME path — they share this helper's format.
+    pub fn path_for(ns: &str, slot: u32) -> String {
+        format!(
+            "{}/pdfium-worker-{}-{}.shm",
             std::env::temp_dir().to_string_lossy(),
+            ns,
             slot
-        );
+        )
+    }
+
+    /// Create (or replace) the SHM backing file under the OS temp dir.
+    /// `ns` namespaces the file by owning-process id so concurrent app
+    /// instances don't clobber each other's SHM.
+    pub fn create(ns: &str, slot: u32) -> Result<Self> {
+        let path = Self::path_for(ns, slot);
         let file = OpenOptions::new()
             .read(true).write(true).create(true).truncate(true)
             .open(&path)
@@ -61,7 +71,7 @@ mod tests {
 
     #[test]
     fn write_then_read_header() {
-        let mut shm = Shm::create(999).unwrap();
+        let mut shm = Shm::create("test", 999).unwrap();
         let rgba = vec![0xAB; 1000];
         let bytes = shm.write_bitmap(123, 456, &rgba).unwrap();
         assert_eq!(bytes, 1000);
@@ -74,7 +84,7 @@ mod tests {
 
     #[test]
     fn write_too_large_returns_err() {
-        let mut shm = Shm::create(998).unwrap();
+        let mut shm = Shm::create("test", 998).unwrap();
         let huge = vec![0u8; SHM_SIZE];
         let r = shm.write_bitmap(1, 1, &huge);
         assert!(r.is_err());

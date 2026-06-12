@@ -38,12 +38,14 @@ import TextEditOverlay from './TextEditOverlay.jsx';
 import PdfTextEditOverlay from './PdfTextEditOverlay.jsx';
 import StickyNotePopupHost from './StickyNotePopup.jsx';
 import ParametricSymbolPicker from './dialogs/ParametricSymbolPicker.jsx';
+import StyleTypeEditorDialog from './dialogs/StyleTypeEditorDialog.jsx';
 
 const DIALOG_MAP = {
   'doc-properties': DocPropertiesDialog,
   'preferences': PreferencesDialog,
   'new-doc': NewDocDialog,
   'insert-page': InsertPageDialog,
+  'style-type-editor': StyleTypeEditorDialog,
   'delete-pages': DeletePagesDialog,
   'page-properties': PagePropertiesDialog,
   'extract-pages': ExtractPagesDialog,

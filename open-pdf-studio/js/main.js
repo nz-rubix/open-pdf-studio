@@ -5,6 +5,26 @@
  * Canvas/PDF operations remain vanilla JS.
  */
 
+// Boot diagnostics: fatal boot errors surface on the Rust stderr (and the
+// %TEMP% diag file) via detach_diag, so headless/test instances can report
+// WHAT broke even when the webview console is unreachable.
+window.addEventListener('error', (e) => {
+  try {
+    window.__TAURI__?.core?.invoke?.('detach_diag', {
+      label: 'boot-error',
+      msg: `${e.message} @ ${e.filename}:${e.lineno}`,
+    });
+  } catch { /* diagnostics must never throw */ }
+});
+window.addEventListener('unhandledrejection', (e) => {
+  try {
+    window.__TAURI__?.core?.invoke?.('detach_diag', {
+      label: 'boot-rejection',
+      msg: String(e.reason?.stack || e.reason?.message || e.reason),
+    });
+  } catch { /* diagnostics must never throw */ }
+});
+
 // Core modules
 import { state } from './core/state.js';
 import { loadPreferences, savePreferences } from './core/preferences.js';
@@ -282,9 +302,45 @@ async function init() {
   pendingOpenFiles = [];
   appReady = true;
 
-  // Restore last session if enabled and no command line file
+  // Detached-window mode: a detached document window is its OWN app process,
+  // launched by `spawn_window_with_pdf` with the PDF path as a command-line
+  // argument and `OPDS_DETACHED=1` in its env. The PDF therefore arrives via
+  // the normal command-line path (`checkCommandLineArgs` above) — no special
+  // handling needed. We only skip session-restore so the detached window
+  // shows JUST its one document, not the whole previous session.
   if (!hasCommandLineFile) {
     await restoreLastSession();
+  }
+
+  // Dev convenience: ALWAYS have Desktop\test.pdf open on boot — the standing
+  // test document, so every reload/restart drops you straight back into it.
+  // Dev-only; skipped silently when the file doesn't exist.
+  if (import.meta.env.DEV && isTauri() && !hasCommandLineFile) {
+    try {
+      const desktop = await window.__TAURI__.path.desktopDir();
+      const sep = (desktop.endsWith('\\') || desktop.endsWith('/')) ? '' : '\\';
+      const testPdf = `${desktop}${sep}test.pdf`;
+      const norm = (p) => String(p || '').replace(/\//g, '\\').toLowerCase();
+      const alreadyOpen = state.documents.some(d => norm(d.filePath) === norm(testPdf));
+      if (!alreadyOpen && await fileExists(testPdf)) {
+        await openFiles([testPdf]);
+      }
+    } catch (e) {
+      console.warn('[dev] test.pdf auto-open failed:', e);
+    }
+  }
+
+  // Cross-window IPC: another window dragged a tab onto OUR tab bar; open it.
+  // Setup is best-effort and silent on failure — works only inside Tauri.
+  try {
+    if (window.__TAURI__?.event?.listen) {
+      window.__TAURI__.event.listen('open-pdf-in-window', (evt) => {
+        const path = evt?.payload?.pdfPath || evt?.payload?.pdf_path;
+        if (path) openFiles([path]);
+      });
+    }
+  } catch (e) {
+    console.warn('open-pdf-in-window listener setup failed:', e);
   }
 
   // Desktop-only: check default PDF app and auto-update (deferred to avoid blocking startup)
@@ -347,8 +403,10 @@ function setupSessionSaveOnClose() {
 // Save session data to disk
 async function saveSessionData() {
   try {
+    // Skip untitled docs: their filePath is a temp file that gets deleted on
+    // close — restoring it next launch would open a dangling/empty path.
     const openFiles = state.documents
-      .filter(doc => doc.filePath)
+      .filter(doc => doc.filePath && !doc.isUntitled)
       .map(doc => doc.filePath);
 
     const sessionData = {
@@ -362,9 +420,28 @@ async function saveSessionData() {
   }
 }
 
-// Restore last session if preference is enabled
+// Proactive (debounced) session persistence. The beforeunload hook alone is
+// unreliable: its async store-write races the page teardown, so a Vite dev
+// full-reload (any plain-.js edit) lost the open documents — exactly when
+// you're mid-testing. Hook points (loadPDF / closeTab / switchToTab /
+// save-as) call this via window.__OPDS_SESSION_SAVE__ so the session file is
+// already on disk BEFORE any reload happens.
+let _sessionSaveTimer = null;
+function scheduleSessionSave() {
+  if (_sessionSaveTimer) clearTimeout(_sessionSaveTimer);
+  _sessionSaveTimer = setTimeout(() => {
+    _sessionSaveTimer = null;
+    saveSessionData();
+  }, 400);
+}
+window.__OPDS_SESSION_SAVE__ = scheduleSessionSave;
+
+// Restore last session if preference is enabled.
+// In dev (Vite) ALWAYS restore, regardless of the preference: full-page
+// reloads happen on every plain-.js edit and the open test document must
+// survive them.
 async function restoreLastSession() {
-  if (!state.preferences.restoreLastSession) {
+  if (!state.preferences.restoreLastSession && !import.meta.env.DEV) {
     return;
   }
 

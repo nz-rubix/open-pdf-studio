@@ -259,6 +259,29 @@ export async function extractAnnotationColors(pageNum, pdfDoc) {
         if (ha !== null) colors.opsHatchAngle = ha;
       }
 
+      // Read /OPS_DikteMm — wall thickness in real-world mm (wall round-trip)
+      const dkRaw = annotDict.get(PDFName.of('OPS_DikteMm'));
+      if (dkRaw) {
+        const dk = pdfNum(context.lookup(dkRaw) || dkRaw);
+        if (dk !== null) colors.opsDikteMm = dk;
+      }
+
+      // Read /OPS_IsolatieType — insulation sub-material for walls
+      const isoTypeRaw = annotDict.get(PDFName.of('OPS_IsolatieType'));
+      if (isoTypeRaw) {
+        const isoType = context.lookup(isoTypeRaw) || isoTypeRaw;
+        if (typeof isoType.decodeText === 'function') colors.opsIsolatieType = isoType.decodeText();
+        else if (typeof isoType.value === 'string') colors.opsIsolatieType = isoType.value;
+      }
+
+      // Read /OPS_LinkedPath — source file of a LINKED image annotation
+      const lpRaw = annotDict.get(PDFName.of('OPS_LinkedPath'));
+      if (lpRaw) {
+        const lp = context.lookup(lpRaw) || lpRaw;
+        if (typeof lp.decodeText === 'function') colors.opsLinkedPath = lp.decodeText();
+        else if (typeof lp.value === 'string') colors.opsLinkedPath = lp.value;
+      }
+
       // Read /OPS_ArcFlags + /OPS_ArcBulges (parallel arrays, one entry per
       // outer vertex). Used to round-trip arc-segment metadata for filledArea.
       const afRaw = annotDict.get(PDFName.of('OPS_ArcFlags'));
@@ -611,7 +634,16 @@ const result = {};
           } catch (e) { /* ignore RC parsing errors */ }
         }
 
-        // Extract /DS (Default Style) for font-size fallback
+        // Extract /DS (Default Style) for font-size, font-family, font-weight
+        // and line-height. The DS string is a CSS-like declaration used by
+        // reference desktop editors' FreeText annotations to encode rich styling:
+        //   /DS (font-family:Segoe UI;font-size:22pt;font-weight:bold;color:#FFFFFF;)
+        // Without parsing font-family here we silently fall back to Arial,
+        // which is wider per glyph than Segoe UI Bold → text wraps to
+        // additional lines that fit fine in reference viewers.
+        // Concrete victim: "CONSTRUCTIE OVERZICHT" at Segoe UI Bold 22pt
+        // measures ~272pt → fits in a 275.9pt box. In Arial Bold 22pt the
+        // same string measures ~290pt → wraps to two lines.
         const dsRaw = annotDict.get(PDFName.of('DS'));
         if (dsRaw) {
           try {
@@ -619,6 +651,35 @@ const result = {};
             const fsSizeMatch = dsStr.match(/font-size\s*:\s*([\d.]+)\s*pt/i);
             if (fsSizeMatch) {
               colors.dsFontSize = parseFloat(fsSizeMatch[1]);
+            }
+            // font-family — capture until ';' or end of string; trim quotes/spaces.
+            // DS uses CSS syntax so the value may be a comma-separated stack
+            // ("Arial, sans-serif"). We take the first family — that's what
+            // the authoring editor actually used for the box.
+            if (!colors.fontFamily) {
+              const ffMatch = dsStr.match(/font-family\s*:\s*([^;]+)/i);
+              if (ffMatch) {
+                const fam = ffMatch[1].trim().split(',')[0].trim().replace(/^['"]|['"]$/g, '');
+                if (fam) colors.fontFamily = fam;
+              }
+            }
+            // font-weight — bold/600+ → fontBold. Anything else leaves the
+            // existing value (which may have been set from BaseFont parsing).
+            if (!colors.fontBold) {
+              const fwMatch = dsStr.match(/font-weight\s*:\s*([^;]+)/i);
+              if (fwMatch) {
+                const w = fwMatch[1].trim().toLowerCase();
+                if (w === 'bold' || w === 'bolder' || /^[6-9]\d{2}$/.test(w)) {
+                  colors.fontBold = true;
+                }
+              }
+            }
+            // font-style — italic
+            if (!colors.fontItalic) {
+              const fsMatch = dsStr.match(/font-style\s*:\s*([^;]+)/i);
+              if (fsMatch && /italic|oblique/i.test(fsMatch[1])) {
+                colors.fontItalic = true;
+              }
             }
             if (!colors.rawLineHeight) {
               const lhMatch = dsStr.match(/line-height\s*:\s*([\d.]+)/i);

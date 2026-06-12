@@ -19,10 +19,31 @@
 import { state, getActiveDocument } from '../../core/state.js';
 import { applyToolTransform } from '../tool-context.js';
 import { createAnnotation } from '../../annotations/factory.js';
+import { recordAdd } from '../../core/undo-manager.js';
+import { redrawAnnotations, redrawContinuous } from '../../annotations/rendering.js';
+import { getRegionScaleFactor } from '../../annotations/scale-region.js';
+import {
+  enterTypeLengthMode,
+  exitTypeLengthMode,
+  setTypeLengthStart,
+  applyToEndpoint,
+  typeLengthHasBuffer,
+} from '../type-length-input.js';
 
 // Arc-mode toggle for the next-placed point. 'A' toggles, mouse wheel
 // adjusts bulge while active.
 const arcState = { active: false, bulge: 0.3 };
+
+// Last preview point (snap + Shift-ortho applied). Enter-committed typed
+// lengths place the next vertex along THIS direction so what you see in the
+// rubber-band is what you get.
+const _faPreview = { x: 0, y: 0 };
+
+// Direction anchor frozen at the first typed character — keeps a
+// Shift-straightened segment straight while typing digits, regardless of
+// where the mouse moves. Cleared when the buffer empties or the vertex is
+// placed.
+const _faDirLock = { x: null, y: null };
 
 export const filledAreaTool = {
   name: 'filledArea',
@@ -51,7 +72,8 @@ export const filledAreaTool = {
     let ptX = snap.snapped ? snap.x : x;
     let ptY = snap.snapped ? snap.y : y;
 
-    // Angle snap with Shift (skip when in arc mode — bulge already deviates)
+    // Angle snap with Shift (ortho). Applied BEFORE the type-length lock so
+    // a typed measurement follows the straightened direction.
     if (!snap.snapped && e.shiftKey && prefs.enableAngleSnap && state.filledAreaPoints.length > 0) {
       const last = state.filledAreaPoints[state.filledAreaPoints.length - 1];
       const dx = x - last.x, dy = y - last.y;
@@ -60,6 +82,18 @@ export const filledAreaTool = {
       const snapped = ctx.snapAngle(ang, prefs.angleSnapDegrees) * (Math.PI / 180);
       ptX = last.x + len * Math.cos(snapped);
       ptY = last.y + len * Math.sin(snapped);
+    }
+
+    // Type-length lock: typed value constrains this click to that distance
+    // along the LOCKED direction (frozen at first keystroke) — or, without
+    // a lock, the (snapped/ortho'd) direction computed above.
+    if (typeLengthHasBuffer() && state.filledAreaPoints.length > 0) {
+      const last = state.filledAreaPoints[state.filledAreaPoints.length - 1];
+      const dirX = _faDirLock.x ?? ptX;
+      const dirY = _faDirLock.y ?? ptY;
+      const ep = applyToEndpoint(last.x, last.y, dirX, dirY);
+      ptX = ep.x; ptY = ep.y;
+      _faDirLock.x = null; _faDirLock.y = null;
     }
 
     // Close outer contour by clicking near first point.
@@ -87,6 +121,14 @@ export const filledAreaTool = {
       arcState.active = false; // reset after placing one arc point
     } else {
       state.filledAreaPoints.push({ x: ptX, y: ptY });
+    }
+    // Arm/refresh type-length capture for the NEXT segment — typing a number
+    // + Enter now places the next vertex at that distance (CAD-style).
+    if (state.filledAreaPoints.length === 1 && state.filledAreaPhase !== 'holes') {
+      enterTypeLengthMode(ptX, ptY);
+      state._typeLengthCommit = () => _commitFilledAreaSegmentByLength(ctx);
+    } else {
+      setTypeLengthStart(ptX, ptY);
     }
     ctx.redraw();
     _drawInProgress(ctx);
@@ -134,6 +176,27 @@ export const filledAreaTool = {
       snapY = last.y + len * Math.sin(snapped);
     }
 
+    // Type-length lock for the rubber-band preview — DIRECTION LOCKED: the
+    // first buffered character freezes the previous-frame (possibly ortho'd)
+    // direction so the segment stays straight while typing.
+    if (!nearFirst && typeLengthHasBuffer() && state.filledAreaPoints.length > 0) {
+      if (_faDirLock.x == null) {
+        _faDirLock.x = _faPreview.x;
+        _faDirLock.y = _faPreview.y;
+      }
+      const last = state.filledAreaPoints[state.filledAreaPoints.length - 1];
+      const ep = applyToEndpoint(last.x, last.y, _faDirLock.x, _faDirLock.y);
+      snapX = ep.x; snapY = ep.y;
+      state.lastSnapResult = null;
+    } else if (!typeLengthHasBuffer()) {
+      _faDirLock.x = null;
+      _faDirLock.y = null;
+    }
+
+    // Enter-commit places the next vertex along this preview point.
+    _faPreview.x = snapX;
+    _faPreview.y = snapY;
+
     ctx.redraw();
     canvasCtx.save();
     applyToolTransform(canvasCtx);
@@ -143,11 +206,19 @@ export const filledAreaTool = {
     const lineWidth = prefs.filledAreaLineWidth || 1;
     const borderStyle = prefs.filledAreaBorderStyle || 'solid';
     const opacity = (prefs.filledAreaOpacity ?? 100) / 100;
+    // Region-aware preview: the hatch density (and thus the look) during
+    // drawing must MATCH the final render exactly — same regionFactor
+    // sampling as rendering.js does for committed filledAreas, so nothing
+    // "jumps" at finish.
+    const _faFirst = state.filledAreaPoints[0] || { x: snapX, y: snapY };
+    const _faRegionFactor = getRegionScaleFactor(
+      getActiveDocument()?.currentPage || 1, _faFirst.x, _faFirst.y
+    );
     const hatchOpts = prefs.filledAreaHatchPattern && prefs.filledAreaHatchPattern !== 'none'
       ? {
           pattern: prefs.filledAreaHatchPattern,
           color: prefs.filledAreaHatchColor || strokeColor,
-          scale: prefs.filledAreaHatchScale ?? 100,
+          scale: (prefs.filledAreaHatchScale ?? 100) * _faRegionFactor,
           angle: prefs.filledAreaHatchAngle ?? 0,
         }
       : null;
@@ -238,6 +309,13 @@ export const filledAreaTool = {
       }
     } else if (e.key === 'Escape') {
       e.preventDefault();
+      // Once the OUTER contour is closed (holes phase), Escape means "I'm
+      // done" — COMMIT the area instead of throwing the work away. Only an
+      // unclosed contour-in-progress is cancelled.
+      if (state.filledAreaPhase === 'holes') {
+        _finishFilledAreaWithHoles(ctx);
+        return;
+      }
       _resetState();
       ctx.redraw();
       import("../manager.js").then(m => m.maybeRevertToSelect && m.maybeRevertToSelect());
@@ -263,6 +341,74 @@ export const filledAreaTool = {
 
 // ─────────────────────────────────────────────────────────────────────
 
+// Minimal ctx for API calls that originate OUTSIDE the tool dispatcher
+// (the sketch toolbar overlay) — only redraw + recordAdd are needed by the
+// internal helpers.
+function _apiCtx() {
+  return {
+    redraw() {
+      if (getActiveDocument()?.viewMode === 'continuous') redrawContinuous();
+      else redrawAnnotations();
+    },
+    recordAdd(a) { recordAdd(a); },
+  };
+}
+
+// Public command API for the sketch-mode toolbar (SketchModeBar.jsx). The
+// SAME state machine the pointer/keyboard flow drives — buttons are just a
+// visible synonym for 'A', click-near-first, Enter and Escape.
+export const filledAreaSketch = {
+  isActive() {
+    return !!(
+      (state.filledAreaPoints && state.filledAreaPoints.length > 0) ||
+      (state.filledAreaPhase === 'holes' && state.filledAreaOuterPoints && state.filledAreaOuterPoints.length >= 3)
+    );
+  },
+  status() {
+    return {
+      phase: state.filledAreaPhase === 'holes' ? 'holes' : 'outer',
+      points: state.filledAreaPoints ? state.filledAreaPoints.length : 0,
+      outerClosed: !!(state.filledAreaOuterPoints && state.filledAreaOuterPoints.length >= 3),
+      holes: state.filledAreaHoles ? state.filledAreaHoles.length : 0,
+      arcMode: arcState.active,
+      bulge: arcState.bulge,
+    };
+  },
+  setArcMode(on) {
+    arcState.active = !!on;
+    _apiCtx().redraw();
+  },
+  // Close the loop being drawn: outer contour → holes phase; active hole →
+  // finalized hole. Requires >= 3 points (the "is it closed?" check).
+  closeLoop() {
+    const ctx = _apiCtx();
+    if (!state.filledAreaPoints || state.filledAreaPoints.length < 3) return false;
+    if (state.filledAreaPhase === 'holes') _closeCurrentHole(ctx);
+    else _closeOuterAndEnterHolesPhase(ctx);
+    return true;
+  },
+  // Finish: validate + commit the annotation, leave the mode.
+  finish() {
+    const ctx = _apiCtx();
+    if (state.filledAreaPhase === 'holes') {
+      _finishFilledAreaWithHoles(ctx);
+    } else if (state.filledAreaPoints && state.filledAreaPoints.length >= 3) {
+      _closeOuterAndEnterHolesPhase(ctx);
+      _finishFilledAreaWithHoles(ctx);
+    } else {
+      // Open contour with < 3 points cannot be closed — discard the stub.
+      _resetState();
+      ctx.redraw();
+    }
+  },
+  cancel() {
+    const ctx = _apiCtx();
+    arcState.active = false;
+    _resetState();
+    ctx.redraw();
+  },
+};
+
 function _getAllInProgressPoints() {
   const pts = [];
   if (state.filledAreaPoints) pts.push(...state.filledAreaPoints);
@@ -278,6 +424,29 @@ function _resetState() {
   state.filledAreaPhase = 'outer';
   state.filledAreaOuterPoints = null;
   state.filledAreaHoles = [];
+  _faDirLock.x = null;
+  _faDirLock.y = null;
+  exitTypeLengthMode();
+  state._typeLengthCommit = null;
+}
+
+// Enter pressed with a typed length: place the next vertex at that distance
+// along the current rubber-band direction, then re-arm for the next segment.
+function _commitFilledAreaSegmentByLength(ctx) {
+  if (!state.filledAreaPoints || state.filledAreaPoints.length === 0) return;
+  const last = state.filledAreaPoints[state.filledAreaPoints.length - 1];
+  const ep = applyToEndpoint(last.x, last.y, _faPreview.x, _faPreview.y);
+  if (arcState.active) {
+    state.filledAreaPoints.push({ x: ep.x, y: ep.y, arc: true, bulge: arcState.bulge });
+    arcState.active = false;
+  } else {
+    state.filledAreaPoints.push({ x: ep.x, y: ep.y });
+  }
+  _faDirLock.x = null;
+  _faDirLock.y = null;
+  setTypeLengthStart(ep.x, ep.y);
+  ctx.redraw();
+  _drawInProgress(ctx);
 }
 
 function _closeOuterAndEnterHolesPhase(ctx) {
@@ -396,7 +565,7 @@ function _drawHolesPhasePreview(ctx, cursorX, cursorY) {
   canvasCtx.font = '10px Arial';
   canvasCtx.fillStyle = strokeColor;
   canvasCtx.globalAlpha = 0.7;
-  canvasCtx.fillText('Click to add hole, right-click or Enter to finish', cursorX + 12 / scale, cursorY - 4 / scale);
+  canvasCtx.fillText('Klik voor een opening · Enter of rechtermuisklik = gereed', cursorX + 12 / scale, cursorY - 4 / scale);
   canvasCtx.globalAlpha = 1;
   canvasCtx.restore();
 }

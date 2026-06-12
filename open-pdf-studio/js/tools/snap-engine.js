@@ -1,4 +1,4 @@
-import { state } from '../core/state.js';
+import { state, getActiveDocument } from '../core/state.js';
 import { getCachedPdfSnapPoints, getCachedPdfEdgeSegments } from './pdf-snap-extractor.js';
 import { snapPointToGrid } from '../annotations/rendering/ui-state.js';
 
@@ -62,8 +62,15 @@ export function polarPass(rawX, rawY, currentPage) {
   };
 }
 
+// excludeId accepts a single id (string) or a Set of ids (e.g. every target
+// of a G-move session, so a moving selection never snaps onto itself).
+function _isExcluded(excludeId, ann) {
+  if (!excludeId) return false;
+  return typeof excludeId === 'string' ? ann.id === excludeId : excludeId.has(ann.id);
+}
+
 // Collect snap points from all annotations on the given page.
-// excludeId: optional annotation id to skip (the one being drawn).
+// excludeId: optional annotation id (or Set of ids) to skip (the one being drawn).
 export function collectSnapPoints(annotations, currentPage, excludeId) {
   const prefs = state.preferences;
   if (!prefs.enableObjectSnap) return [];
@@ -72,16 +79,16 @@ export function collectSnapPoints(annotations, currentPage, excludeId) {
 
   for (const ann of annotations) {
     if (ann.page !== currentPage) continue;
-    if (excludeId && ann.id === excludeId) continue;
+    if (_isExcluded(excludeId, ann)) continue;
     if (ann.type === 'draw') continue; // freehand is too noisy
 
-    extractSnapPoints(ann, points, prefs);
+    extractSnapPoints(ann, points, prefs, annotations);
   }
 
   return points;
 }
 
-function extractSnapPoints(ann, points, prefs) {
+function extractSnapPoints(ann, points, prefs, annotations) {
   const doEndpoints = prefs.snapToEndpoints;
   const doMidpoints = prefs.snapToMidpoints;
   const doCenters = prefs.snapToCenters;
@@ -89,7 +96,8 @@ function extractSnapPoints(ann, points, prefs) {
 
   switch (ann.type) {
     case 'line':
-    case 'arrow': {
+    case 'arrow':
+    case 'wall': {
       const sx = ann.startX, sy = ann.startY, ex = ann.endX, ey = ann.endY;
       if (doEndpoints) {
         points.push({ x: sx, y: sy, type: 'endpoint', annotation: ann });
@@ -97,6 +105,18 @@ function extractSnapPoints(ann, points, prefs) {
       }
       if (doMidpoints) {
         points.push({ x: (sx + ex) / 2, y: (sy + ey) / 2, type: 'midpoint', annotation: ann });
+      }
+      // Walls: the BAND outline corners (incl. mitred joint corners) are
+      // snap targets too — "hoekjes" must always be snappable.
+      if (ann.type === 'wall' && doEndpoints) {
+        try {
+          const shape = _computeWallShapeForSnap(ann, annotations);
+          if (shape) {
+            for (const c of shape.poly) {
+              points.push({ x: c.x, y: c.y, type: 'endpoint', annotation: ann });
+            }
+          }
+        } catch (_) { /* snap candidates are best-effort */ }
       }
       break;
     }
@@ -117,6 +137,7 @@ function extractSnapPoints(ann, points, prefs) {
     }
 
     case 'box':
+    case 'mask':
     case 'highlight':
     case 'textbox':
     case 'image':
@@ -241,8 +262,40 @@ function extractSnapPoints(ann, points, prefs) {
       }
       break;
     }
+
+    case 'parametricSymbol': {
+      // Parametric symbols expose their own snap candidates via the template
+      // (e.g. stramien: line endpoints/midpoint + bubble centres). Falls back
+      // to the bbox rect points when a template has no snapPoints().
+      try {
+        // Dynamic require avoided — registry is a leaf module, safe to import
+        // at top would also work, but keep the lazy pattern consistent here.
+        const tpl = _getTemplateForSnap(ann.symbolId);
+        if (tpl && typeof tpl.snapPoints === 'function') {
+          const pts = tpl.snapPoints(ann.params || {}, {
+            x: ann.x, y: ann.y, width: ann.width, height: ann.height,
+          }) || [];
+          for (const p of pts) {
+            const kind = p.kind === 'midpoint' ? 'midpoint' : (p.kind === 'center' ? 'center' : 'endpoint');
+            if ((kind === 'midpoint' && !doMidpoints) ||
+                (kind === 'center' && !doCenters) ||
+                (kind === 'endpoint' && !doEndpoints)) continue;
+            points.push({ x: p.x, y: p.y, type: kind, annotation: ann });
+          }
+        } else {
+          addRectSnapPoints(ann.x, ann.y, ann.width, ann.height, ann, points, doEndpoints, doMidpoints, doCenters);
+        }
+      } catch (_) { /* snap candidates are best-effort */ }
+      break;
+    }
   }
 }
+
+// Lazy template lookup for snap candidates (sync import — registry has no
+// heavy deps and no cycles back into the tools layer).
+import { getTemplate as _getTemplateForSnap } from '../symbols/registry.js';
+// Wall band outline (mitred corners) for corner snapping.
+import { computeWallShape as _computeWallShapeForSnap } from '../annotations/rendering/walls.js';
 
 function addRectSnapPoints(x, y, w, h, ann, points, doEndpoints, doMidpoints, doCenters) {
   if (w === undefined || h === undefined) return;
@@ -296,7 +349,7 @@ export function nearestPointOnEdge(cursorX, cursorY, annotations, currentPage, s
 
   for (const ann of annotations) {
     if (ann.page !== currentPage) continue;
-    if (excludeId && ann.id === excludeId) continue;
+    if (_isExcluded(excludeId, ann)) continue;
     if (ann.type === 'draw') continue;
 
     const segments = getEdgeSegments(ann);
@@ -318,6 +371,7 @@ function getEdgeSegments(ann) {
   switch (ann.type) {
     case 'line':
     case 'arrow':
+    case 'wall':
       segments.push({ x1: ann.startX, y1: ann.startY, x2: ann.endX, y2: ann.endY });
       break;
 
@@ -326,6 +380,7 @@ function getEdgeSegments(ann) {
       break;
 
     case 'box':
+    case 'mask':
     case 'highlight':
     case 'textbox':
     case 'image':
@@ -765,6 +820,12 @@ export function performSnap(cursorX, cursorY, annotations, currentPage, scale, e
     }
   }
 
+  // 3b. Blender-style 2D cursor (Shift+right-click) is a snap target too.
+  const _c2d = getActiveDocument()?.cursor2D;
+  if (_c2d && _c2d.page === currentPage) {
+    snapPoints.push({ x: _c2d.x, y: _c2d.y, type: 'endpoint', annotation: null });
+  }
+
   // 4. Try point snap first (endpoints, corners, midpoints, centers)
   const pointResult = findNearestSnap(cursorX, cursorY, snapPoints, snapRadius);
   if (pointResult.snapped) return pointResult;
@@ -824,7 +885,7 @@ function findNearestSnap2(cursorX, cursorY, annotations, currentPage, snapRadius
   let bestPoint = null;
   for (const ann of annotations) {
     if (ann.page !== currentPage) continue;
-    if (excludeId && ann.id === excludeId) continue;
+    if (_isExcluded(excludeId, ann)) continue;
     if (ann.type === 'draw') continue;
     const segments = getEdgeSegments(ann);
     for (const seg of segments) {
@@ -847,7 +908,7 @@ function findTangentSnap(cursorX, cursorY, refPt, annotations, currentPage, snap
   let bestPoint = null;
   for (const ann of annotations) {
     if (ann.page !== currentPage) continue;
-    if (excludeId && ann.id === excludeId) continue;
+    if (_isExcluded(excludeId, ann)) continue;
     if (ann.type !== 'circle') continue;
     const cx = ann.x + ann.width / 2;
     const cy = ann.y + ann.height / 2;
@@ -888,7 +949,7 @@ function findIntersectionSnap(cursorX, cursorY, annotations, currentPage, snapRa
   const allSegments = [];
   for (const ann of annotations) {
     if (ann.page !== currentPage) continue;
-    if (excludeId && ann.id === excludeId) continue;
+    if (_isExcluded(excludeId, ann)) continue;
     if (ann.type === 'draw') continue;
     const segs = getEdgeSegments(ann);
     for (const seg of segs) {
@@ -951,7 +1012,7 @@ function findPerpendicularSnap(cursorX, cursorY, lastPoint, annotations, current
 
   for (const ann of annotations) {
     if (ann.page !== currentPage) continue;
-    if (excludeId && ann.id === excludeId) continue;
+    if (_isExcluded(excludeId, ann)) continue;
     if (ann.type === 'draw') continue;
 
     const segs = getEdgeSegments(ann);

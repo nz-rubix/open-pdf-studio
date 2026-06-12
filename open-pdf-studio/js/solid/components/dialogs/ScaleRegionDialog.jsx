@@ -1,4 +1,4 @@
-import { createSignal } from 'solid-js';
+import { createSignal, Show } from 'solid-js';
 import Dialog from '../Dialog.jsx';
 import PrefSelect from '../preferences/PrefSelect.jsx';
 import { closeDialog } from '../../stores/dialogStore.js';
@@ -9,9 +9,9 @@ import { recalculateAllMeasurements } from '../../../annotations/measurement.js'
 import { invalidateScaleRegionCache } from '../../../annotations/scale-region.js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
 
+// Standard drawing scales for the dropdown (largest → smallest denominator).
 const PRESET_SCALES = [
-  '1:10','1:20','1:25','1:50','1:75','1:100','1:125','1:150','1:200','1:250',
-  '1:300','1:400','1:500','1:1000','1:2000','1:5000',
+  '1:200', '1:100', '1:50', '1:20', '1:10', '1:5', '1:2', '1:1',
 ];
 
 function redraw() {
@@ -32,11 +32,26 @@ export default function ScaleRegionDialog(props) {
   const [scaleString, setScaleString] = createSignal('1:100');
   const [units, setUnits] = createSignal('mm');
   const [label, setLabel] = createSignal('');
+  // True when the user picked "Aangepast…" — shows the free-text scale input.
+  const [customScale, setCustomScale] = createSignal(false);
+
+  // Scale must match "<int>:<int>" with both parts > 0. Anything else
+  // (typos, blank, "1:" etc.) falls back to 1:100 so we never store
+  // an invalid scaleString that would break measurement calculations.
+  function normalizeScaleString(raw) {
+    const trimmed = String(raw || '').trim().replace(/\s+/g, '');
+    const m = trimmed.match(/^(\d+):(\d+)$/);
+    if (!m) return '1:100';
+    const a = parseInt(m[1], 10);
+    const b = parseInt(m[2], 10);
+    if (!isFinite(a) || !isFinite(b) || a <= 0 || b <= 0) return '1:100';
+    return `${a}:${b}`;
+  }
 
   function handleApply() {
     const ann = findAnnotation(data.annotationId);
     if (!ann) return;
-    ann.scaleString = scaleString() || '1:100';
+    ann.scaleString = normalizeScaleString(scaleString());
     ann.units = units() || 'mm';
     ann.label = label() || '';
 
@@ -84,12 +99,36 @@ export default function ScaleRegionDialog(props) {
 
         <div class="ai-login-field">
           <label>{t('scaleRegion.scale') || 'Scale'}</label>
+          {/* Theme-aware dropdown (PrefSelect — same as the Unit field) with
+              the standard drawing scales; "Aangepast…" reveals a free-text
+              input for non-standard scales (e.g. 1:75). Format is
+              validated/normalized in handleApply(). */}
           <PrefSelect
-            value={scaleString}
-            setValue={setScaleString}
-            options={PRESET_SCALES.map(s => ({ value: s, label: s }))}
+            value={() => (!customScale() && PRESET_SCALES.includes(scaleString())) ? scaleString() : '__custom__'}
+            setValue={(v) => {
+              if (v === '__custom__') {
+                setCustomScale(true);
+              } else {
+                setCustomScale(false);
+                setScaleString(v);
+              }
+            }}
+            options={[
+              ...PRESET_SCALES.map(s => ({ value: s, label: s })),
+              { value: '__custom__', label: t('scaleRegion.custom') || 'Aangepast…' },
+            ]}
             style={{ width: '100%' }}
           />
+          <Show when={customScale()}>
+            <input
+              type="text"
+              class="ribbon-input"
+              value={scaleString()}
+              onInput={e => setScaleString(e.target.value)}
+              placeholder="1:75"
+              style="width:100%;box-sizing:border-box;margin-top:4px"
+            />
+          </Show>
         </div>
 
         <div class="ai-login-field">

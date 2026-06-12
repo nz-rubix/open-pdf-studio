@@ -104,6 +104,19 @@ export function getScaleFromRegion(pageNum, x, y) {
   };
 }
 
+// Visual-density factor for pattern-like rendering (hatch spacing) at a
+// point. Inside a scale region the hatch must scale WITH the region so the
+// same material pattern keeps the same real-world density across regions of
+// different scales. Baseline = 1:100 (the common drawing scale): a 1:50
+// region returns 2.0, a 1:200 region 0.5, outside any region 1.0.
+const _PPU_1_100 = 72 / (25.4 * 100);
+export function getRegionScaleFactor(pageNum, x, y) {
+  if (pageNum == null || x == null || y == null) return 1;
+  const region = getScaleFromRegion(pageNum, x, y);
+  if (!region || !region.pixelsPerUnit) return 1;
+  return region.pixelsPerUnit / _PPU_1_100;
+}
+
 /**
  * Create a full-page scaleRegion on the active document's current page,
  * push it, invalidate cache and return it. Caller is responsible for

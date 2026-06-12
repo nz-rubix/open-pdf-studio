@@ -10,6 +10,23 @@
 // instead of dashed lines. An empty lineFamilies array means "solid fill"
 // (uses hatchColor as a flat fill).
 
+// Arc-aware clip support: same bulge→control-point interpretation as the
+// area fill/stroke path in rendering/measurements.js.
+import { arcControlPoint } from '../measurement.js';
+import { state } from '../../core/state.js';
+
+// Hatch line weight: thin by default (0.4pt — arcering is ondergeschikt
+// lijnwerk), and a TRUE HAIRLINE (1 screen pixel) when lineweight display
+// is toggled off with 'TL' — hatches follow the same rule as everything
+// else.
+function _hatchLineWidth(familyWidth) {
+  const vp = window.__pdfViewport;
+  const doc = state.documents?.[state.activeDocumentIndex];
+  const screenScale = (vp && vp.active && doc?.filePath) ? vp.zoom : (doc?.scale || 1);
+  if (state.preferences?.thinLines) return screenScale > 0 ? 1 / screenScale : 0.5;
+  return familyWidth != null ? familyWidth : 0.4;
+}
+
 // ---------------------------------------------------------------------------
 // Pattern catalog (categories: basic / hatching / material / geometric / nen47)
 // Names mirror open-2d-studio so the picker is consistent across both apps.
@@ -117,6 +134,86 @@ export const BUILTIN_HATCH_PATTERNS = [
     { angle: 90, originX: 0, originY: 0, deltaX: 25, deltaY: 30, dashPattern: [15, -15] },
   ]},
 
+  // ---- material (imported drawing-template geometries) ----
+  // Line-family ports of the SVG <pattern> tiles from the bundled drawing
+  // templates. Units follow the source tiles (2 units = 1 mm unless noted);
+  // the style-type presets (style-types.js) pick the hatchScale that restores
+  // the original paper-mm dimensions.
+  // Paired 45-degree lines: gap/repeat ratio 1:3 (steel / brickwork tiles).
+  { id: 'staal-dubbel',   category: 'material', lineFamilies: [
+    { angle: 45, originX: 0, originY: 0, deltaX: 0, deltaY: 6 },
+    { angle: 45, originX: 0, originY: 2, deltaX: 0, deltaY: 6 },
+  ]},
+  // Rectangular grids, 2:1 landscape and 1:2 portrait cells.
+  { id: 'raster-liggend', category: 'material', lineFamilies: [
+    { angle: 0,  originX: 0, originY: 0, deltaX: 0, deltaY: 5 },
+    { angle: 90, originX: 0, originY: 0, deltaX: 0, deltaY: 10 },
+  ]},
+  { id: 'raster-staand',  category: 'material', lineFamilies: [
+    { angle: 0,  originX: 0, originY: 0, deltaX: 0, deltaY: 10 },
+    { angle: 90, originX: 0, originY: 0, deltaX: 0, deltaY: 5 },
+  ]},
+  // Running bond with correctly alternating joints (2:1 tiles, 4:1 boards).
+  { id: 'tegel-halfsteens', category: 'material', lineFamilies: [
+    { angle: 0,  originX: 0, originY: 0, deltaX: 0,  deltaY: 10 },
+    { angle: 90, originX: 0, originY: 0, deltaX: 10, deltaY: 10, dashPattern: [10, -10] },
+  ]},
+  { id: 'plank-halfsteens', category: 'material', lineFamilies: [
+    { angle: 0,  originX: 0, originY: 0, deltaX: 0,  deltaY: 10 },
+    { angle: 90, originX: 0, originY: 0, deltaX: 10, deltaY: 20, dashPattern: [10, -10] },
+  ]},
+  // Earth: alternating blocks of 3 short vertical / 3 short horizontal lines.
+  { id: 'grond-blokjes',  category: 'material', lineFamilies: [
+    { angle: 90, originX: 0, originY: 0, deltaX: 0, deltaY: 12, dashPattern: [4, -8] },
+    { angle: 90, originX: 2, originY: 0, deltaX: 0, deltaY: 12, dashPattern: [4, -8] },
+    { angle: 90, originX: 4, originY: 0, deltaX: 0, deltaY: 12, dashPattern: [4, -8] },
+    { angle: 0,  originX: 6, originY: 0, deltaX: 0, deltaY: 12, dashPattern: [4, -8] },
+    { angle: 0,  originX: 6, originY: 2, deltaX: 0, deltaY: 12, dashPattern: [4, -8] },
+    { angle: 0,  originX: 6, originY: 4, deltaX: 0, deltaY: 12, dashPattern: [4, -8] },
+  ]},
+  // Sparse short 45-degree ticks of varying length (elevation glass).
+  { id: 'glas-strepen',   category: 'material', lineFamilies: [
+    { angle: 45, originX: 0, originY: 2, deltaX: 0, deltaY: 20, dashPattern: [4, -16] },
+    { angle: 45, originX: 0, originY: 4, deltaX: 0, deltaY: 20, dashPattern: [10, -10] },
+    { angle: 45, originX: 0, originY: 6, deltaX: 0, deltaY: 20, dashPattern: [4, -16] },
+  ]},
+  // Two staggered rows of interrupted horizontal strokes.
+  { id: 'vloeistof-strepen', category: 'material', lineFamilies: [
+    { angle: 0, originX: 0, originY: 1, deltaX: 0, deltaY: 6, dashPattern: [8, -4] },
+    { angle: 0, originX: 6, originY: 4, deltaX: 0, deltaY: 6, dashPattern: [8, -4] },
+  ]},
+  // Grass tufts: short vertical stems plus diagonal blades, staggered rows.
+  { id: 'gras-pollen',    category: 'material', lineFamilies: [
+    { angle: 90,  originX: 0, originY: 0, deltaX: 12, deltaY: 6,   dashPattern: [3, -21] },
+    { angle: 45,  originX: 0, originY: 0, deltaX: 17, deltaY: 4.2, dashPattern: [3, -31] },
+    { angle: -45, originX: 0, originY: 0, deltaX: 17, deltaY: 4.2, dashPattern: [3, -31] },
+  ]},
+  // Honeycomb: horizontal cell edges plus the two slanted edge directions.
+  { id: 'honingraat',     category: 'material', lineFamilies: [
+    { angle: 0,   originX: 0, originY: 0, deltaX: 7.5, deltaY: 4.33, dashPattern: [5, -10] },
+    { angle: 60,  originX: 0, originY: 0, deltaX: 0,   deltaY: 13,   dashPattern: [5, -10] },
+    { angle: -60, originX: 0, originY: 0, deltaX: 0,   deltaY: 13,   dashPattern: [5, -10] },
+  ]},
+  // Group of 7 closely spaced verticals followed by an equal gap.
+  { id: 'lijnen-groep-verticaal', category: 'material', lineFamilies: [
+    { angle: 90, originX: 0,    originY: 0, deltaX: 0, deltaY: 9 },
+    { angle: 90, originX: 0.75, originY: 0, deltaX: 0, deltaY: 9 },
+    { angle: 90, originX: 1.5,  originY: 0, deltaX: 0, deltaY: 9 },
+    { angle: 90, originX: 2.25, originY: 0, deltaX: 0, deltaY: 9 },
+    { angle: 90, originX: 3,    originY: 0, deltaX: 0, deltaY: 9 },
+    { angle: 90, originX: 3.75, originY: 0, deltaX: 0, deltaY: 9 },
+    { angle: 90, originX: 4.5,  originY: 0, deltaX: 0, deltaY: 9 },
+  ]},
+  // Alternating solid/open square blocks (lead): dense dashed scanlines.
+  { id: 'lood-blokken',   category: 'material', lineFamilies: [
+    { angle: 0, originX: 0, originY: 0, deltaX: 0, deltaY: 1, dashPattern: [4.5, -4.5] },
+  ]},
+  // Section glass: horizontal lines interleaved with slightly sloped lines.
+  { id: 'glas-doorsnede', category: 'material', lineFamilies: [
+    { angle: 0,      originX: 0, originY: 0, deltaX: 0, deltaY: 4.5 },
+    { angle: -18.43, originX: 0, originY: 0, deltaX: 0, deltaY: 4.27 },
+  ]},
+
   // ---- geometric ----
   { id: 'diamonds',       category: 'geometric', lineFamilies: [
     { angle: 60,  originX: 0, originY: 0, deltaX: 0, deltaY: 10 },
@@ -139,6 +236,13 @@ export const BUILTIN_HATCH_PATTERNS = [
   { id: 'nen47-metselwerk-baksteen', category: 'nen47', lineFamilies: [
     { angle: 45, originX: 0, originY: 0,   deltaX: 0, deltaY: 3 },
     { angle: 45, originX: 0, originY: 0.5, deltaX: 0, deltaY: 3 },
+  ]},
+  // Wall-variant of the masonry hatch (reference sheet): PAIRS of thin 45°
+  // lines (the two lines of a pair clearly separated), VERY generous pitch
+  // — only a handful of pairs across a wall.
+  { id: 'wand-metselwerk', category: 'nen47', lineFamilies: [
+    { angle: 45, originX: 0, originY: 0, deltaX: 0, deltaY: 36 },
+    { angle: 45, originX: 0, originY: 5, deltaX: 0, deltaY: 36 },
   ]},
   { id: 'nen47-speciale-steenachtige', category: 'nen47', lineFamilies: [
     { angle: 45,  originX: 0, originY: 0, deltaX: 0, deltaY: 3 },
@@ -248,7 +352,7 @@ function drawLineFamily(ctx, family, left, top, right, bottom, scale, baseStroke
 
   ctx.strokeStyle = family.strokeColor || baseStrokeColor;
   ctx.fillStyle   = family.strokeColor || baseStrokeColor;
-  ctx.lineWidth   = family.strokeWidth != null ? family.strokeWidth : 1;
+  ctx.lineWidth   = _hatchLineWidth(family.strokeWidth);
 
   // Dot family (dashPattern contains a 0 — interpreted as "render as dots")
   if (family.dashPattern && family.dashPattern.includes(0)) {
@@ -378,17 +482,30 @@ export function applyHatchFillPolygon(ctx, points, holes, hatchPattern, hatchCol
 
   ctx.save();
 
+  // Arc-aware sub-path tracing (same curve interpretation as the fill and
+  // stroke in measurements.js) so hatch clipping follows arc segments too.
+  const traceSub = (pts) => {
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) {
+      if (pts[i].arc) {
+        const cp = arcControlPoint(pts[i - 1], pts[i]);
+        ctx.quadraticCurveTo(cp.x, cp.y, pts[i].x, pts[i].y);
+      } else {
+        ctx.lineTo(pts[i].x, pts[i].y);
+      }
+    }
+    if (pts[0].arc) {
+      const cp = arcControlPoint(pts[pts.length - 1], pts[0]);
+      ctx.quadraticCurveTo(cp.x, cp.y, pts[0].x, pts[0].y);
+    }
+    ctx.closePath();
+  };
+
   ctx.beginPath();
-  ctx.moveTo(points[0].x, points[0].y);
-  for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
-  ctx.closePath();
+  traceSub(points);
   if (holes && holes.length > 0) {
     for (const hole of holes) {
-      if (hole && hole.length >= 3) {
-        ctx.moveTo(hole[0].x, hole[0].y);
-        for (let i = 1; i < hole.length; i++) ctx.lineTo(hole[i].x, hole[i].y);
-        ctx.closePath();
-      }
+      if (hole && hole.length >= 3) traceSub(hole);
     }
   }
   ctx.clip('evenodd');
@@ -411,8 +528,8 @@ export function applyHatchFillPolygon(ctx, points, holes, hatchPattern, hatchCol
 
 const SWATCH_CACHE = new Map(); // key: id|color|size → dataURL
 
-export function getHatchSwatchDataUrl(patternId, color = '#000000', size = 16) {
-  const key = `${patternId}|${color}|${size}`;
+export function getHatchSwatchDataUrl(patternId, color = '#000000', size = 16, bg = '#ffffff') {
+  const key = `${patternId}|${color}|${size}|${bg}`;
   const cached = SWATCH_CACHE.get(key);
   if (cached) return cached;
 
@@ -423,9 +540,12 @@ export function getHatchSwatchDataUrl(patternId, color = '#000000', size = 16) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return '';
 
-  // Light background so dark line patterns are visible.
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, size, size);
+  // Backdrop so line patterns stay visible — callers pass the theme surface
+  // colour in dark mode; white by default. 'transparent' skips the fill.
+  if (bg && bg !== 'transparent') {
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, size, size);
+  }
 
   ctx.save();
   ctx.beginPath();

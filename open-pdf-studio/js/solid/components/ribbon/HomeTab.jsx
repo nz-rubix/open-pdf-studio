@@ -18,12 +18,29 @@ import {
 import { openDialog } from '../../stores/dialogStore.js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
 
+// New-document icon (blank sheet with a plus)
+const newDocIcon = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>`;
+// IFC-report export icon (box with outgoing arrow)
+const ifcExportIcon = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8.5 12 4l8 4.5v7L12 20l-8-4.5z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11v9M4 8.5 12 11l8-2.5"/></svg>`;
+
 export default function HomeTab() {
   const { t } = useTranslation('ribbon');
 
   return (
     <div class="ribbon-content active" id="tab-home">
       <AdaptiveGroups>
+        <RibbonGroup label={t('home.document') || 'Document'}>
+          <RibbonButton id="btn-home-new" title={t('home.newDocument') || 'Nieuw document (kader of blanco)'}
+            icon={newDocIcon} label={t('home.new') || 'Nieuw'}
+            onClick={() => openDialog('new-doc')} />
+          <RibbonButton id="btn-home-ifc-export" title="Opslaan als IFC-report (.ifcreport)"
+            icon={ifcExportIcon} label="IFC-report" disabled={noPdf()}
+            onClick={async () => {
+              const m = await import('../../../pdf/ifc-export.js');
+              m.exportIfcReport();
+            }} />
+        </RibbonGroup>
+
         <RibbonGroup label={t('home.tools')}>
           <RibbonButton id="tool-hand" title={t('home.handTool')} icon={handIcon} label={t('home.hand')}
             disabled={noPdf()} active={state.currentTool === 'hand'} onClick={() => setTool('hand')} />

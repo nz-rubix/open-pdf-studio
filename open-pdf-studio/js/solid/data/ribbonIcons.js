@@ -72,6 +72,9 @@ export const lineIcon = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 
 
 export const arrowIcon = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19l14-14"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 5l-6 0m6 0l0 6"/></svg>`;
 
+// Freehand / sketch draw — wavy pencil stroke
+export const drawIcon = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 18 Q 7 8 11 14 T 19 6"/></svg>`;
+
 export const polylineIcon = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 18L9 10L14 14L20 6"/></svg>`;
 
 // --- Comment tab: Shapes ---

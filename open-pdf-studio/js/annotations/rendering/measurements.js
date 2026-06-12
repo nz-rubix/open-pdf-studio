@@ -8,9 +8,14 @@ import { arcControlPoint } from '../measurement.js';
  * @param {CanvasRenderingContext2D} ctx
  * @param {Array} points - polygon vertices, some may have .arc and .bulge
  * @param {boolean} close - whether to closePath
+ * @param {boolean} newPath - start a fresh path (default). Pass false to ADD
+ *   this polygon as a sub-path of the current path — required when combining
+ *   an outer contour with hole contours for one evenodd fill; beginPath()
+ *   here would wipe the outer contour and the fill would paint ONLY the
+ *   holes (inverted donut).
  */
-function _tracePolygonPath(ctx, points, close) {
-  ctx.beginPath();
+function _tracePolygonPath(ctx, points, close, newPath = true) {
+  if (newPath) ctx.beginPath();
   ctx.moveTo(points[0].x, points[0].y);
   for (let i = 1; i < points.length; i++) {
     if (points[i].arc) {
@@ -36,7 +41,7 @@ export function drawDimension(ctx, opts) {
     startX, startY, endX, endY,
     leaderStartX, leaderStartY, leaderEndX, leaderEndY,
     startHead = 'openCircle', endHead = 'openCircle', headSize = 12,
-    color, measureText
+    color, measureText, fontSize, extension
   } = opts;
 
   const mdAngle = Math.atan2(endY - startY, endX - startX);
@@ -61,10 +66,14 @@ export function drawDimension(ctx, opts) {
     ctx.stroke();
   }
 
-  // Dimension line
+  // Dimension line. With `extension` on, the line sticks out past both
+  // extension lines (NL drafting style).
+  const extLen = extension ? Math.max(9, headSize * 0.9) : 0;
+  const dirX = Math.cos(mdAngle);
+  const dirY = Math.sin(mdAngle);
   ctx.beginPath();
-  ctx.moveTo(startX, startY);
-  ctx.lineTo(endX, endY);
+  ctx.moveTo(startX - dirX * extLen, startY - dirY * extLen);
+  ctx.lineTo(endX + dirX * extLen, endY + dirY * extLen);
   ctx.stroke();
 
   // Line endings
@@ -78,26 +87,30 @@ export function drawDimension(ctx, opts) {
 
   // Measurement label
   if (measureText) {
-    drawDimensionLabel(ctx, startX, startY, endX, endY, measureText, color);
+    drawDimensionLabel(ctx, startX, startY, endX, endY, measureText, color, fontSize);
   }
 }
 
-// Draw a measurement label along a dimension line direction
-export function drawDimensionLabel(ctx, startX, startY, endX, endY, text, color) {
+// Draw a measurement label along a dimension line direction.
+// `fontSize` is the text height in page units (PDF points); defaults to the
+// legacy 11px when the annotation predates dimension types.
+export function drawDimensionLabel(ctx, startX, startY, endX, endY, text, color, fontSize) {
   const midX = (startX + endX) / 2;
   const midY = (startY + endY) / 2;
   let textAngle = Math.atan2(endY - startY, endX - startX);
   // Keep text readable (not upside-down)
   if (textAngle > Math.PI / 2) textAngle -= Math.PI;
   else if (textAngle < -Math.PI / 2) textAngle += Math.PI;
+  const fs = fontSize || 11;
   ctx.save();
   ctx.translate(midX, midY);
   ctx.rotate(textAngle);
-  ctx.font = '11px Arial';
+  ctx.font = `${fs}px Arial`;
   ctx.fillStyle = color;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
-  ctx.fillText(text, 0, -4);
+  // Gap between dimension line and text scales with the text height.
+  ctx.fillText(text, 0, -Math.max(3, fs * 0.35));
   ctx.restore();
 }
 
@@ -120,11 +133,12 @@ export function drawMeasureAreaShape(ctx, points, color, lineWidth, fillColor, b
   // Build combined path: outer polygon + hole sub-paths (arc-aware)
   _tracePolygonPath(ctx, points, true);
 
-  // Add hole sub-paths
+  // Add hole sub-paths to the SAME path (newPath=false) so the evenodd fill
+  // below cuts them out instead of filling only the last-traced hole.
   if (holes && holes.length > 0) {
     for (const hole of holes) {
       if (hole && hole.length >= 3) {
-        _tracePolygonPath(ctx, hole, true);
+        _tracePolygonPath(ctx, hole, true, false);
       }
     }
   }

@@ -167,7 +167,10 @@ export const state = createMutable<AppState>({
   statusMessageVisible: true,
   renderEngine: '',
   renderTiming: '',
-  renderEngineOverride: null,
+  // Default to PDFium (Raster) for development — Vector engine has known
+  // gaps (text fallback to sans-serif, font-family not honored) that produce
+  // misleading visual diffs. Auto-mode can be re-enabled via status-bar dropdown.
+  renderEngineOverride: 'pdfium',
   textSelection: {
     hasSelection: false,
     selectedText: '',

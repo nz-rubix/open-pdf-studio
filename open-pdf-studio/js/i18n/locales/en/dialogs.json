@@ -73,7 +73,11 @@
     "atTheEnd": "At the end",
     "count": "Count:",
     "paperSize": "Paper Size:",
-    "sameAsCurrentPage": "Same as current page"
+    "sameAsCurrentPage": "Same as current page",
+    "orientation": "Orientation:",
+    "autoOrientation": "Automatic",
+    "portrait": "Portrait",
+    "landscape": "Landscape"
   },
   "pageProperties": {
     "title": "Page {{page}} Properties",

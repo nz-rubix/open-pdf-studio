@@ -6,6 +6,7 @@ import { calculateDistance, calculateArea, calculatePerimeter, formatMeasurement
 import { getAnnotationType } from '../plugins/annotation-type-registry.js';
 import { applyDynamicScaling } from '../annotations/dynamic-scaling.js';
 import { getTemplate, defaultParams } from '../symbols/registry.js';
+import { pxPerMmAt } from '../symbols/real-size.js';
 import { pendingSymbolId } from '../solid/stores/parametricSymbolStore.js';
 
 /**
@@ -82,6 +83,28 @@ export function buildAnnotationProps(tool, startX, startY, endX, endY, e) {
       };
     }
 
+    case 'wall': {
+      // Plan-view wall segment: line-like geometry + real-world thickness +
+      // material hatch. Material/dikte come from the palette via
+      // toolOverrides; black by default like all NL drafting components.
+      const end = snap(startX, startY, endX, endY);
+      return {
+        type: 'wall',
+        page: getActiveDocument()?.currentPage || 1,
+        startX, startY,
+        endX: end.x, endY: end.y,
+        dikteMm: o.wallDikteMm || 100,
+        hatchPattern: o.wallPattern || 'nen47-metselwerk-baksteen',
+        isolatieType: o.wallIsolatieType || undefined,
+        // hatchScale intentionally NOT set: the material's own density
+        // (WALL_MATERIALS.dens) applies unless the user overrides it.
+        color: '#000000',
+        strokeColor: '#000000',
+        lineWidth: 0.7,
+        opacity: 1,
+      };
+    }
+
     case 'arrow': {
       const end = snap(startX, startY, endX, endY);
       return {
@@ -94,7 +117,10 @@ export function buildAnnotationProps(tool, startX, startY, endX, endY, e) {
         fillColor: prefs.arrowFillColor || prefs.arrowStrokeColor || getColorPickerValue(),
         lineWidth: prefs.arrowLineWidth || getLineWidthValue(),
         borderStyle: prefs.arrowBorderStyle || 'solid',
-        startHead: prefs.arrowStartHead || 'none',
+        // Default both ends to 'open' arrowhead — most users drawing the
+        // "arrow" tool want a double-headed dimension/marker arrow.
+        // Single-head is a one-keystroke change in the properties panel.
+        startHead: prefs.arrowStartHead || 'open',
         endHead: prefs.arrowEndHead || 'open',
         headSize: prefs.arrowHeadSize || 8,
         opacity: (prefs.arrowOpacity || 100) / 100,
@@ -130,6 +156,25 @@ export function buildAnnotationProps(tool, startX, startY, endX, endY, e) {
         lineWidth: prefs.rectBorderWidth,
         borderStyle: prefs.rectBorderStyle,
         opacity: prefs.rectOpacity / 100,
+        ...o
+      };
+    }
+
+    case 'mask': {
+      // Maskeer (wipeout): opaque white patch that hides whatever lies
+      // underneath (page content AND annotations drawn before it). Fixed
+      // style by design — white fill, thin dash-dot frame, full opacity.
+      const b = bbox(startX, startY, endX, endY);
+      return {
+        type: 'mask',
+        page: getActiveDocument()?.currentPage || 1,
+        ...b,
+        color: '#9a9a9a',
+        strokeColor: '#9a9a9a',
+        fillColor: '#ffffff',
+        lineWidth: 0.75,
+        borderStyle: 'dash-dot',
+        opacity: 1,
         ...o
       };
     }
@@ -248,20 +293,40 @@ export function buildAnnotationProps(tool, startX, startY, endX, endY, e) {
       const symbolId = pendingSymbolId() || 'door';
       const template = getTemplate(symbolId);
       let b = bbox(startX, startY, endX, endY);
-      // Click (no real drag): use the template's defaultSize
+      // Click (no real drag): use the template's defaultSize — or, for
+      // templates with a real-world size (steel profiles), the REAL
+      // dimensions at the click point (scale-region aware), centred on the
+      // click like a CAD block insert.
       if (b.width < 5 || b.height < 5) {
-        const ds = (template && template.defaultSize) || { width: 80, height: 80 };
-        b = { x: startX, y: startY, width: ds.width, height: ds.height };
+        const page = getActiveDocument()?.currentPage || 1;
+        const mm = typeof template?.realSizeMm === 'function'
+          ? template.realSizeMm(defaultParams(template)) : null;
+        if (mm && mm.height > 0) {
+          const k = pxPerMmAt(page, startX, startY);
+          const hPx = mm.height * k;
+          // width null = free-length beam view → seed 4× the band height.
+          const wPx = mm.width > 0 ? mm.width * k : hPx * 4;
+          b = {
+            x: startX - wPx / 2,
+            y: startY - hPx / 2,
+            width: wPx,
+            height: hPx,
+          };
+        } else {
+          const ds = (template && template.defaultSize) || { width: 80, height: 80 };
+          b = { x: startX, y: startY, width: ds.width, height: ds.height };
+        }
       }
-      const stroke = getColorPickerValue() || '#000000';
+      // NL drafting components are BLACK by default (independent of the
+      // current colour-picker swatch); recolour afterwards via the panel.
       return {
         type: 'parametricSymbol',
         page: getActiveDocument()?.currentPage || 1,
         ...b,
         symbolId,
         params: template ? defaultParams(template) : {},
-        color: stroke,
-        strokeColor: stroke,
+        color: '#000000',
+        strokeColor: '#000000',
         lineWidth: getLineWidthValue() || 1,
         rotation: 0,
         opacity: 1,
@@ -376,7 +441,9 @@ export function createMeasurePerimeterAnnotation(points) {
     headSize: mPrefs.measurePerimHeadSize || 12,
   };
   const currentPage = getActiveDocument()?.currentPage || 1;
-  const hasScaleSource = getActiveDocument()?.annotations?.some(a => a.type === 'scaleBar' || a.type === 'viewport');
+  // Scale regions count as a scale source too — measurements inside one must
+  // inherit its scale instead of the manual preference scale.
+  const hasScaleSource = getActiveDocument()?.annotations?.some(a => a.type === 'scaleRegion' || a.type === 'scaleBar' || a.type === 'viewport');
   if (!hasScaleSource && mPrefs.measurePerimDimScale && typeof mPrefs.measurePerimDimScale === 'number') {
     perimProps.measureScale = mPrefs.measurePerimDimScale;
     perimProps.measureUnit = mPrefs.measurePerimDimUnit || 'mm';

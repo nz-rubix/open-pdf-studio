@@ -189,7 +189,12 @@
     "height": "Hoogte",
     "lockAspectRatio": "Beeldverhouding vergrendelen",
     "rotation": "Rotatie",
-    "resetToOriginal": "Oorspronkelijke grootte herstellen"
+    "resetToOriginal": "Oorspronkelijke grootte herstellen",
+    "linkedFile": "Gekoppeld bestand",
+    "notLinked": "Niet gekoppeld",
+    "linkFile": "Koppelen…",
+    "refreshLink": "Vernieuwen",
+    "unlink": "Ontkoppelen"
   },
   "multiSelect": "{{count}} annotaties geselecteerd",
   "pdfText": "PDF-tekst",
@@ -306,6 +311,8 @@
     "namePlaceholder": "Area name (optional)",
     "scale": "Scale",
     "unit": "Unit",
-    "precision": "Precision (Decimals)"
+    "precision": "Precision (Decimals)",
+    "dimType": "Type",
+    "dimTypeCustom": "Aangepast"
   }
 }

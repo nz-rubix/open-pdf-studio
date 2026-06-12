@@ -291,6 +291,22 @@ export default function FeedbackDialog() {
             </div>
           </div>
 
+          {/* Why-is-submit-disabled hint — the button being silently grey
+              reads as "submit is broken"; spell out what is still missing. */}
+          <Show when={!canSubmit() && status() !== 'submitting'}>
+            <div style="font-size:11px;color:var(--theme-text-secondary,#996);margin-bottom:4px">
+              <Show when={!isValidEmail()}>
+                <div>• Vul een geldig e-mailadres in.</div>
+              </Show>
+              <Show when={message().length < MIN_MESSAGE}>
+                <div>• Bericht: minimaal {MIN_MESSAGE} tekens (nu {message().length}).</div>
+              </Show>
+              <Show when={message().length > MAX_MESSAGE}>
+                <div>• Bericht is te lang (max {MAX_MESSAGE} tekens).</div>
+              </Show>
+            </div>
+          </Show>
+
           {/* Submit */}
           <button
             class="feedback-submit-btn"

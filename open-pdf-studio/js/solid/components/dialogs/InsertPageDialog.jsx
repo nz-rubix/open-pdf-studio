@@ -13,19 +13,32 @@ export default function InsertPageDialog() {
   const [position, setPosition] = createSignal('after');
   const [count, setCount] = createSignal(1);
   const [paperSize, setPaperSize] = createSignal('current');
+  // 'auto' = keep the natural orientation of the chosen size / current page;
+  // 'portrait'/'landscape' force it by swapping width/height when needed.
+  const [orientation, setOrientation] = createSignal('auto');
 
   async function getDimensions() {
     const size = paperSize();
+    let widthPt, heightPt;
 
     if (size === 'current') {
       const doc = getActiveDocument();
       const page = await doc.pdfDoc.getPage(doc.currentPage);
       const viewport = page.getViewport({ scale: 1 });
-      return { widthPt: viewport.width, heightPt: viewport.height };
+      widthPt = viewport.width;
+      heightPt = viewport.height;
+    } else {
+      const info = PAPER_SIZES[size];
+      widthPt = info.width;
+      heightPt = info.height;
     }
 
-    const info = PAPER_SIZES[size];
-    return { widthPt: info.width, heightPt: info.height };
+    const o = orientation();
+    if ((o === 'landscape' && heightPt > widthPt) ||
+        (o === 'portrait' && widthPt > heightPt)) {
+      [widthPt, heightPt] = [heightPt, widthPt];
+    }
+    return { widthPt, heightPt };
   }
 
   const close = () => closeDialog('insert-page');
@@ -111,6 +124,18 @@ export default function InsertPageDialog() {
               <option value="tabloid">Tabloid (11 x 17 in)</option>
               <option value="ledger">Ledger (17 x 11 in)</option>
             </optgroup>
+          </select>
+        </div>
+        <div class="insert-page-row">
+          <label class="insert-page-label">{t('insertPage.orientation') || 'Richting:'}</label>
+          <select
+            class="insert-page-select"
+            value={orientation()}
+            onChange={(e) => setOrientation(e.target.value)}
+          >
+            <option value="auto">{t('insertPage.autoOrientation') || 'Automatisch'}</option>
+            <option value="portrait">{t('insertPage.portrait') || 'Staand'}</option>
+            <option value="landscape">{t('insertPage.landscape') || 'Liggend'}</option>
           </select>
         </div>
       </div>

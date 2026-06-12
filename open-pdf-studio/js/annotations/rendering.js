@@ -9,18 +9,53 @@ import { drawPolygonShape, drawCloudShape, buildPolygonPath, buildCloudPath, bui
 import { drawArrowheadOnCanvas, applyBorderStyle, drawDimensionLineEnding } from './rendering/decorations.js';
 import { catmullRomSpline } from '../tools/tools/spline-tool.js';
 import { drawDimension, drawMeasureAreaShape, drawCentroidLabel, drawMeasurePerimeterShape } from './rendering/measurements.js';
-import { applyHatchFill } from './rendering/hatch-patterns.js';
+import { applyHatchFill, applyHatchFillPolygon } from './rendering/hatch-patterns.js';
+import { drawWall } from './rendering/walls.js';
 import { getAnnotationType } from '../plugins/annotation-type-registry.js';
 import { drawSelectionHandles } from './rendering/selection.js';
 import { updateQuickAccessButtons, updateContextualTabs, drawGrid, snapToGrid } from './rendering/ui-state.js';
 import { drawCommentIcon } from './rendering/comment-icons.js';
 import { spatialIndex } from './spatial-index.js';
-import { invalidateScaleRegionCache, pixelsPerUnitFor } from './scale-region.js';
+import { invalidateScaleRegionCache, pixelsPerUnitFor, getRegionScaleFactor } from './scale-region.js';
+import { drawSnapIndicator } from '../tools/snap-engine.js';
 import { getTemplate } from '../symbols/registry.js';
 
 // Re-export everything that external code needs
 export { drawPolygonShape, drawCloudShape, buildPolygonPath, buildCloudPath } from './rendering/shapes.js';
 export { updateQuickAccessButtons, snapToGrid } from './rendering/ui-state.js';
+
+// Blender-style 2D cursor marker — red/white dashed circle + crosshair,
+// drawn at constant SCREEN size (sizes divided by the current scale).
+// ctx is in app-coord space.
+function _draw2DCursor(ctx, x, y, screenScale) {
+  const s = 1 / Math.max(screenScale || 1, 0.0001);
+  const r = 7 * s;
+  const armIn = 4 * s;
+  const armOut = 14 * s;
+  ctx.save();
+  // White base circle with red dashes on top (the classic look)
+  ctx.lineWidth = 1.8 * s;
+  ctx.strokeStyle = '#ffffff';
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = '#d62b2b';
+  ctx.setLineDash([3.2 * s, 3.2 * s]);
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+  // Crosshair: dark lines on a white halo for contrast on any background
+  const cross = (lw, color) => {
+    ctx.lineWidth = lw;
+    ctx.strokeStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x - armOut, y); ctx.lineTo(x - armIn, y);
+    ctx.moveTo(x + armIn, y); ctx.lineTo(x + armOut, y);
+    ctx.moveTo(x, y - armOut); ctx.lineTo(x, y - armIn);
+    ctx.moveTo(x, y + armIn); ctx.lineTo(x, y + armOut);
+    ctx.stroke();
+  };
+  cross(2.6 * s, '#ffffff');
+  cross(1.2 * s, '#1a1a1a');
+  ctx.restore();
+}
 
 // Inline polar-ray + tooltip drawer (kept here to avoid an import cycle
 // with snap-engine.js).  ctx is in app-coord space.
@@ -90,12 +125,21 @@ function _drawPolarOverlay(ctx, snapResult, scale) {
 // keeps the shape visible even when the outline goes sub-pixel.
 function thinLw(width) {
   if (width === 0) return 0;
-  if (state.preferences?.thinLines) return Math.min(width, 1);
+  if (state.preferences?.thinLines) {
+    // Lineweight display OFF ('TL'): EVERYTHING renders as a true hairline —
+    // exactly 1 screen pixel at any zoom (CAD LWDISPLAY off).
+    const vp0 = window.__pdfViewport;
+    const _d0 = state.documents[state.activeDocumentIndex];
+    const s0 = (vp0 && vp0.active && _d0?.filePath) ? vp0.zoom : (_d0?.scale || 1);
+    return s0 > 0 ? 1 / s0 : 1;
+  }
   let lw = Math.max(width, 0.25);
   const vp = window.__pdfViewport;
-  const scale = (vp && vp.active)
+  const _doc = state.documents[state.activeDocumentIndex];
+  // Blank docs (no filePath) bypass the viewport singleton and use doc.scale.
+  const scale = (vp && vp.active && _doc?.filePath)
     ? vp.zoom
-    : (state.documents[state.activeDocumentIndex]?.scale || 1);
+    : (_doc?.scale || 1);
   if (scale > 0 && scale < 1) {
     const minAppPx = 1 / scale;          // 1 screen pixel in app-coords
     if (lw < minAppPx) lw = minAppPx;
@@ -254,7 +298,17 @@ export function drawAnnotation(ctx, annotation) {
 
       applyBorderStyle(offCtx, annotation.borderStyle);
 
-      // Shorten line so it stops at arrowhead base (not tip) to avoid overshoot
+      // Shorten line so it stops at the arrowhead. The amount depends on
+      // whether the head is FILLED (closed, diamond, square, circle) or
+      // OPEN/STROKED (open, stealth, openReversed, butt, slash, openCircle):
+      //   • Filled head: shorten by full headSize so the line ends at the
+      //     base of the triangle (no overlap → no double-thickness halo).
+      //   • Open head: the V is hollow — if we shorten by full headSize the
+      //     line ends BELOW the V base and you see a visible gap inside the
+      //     V. Use a tiny shortening (just enough to keep the line tip from
+      //     poking past the V tip with thick strokes).
+      const FILLED_HEADS = new Set(['closed', 'closedReversed', 'diamond', 'square', 'circle']);
+      const isHeadFilled = (s) => FILLED_HEADS.has(s);
       const aDx = annotation.endX - annotation.startX;
       const aDy = annotation.endY - annotation.startY;
       const aLen = Math.sqrt(aDx * aDx + aDy * aDy);
@@ -263,12 +317,14 @@ export function drawAnnotation(ctx, annotation) {
       if (aLen > 0) {
         const ux = aDx / aLen, uy = aDy / aLen;
         if (endHead !== 'none') {
-          lineEndX -= ux * headSize;
-          lineEndY -= uy * headSize;
+          const off = isHeadFilled(endHead) ? headSize : Math.min(lw * 0.5, 1);
+          lineEndX -= ux * off;
+          lineEndY -= uy * off;
         }
         if (startHead !== 'none') {
-          lineStartX += ux * headSize;
-          lineStartY += uy * headSize;
+          const off = isHeadFilled(startHead) ? headSize : Math.min(lw * 0.5, 1);
+          lineStartX += ux * off;
+          lineStartY += uy * off;
         }
       }
 
@@ -384,6 +440,30 @@ export function drawAnnotation(ctx, annotation) {
       ctx.setLineDash([]);
       ctx.restore();
       break;
+
+    case 'mask': {
+      // Maskeer (wipeout): ALWAYS fully opaque white — its whole purpose is
+      // hiding what's underneath, so the opacity property must not leak in.
+      ctx.save();
+      ctx.globalAlpha = 1;
+      if (annotation.rotation) {
+        const mCX = annotation.x + annotation.width / 2;
+        const mCY = annotation.y + annotation.height / 2;
+        ctx.translate(mCX, mCY);
+        ctx.rotate(annotation.rotation * Math.PI / 180);
+        ctx.translate(-mCX, -mCY);
+      }
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(annotation.x, annotation.y, annotation.width, annotation.height);
+      // Thin dash-dot frame as the on-screen editor hint.
+      ctx.strokeStyle = annotation.strokeColor || '#9a9a9a';
+      ctx.lineWidth = thinLw(annotation.lineWidth || 0.75);
+      applyBorderStyle(ctx, annotation.borderStyle || 'dash-dot');
+      ctx.strokeRect(annotation.x, annotation.y, annotation.width, annotation.height);
+      ctx.setLineDash([]);
+      ctx.restore();
+      break;
+    }
 
     case 'box':
       ctx.save();
@@ -577,7 +657,15 @@ export function drawAnnotation(ctx, annotation) {
     }
 
     case 'text': {
-      const txtFontFamily = annotation.fontFamily || 'Arial';
+      const txtRawFamily = annotation.fontFamily || 'Arial';
+      // camelCase-expanded fallback chain — see comment in shapes.js drawTextboxContent.
+      const _txtCssQuote = s => `"${s.replace(/"/g, '\\"')}"`;
+      const _txtExpanded = txtRawFamily.replace(/([a-z])([A-Z])/g, '$1 $2');
+      const _txtChain = [];
+      if (_txtExpanded !== txtRawFamily) _txtChain.push(_txtCssQuote(_txtExpanded));
+      _txtChain.push(/[\s"',]/.test(txtRawFamily) ? _txtCssQuote(txtRawFamily) : txtRawFamily);
+      _txtChain.push('sans-serif');
+      const txtFontFamily = _txtChain.join(', ');
       const txtFontStyle = (annotation.fontItalic ? 'italic ' : '') + (annotation.fontBold ? 'bold ' : '');
       const txtFontSize = annotation.fontSize || 16;
       ctx.fillStyle = annotation.color || '#000000';
@@ -751,8 +839,23 @@ export function drawAnnotation(ctx, annotation) {
         const scaleY = annotation.flipY ? -1 : 1;
         ctx.scale(scaleX, scaleY);
 
+        // High-quality image scaling. Canvas defaults to
+        // imageSmoothingQuality='low' (cheap bilinear) which produces a
+        // visibly grainy/blurry result when source ≠ destination — and
+        // for image annotations the destination is almost ALWAYS scaled
+        // (zoom + DPR + initial 1500px cap). 'high' uses a much better
+        // resampler (Lanczos-ish on Chromium) at negligible cost for
+        // single-shot drawImage in the annotation layer.
+        const prevSmooth = ctx.imageSmoothingEnabled;
+        const prevQuality = ctx.imageSmoothingQuality;
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
         // Draw the image centered at origin
         ctx.drawImage(img, -annotation.width / 2, -annotation.height / 2, annotation.width, annotation.height);
+
+        ctx.imageSmoothingEnabled = prevSmooth;
+        ctx.imageSmoothingQuality = prevQuality;
 
         ctx.restore();
       } else {
@@ -942,6 +1045,15 @@ export function drawAnnotation(ctx, annotation) {
       break;
     }
 
+    case 'wall': {
+      // Plan-view wall segment with material hatch + mitred corner joins
+      // (see rendering/walls.js). Needs sibling walls for the joins.
+      const _wallDoc = state.documents[state.activeDocumentIndex];
+      ctx.lineWidth = thinLw(annotation.lineWidth ?? 0.7);
+      drawWall(ctx, annotation, _wallDoc ? _wallDoc.annotations : []);
+      break;
+    }
+
     case 'parametricSymbol': {
       // Parametric symbol — driven by a template + params
       const template = getTemplate(annotation.symbolId);
@@ -1004,12 +1116,87 @@ export function drawAnnotation(ctx, annotation) {
           }
           case 'polyline': {
             if (!Array.isArray(c.points) || c.points.length < 2) break;
+            ctx.save();
+            if (Array.isArray(c.dash)) ctx.setLineDash(c.dash);
             ctx.beginPath();
             ctx.moveTo(c.points[0].x, c.points[0].y);
             for (let i = 1; i < c.points.length; i++) ctx.lineTo(c.points[i].x, c.points[i].y);
             if (c.close) ctx.closePath();
-            if (c.fill) ctx.fill();
+            if (c.fill) {
+              // fill may be `true` (symbol colour) or a CSS colour string.
+              if (typeof c.fill === 'string') ctx.fillStyle = c.fill;
+              ctx.fill();
+            }
             ctx.stroke();
+            ctx.restore();
+            break;
+          }
+          case 'hatch': {
+            // Pattern-hatched region: loops[0] = outer contour, loops 1..n =
+            // holes (evenodd). Pattern ids come from the hatch catalog.
+            // MATERIAL hatches are PAPER-FIXED: constant pitch on paper
+            // (NEN drafting practice), independent of the region scale —
+            // `scale` 100 = the standard pattern pitch, lower = denser.
+            if (!Array.isArray(c.loops) || c.loops.length === 0) break;
+            applyHatchFillPolygon(
+              ctx, c.loops[0], c.loops.slice(1),
+              c.pattern, c.color || strokeColor, c.scale ?? 100, c.angle ?? 0
+            );
+            break;
+          }
+          case 'zigzag': {
+            // Insulation fill for an arbitrary closed loop: solid bg +
+            // 60° triangle-wave spanning the loop's height (same look as
+            // insulation walls). Clipped to the loop.
+            if (!Array.isArray(c.loop) || c.loop.length < 3) break;
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(c.loop[0].x, c.loop[0].y);
+            for (let i = 1; i < c.loop.length; i++) ctx.lineTo(c.loop[i].x, c.loop[i].y);
+            ctx.closePath();
+            ctx.clip();
+            let zx0 = Infinity, zy0 = Infinity, zx1 = -Infinity, zy1 = -Infinity;
+            for (const p of c.loop) {
+              if (p.x < zx0) zx0 = p.x; if (p.x > zx1) zx1 = p.x;
+              if (p.y < zy0) zy0 = p.y; if (p.y > zy1) zy1 = p.y;
+            }
+            const zh = zy1 - zy0;
+            if (c.bg) {
+              ctx.fillStyle = c.bg;
+              ctx.fill();
+            }
+            const amp = (zh / 2) * 0.92;
+            const midY = (zy0 + zy1) / 2;
+            const step = Math.max(zh / Math.tan(Math.PI / 3), 0.5);
+            ctx.strokeStyle = c.color || strokeColor;
+            ctx.lineWidth = Math.max(0.3, Math.min(0.6, zh * 0.012));
+            ctx.beginPath();
+            let zx = zx0 - step;
+            let side = -1;
+            ctx.moveTo(zx, midY + side * amp);
+            while (zx < zx1 + step) {
+              zx += step;
+              side = -side;
+              ctx.lineTo(zx, midY + side * amp);
+            }
+            ctx.stroke();
+            ctx.restore();
+            break;
+          }
+          case 'rings': {
+            // Multiple closed loops as ONE path with an evenodd fill —
+            // loops 2..n cut holes out of loop 1 (e.g. hollow-section walls
+            // filled solid while the inside stays open).
+            if (!Array.isArray(c.loops) || c.loops.length === 0) break;
+            ctx.beginPath();
+            for (const loop of c.loops) {
+              if (!Array.isArray(loop) || loop.length < 3) continue;
+              ctx.moveTo(loop[0].x, loop[0].y);
+              for (let i = 1; i < loop.length; i++) ctx.lineTo(loop[i].x, loop[i].y);
+              ctx.closePath();
+            }
+            if (c.fill) ctx.fill('evenodd');
+            if (c.stroke !== false) ctx.stroke();
             break;
           }
           case 'text': {
@@ -1044,7 +1231,11 @@ export function drawAnnotation(ctx, annotation) {
         endHead: annotation.endHead || 'openCircle',
         headSize: annotation.headSize || 12,
         color: strokeColor,
-        measureText: annotation.measureText
+        measureText: annotation.measureText,
+        fontSize: annotation.fontSize,
+        // Extension is the DEFAULT (NL drafting style): only explicitly
+        // disabling it (dimExtension === false) turns it off.
+        extension: annotation.dimExtension !== false
       });
       break;
     }
@@ -1055,10 +1246,13 @@ export function drawAnnotation(ctx, annotation) {
       ctx.strokeStyle = strokeColor;
       ctx.lineWidth = thinLw(annotation.lineWidth ?? 1);
 
+      const maRegionFactor = getRegionScaleFactor(
+        annotation.page, annotation.points[0]?.x, annotation.points[0]?.y
+      );
       const maHatch = annotation.hatchPattern === 'none'
         ? null  // User explicitly disabled hatch
         : annotation.hatchPattern
-          ? { pattern: annotation.hatchPattern, color: annotation.hatchColor || '#ff0000', scale: annotation.hatchScale, angle: annotation.hatchAngle }
+          ? { pattern: annotation.hatchPattern, color: annotation.hatchColor || '#ff0000', scale: (annotation.hatchScale ?? 100) * maRegionFactor, angle: annotation.hatchAngle }
           : { pattern: 'diagonal-left', color: annotation.hatchColor || '#ff0000', scale: 100, angle: 0 };  // Default: red 45° hatch
       drawMeasureAreaShape(ctx, annotation.points, annotation.color || '#ff0000', annotation.lineWidth, annotation.fillColor, annotation.borderStyle, annotation.holes, maHatch);
       if (annotation.measureText) {
@@ -1073,11 +1267,17 @@ export function drawAnnotation(ctx, annotation) {
       if (!annotation.points || annotation.points.length < 3) break;
       ctx.strokeStyle = strokeColor;
       ctx.lineWidth = thinLw(annotation.lineWidth ?? 1);
+      // Hatch density follows the scale region the area sits in (sampled at
+      // the first vertex): same material pattern → same real-world spacing
+      // across regions of different scales.
+      const faRegionFactor = getRegionScaleFactor(
+        annotation.page, annotation.points[0]?.x, annotation.points[0]?.y
+      );
       const faHatch = (annotation.hatchPattern && annotation.hatchPattern !== 'none')
         ? {
             pattern: annotation.hatchPattern,
             color: annotation.hatchColor || strokeColor,
-            scale: annotation.hatchScale ?? 100,
+            scale: (annotation.hatchScale ?? 100) * faRegionFactor,
             angle: annotation.hatchAngle ?? 0,
           }
         : null;
@@ -1615,10 +1815,15 @@ export function redrawAnnotations(lightweight = false) {
     textHighlightCtx.clearRect(0, 0, textHighlightCanvas.width, textHighlightCanvas.height);
   }
 
-  // Apply scale transformation for zooming
+  // Apply scale transformation for zooming.
+  // Blank docs (no filePath) bypass the viewport singleton — their pixels are
+  // painted directly to #pdf-canvas via PDF.js, and the annotation overlay
+  // must match doc.scale, NOT the viewport zoom that belongs to a previously-
+  // open real PDF.
   const dpr = window.devicePixelRatio || 1;
   const vp = window.__pdfViewport;
-  const useViewport = vp && vp.active;
+  const _activeDoc = state.documents[state.activeDocumentIndex];
+  const useViewport = vp && vp.active && _activeDoc?.filePath;
   const effectiveScale = useViewport ? vp.zoom : scale * dpr;
   annotationCtx.save();
   if (textHighlightCtx) textHighlightCtx.save();
@@ -1722,6 +1927,14 @@ export function redrawAnnotations(lightweight = false) {
   if (state.lastSnapResult && state.lastSnapResult.type === 'polar') {
     _drawPolarOverlay(annotationCtx, state.lastSnapResult, effectiveScale);
   }
+  // Snap indicator during interactive G-move/G-rotate sessions. Drawing
+  // tools render theirs via the shape-preview pass, which never runs for
+  // the select-tool — without this the session snaps invisibly.
+  if ((state.gMoveMode || state.gRotateMode) &&
+      state.lastSnapResult && state.lastSnapResult.snapped &&
+      state.lastSnapResult.type !== 'polar') {
+    drawSnapIndicator(annotationCtx, state.lastSnapResult, effectiveScale);
+  }
 
   // Draw selection highlight and handles (use selectedAnnotations array as source of truth)
   const _renderDoc = getActiveDocument();
@@ -1731,6 +1944,11 @@ export function redrawAnnotations(lightweight = false) {
       if (ann.page !== curPage) continue;
       drawSelectionHandles(annotationCtx, ann);
     }
+  }
+
+  // Blender-style 2D cursor (Shift+right-click places it; hidden until set).
+  if (_renderDoc?.cursor2D && _renderDoc.cursor2D.page === curPage) {
+    _draw2DCursor(annotationCtx, _renderDoc.cursor2D.x, _renderDoc.cursor2D.y, effectiveScale);
   }
 
   // Restore context

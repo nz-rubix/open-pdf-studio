@@ -3,6 +3,7 @@ import { annotationCtx } from '../ui/dom-elements.js';
 import { distanceToLine, isPointNearRect, isPointNearEllipse } from '../utils/math.js';
 import { getAnnotationType } from '../plugins/annotation-type-registry.js';
 import { catmullRomSpline } from '../tools/tools/spline-tool.js';
+import { wallHalfWidthPx as isPointOnWallHalfWidth } from './rendering/walls.js';
 
 /**
  * Find intersection of two infinite lines defined by (p1,p2) and (p3,p4).
@@ -59,6 +60,7 @@ function transformPointByInverseRotation(x, y, centerX, centerY, rotationDegrees
 function getAnnotationCenterAndSize(ann) {
   switch (ann.type) {
     case 'box':
+    case 'mask':
     case 'highlight':
     case 'polygon':
     case 'cloud':
@@ -169,6 +171,12 @@ export function findAnnotationAt(x, y) {
         const dist = distanceToLine(x, y, ann.startX, ann.startY, ann.endX, ann.endY);
         if (dist < tol) return ann;
         break;
+      case 'wall': {
+        // Anywhere inside the band (centreline ± half real-world thickness)
+        const wd = distanceToLine(x, y, ann.startX, ann.startY, ann.endX, ann.endY);
+        if (wd < tol + isPointOnWallHalfWidth(ann)) return ann;
+        break;
+      }
       case 'polyline':
         // Check if point is near any segment of the polyline
         if (ann.points && ann.points.length >= 2) {
@@ -234,6 +242,7 @@ export function findAnnotationAt(x, y) {
         if (isPointNearEllipse(circleLocal.x, circleLocal.y, findCircX, findCircY, findCircW, findCircH, tol)) return ann;
         break;
       case 'box':
+      case 'mask':
         // Transform click point by inverse rotation if annotation is rotated
         const boxCenter = { x: ann.x + ann.width / 2, y: ann.y + ann.height / 2 };
         const boxLocal = transformPointByInverseRotation(x, y, boxCenter.x, boxCenter.y, ann.rotation);
@@ -508,6 +517,7 @@ export function isPointInsideAnnotation(x, y, annotation) {
 
   switch (annotation.type) {
     case 'box':
+    case 'mask':
     case 'highlight':
     case 'polygon':
     case 'cloud':

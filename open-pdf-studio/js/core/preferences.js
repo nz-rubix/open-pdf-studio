@@ -22,6 +22,13 @@ export async function loadPreferences() {
     if (loaded) {
       // Migrate renamed themes
       if (loaded.theme === 'deep-forge') loaded.theme = 'warm-ember';
+      // Standards migration: dimension ticks are open circles, not closed
+      // arrows — rewrite stale saved defaults once.
+      if (loaded.measureDistStartHead === 'closed') loaded.measureDistStartHead = 'openCircle';
+      if (loaded.measureDistEndHead === 'closed') loaded.measureDistEndHead = 'openCircle';
+      // Angle snap: old default 30° → 45° (Shift snapt dan ook diagonaal).
+      // Only the stale default is rewritten; a custom value stays.
+      if (loaded.angleSnapDegrees === 30) loaded.angleSnapDegrees = 45;
       // Merge with defaults to ensure all keys exist
       state.preferences = { ...DEFAULT_PREFERENCES, ...loaded };
     }
@@ -147,7 +154,7 @@ export function showPreferencesDialog(tabName = 'general') {
 }
 
 // Map annotation type to preference key prefix and property mappings
-function getStyleMapping(type) {
+export function getStyleMapping(type) {
   const hasHatch = ['box', 'circle', 'polygon', 'cloud'].includes(type);
   switch (type) {
     case 'draw':
@@ -174,10 +181,14 @@ function getStyleMapping(type) {
       return { prefix: 'comment', color: 'Color', icon: 'Icon' };
     case 'polyline':
       return { prefix: 'polyline', stroke: 'StrokeColor', width: 'LineWidth', borderStyle: 'BorderStyle', opacity: 'Opacity' };
+    case 'filledArea':
+      // Keys match what filled-area-tool.js reads at draw time
+      // (filledAreaStrokeColor, filledAreaHatchPattern, …).
+      return { prefix: 'filledArea', stroke: 'StrokeColor', fill: 'FillColor', fillNone: 'FillNone', width: 'LineWidth', borderStyle: 'BorderStyle', opacity: 'Opacity', hatch: true };
     case 'redaction':
       return { prefix: 'redaction', overlayColor: 'OverlayColor' };
     case 'measureDistance':
-      return { prefix: 'measureDist', stroke: 'StrokeColor', width: 'LineWidth', borderStyle: 'BorderStyle', opacity: 'Opacity', startHead: 'StartHead', endHead: 'EndHead', headSize: 'HeadSize', dimension: true };
+      return { prefix: 'measureDist', stroke: 'StrokeColor', width: 'LineWidth', borderStyle: 'BorderStyle', opacity: 'Opacity', startHead: 'StartHead', endHead: 'EndHead', headSize: 'HeadSize', fontSize: 'FontSize', dimension: true };
     case 'measureArea':
       return { prefix: 'measureArea', stroke: 'StrokeColor', fill: 'FillColor', fillNone: 'FillNone', width: 'LineWidth', borderStyle: 'BorderStyle', opacity: 'Opacity', dimension: true };
     case 'measurePerimeter':
@@ -219,11 +230,17 @@ export function setAsDefaultStyle(annotation) {
     if (annotation.hatchScale != null) prefs[p + 'HatchScale'] = annotation.hatchScale;
   }
 
+  // Generic style-type preset id (see annotations/style-types.js) — '' = custom.
+  prefs[p + 'StyleType'] = annotation.styleType || '';
+
   // Dimension measurement properties (use 'Dim' prefix to avoid clash with global measureScale object)
   if (m.dimension) {
     if (annotation.measureScale != null) prefs[p + 'DimScale'] = annotation.measureScale;
     if (annotation.measureUnit) prefs[p + 'DimUnit'] = annotation.measureUnit;
     if (annotation.measurePrecision != null) prefs[p + 'DimPrecision'] = annotation.measurePrecision;
+    // Dimension type preset (1.8/2.5/3.5/5.0 mm) — '' means custom.
+    prefs[p + 'DimType'] = annotation.dimType || '';
+    prefs[p + 'DimExtension'] = !!annotation.dimExtension;
   }
 
   savePreferences();
@@ -265,11 +282,16 @@ export function applyDefaultStyle(annotation) {
     if (prefs[p + 'HatchScale'] != null) annotation.hatchScale = prefs[p + 'HatchScale'];
   }
 
+  // Generic style-type preset id round-trip.
+  if (prefs[p + 'StyleType']) annotation.styleType = prefs[p + 'StyleType'];
+
   // Dimension measurement properties (use 'Dim' prefix to avoid clash with global measureScale object)
   if (m.dimension) {
     if (prefs[p + 'DimScale'] != null) annotation.measureScale = prefs[p + 'DimScale'];
     if (prefs[p + 'DimUnit']) annotation.measureUnit = prefs[p + 'DimUnit'];
     if (prefs[p + 'DimPrecision'] != null) annotation.measurePrecision = prefs[p + 'DimPrecision'];
+    if (prefs[p + 'DimType']) annotation.dimType = prefs[p + 'DimType'];
+    if (prefs[p + 'DimExtension'] != null) annotation.dimExtension = !!prefs[p + 'DimExtension'];
   }
 
   annotation.modifiedAt = new Date().toISOString();

@@ -21,6 +21,17 @@ export default function MeasurementSection() {
           </div>
         </Show>
 
+        <Show when={annotProps.type === 'measureDistance'}>
+          <div class="property-group">
+            <label>{t('measurement.extension') || 'Extensie'}</label>
+            <input type="checkbox"
+              checked={!!annotProps.dimExtension}
+              disabled={isLocked()}
+              onChange={(e) => updateAnnotProp('dimExtension', e.target.checked)}
+            />
+          </div>
+        </Show>
+
         <div class="property-group">
           <label>{t('measurement.scale')}</label>
           <input type="number" step="0.001" min="0"

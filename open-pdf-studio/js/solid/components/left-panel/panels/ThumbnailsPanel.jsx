@@ -63,6 +63,30 @@ export default function ThumbnailsPanel() {
             />
           )}
         </For>
+        {/* Trailing "+" tile: append a new page (A4/A3/… chooser) to the PDF. */}
+        <div
+          class="thumbnail-item thumbnail-add-page"
+          title={t('leftPanel.addPage') || 'Pagina toevoegen'}
+          onClick={async () => {
+            // Jump to the last page first so the insert dialog's "after
+            // current page" default appends at the END of the document.
+            const m = await import('../../../../pdf/renderer.js');
+            await m.goToPage(pageCount());
+            const { showInsertPageDialog } = await import('../../../../ui/chrome/dialogs.js');
+            showInsertPageDialog();
+          }}
+          style={{
+            display: 'flex',
+            'align-items': 'center',
+            'justify-content': 'center',
+            'min-height': '80px',
+            border: '1px dashed var(--theme-border, #999)',
+            color: 'var(--theme-text, #666)',
+            'font-size': '28px',
+            cursor: 'pointer',
+            'user-select': 'none',
+          }}
+        >+</div>
       </div>
     </div>
   );

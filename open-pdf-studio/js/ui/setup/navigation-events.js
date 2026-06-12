@@ -39,26 +39,31 @@ export function setupWheelZoom() {
     const activeDoc = getActiveDocument();
     if (!activeDoc?.pdfDoc) return;
 
-    // Delegate to active tool first (e.g. arc bulge adjustment)
-    const _wheelTool = getTool(state.currentTool);
-    if (_wheelTool && _wheelTool.onWheel) {
-      const _wheelCtx = { state, redraw: () => {
-        viewport.dirty = true;
-      }};
-      _wheelTool.onWheel(_wheelCtx, e);
-      if (e.defaultPrevented) return;
-    }
-
-    // Ctrl+wheel = zoom (snaps to discrete preset levels at the cursor).
+    // Ctrl+wheel = zoom — handled FIRST, before tool delegation, so the
+    // user can always zoom regardless of the active tool (line, pencil,
+    // select, polygon, etc.). Previously the wheel was delegated to the
+    // tool first; if any tool's onWheel preventDefault'd (even by accident
+    // mid-arc/polyline construction), ctrl+wheel zoom silently broke.
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
       // Starting a zoom gesture: kill any in-flight pan momentum so the page
       // doesn't keep gliding mid-zoom (would tear the cursor anchor away).
       stopPanMomentum();
-      if (!viewport.active) {
-        // No PDF loaded (or pre-init). Plain ctrl+wheel events on the empty
-        // placeholder pass through to default browser behavior. preventDefault
-        // already ran above; just bail.
+      if (!viewport.active || !activeDoc.filePath) {
+        // No PDF loaded → bail (preventDefault already ran).
+        // Blank docs (filePath===null) bypass the vector viewport and use
+        // PDF.js + doc.scale instead. zoomStepAtPoint() below would mutate
+        // the stale viewport state from a previously-opened real PDF, not
+        // the blank doc's doc.scale → ctrl+wheel appears dead. Fall back
+        // to the legacy zoomIn/zoomOut path (loses cursor anchor, but at
+        // least the user can zoom).
+        if (activeDoc.pdfDoc && activeDoc.filePath === null) {
+          const wheelDy = e.deltaY || 0;
+          if (wheelDy !== 0) {
+            const m = await import('../../pdf/renderer.js');
+            if (wheelDy < 0) await m.zoomIn(); else await m.zoomOut();
+          }
+        }
         return;
       }
       // Always anchor to pdf-canvas rect. The cursor may be over a non-canvas
@@ -96,6 +101,19 @@ export function setupWheelZoom() {
         _resetZoomAccumSoon();
       }
       return;
+    }
+
+    // Plain wheel (no modifier) — delegate to active tool first so tools
+    // that consume wheel (e.g. arc-bulge adjustment in filled-area /
+    // measurement tools) can intercept. If the tool preventDefaults, we
+    // skip the pan/page-nav handling below.
+    const _wheelTool = getTool(state.currentTool);
+    if (_wheelTool && _wheelTool.onWheel) {
+      const _wheelCtx = { state, redraw: () => {
+        viewport.dirty = true;
+      }};
+      _wheelTool.onWheel(_wheelCtx, e);
+      if (e.defaultPrevented) return;
     }
 
     // ─── Vector viewport mode: pan + edge-triggered page nav ──────────────

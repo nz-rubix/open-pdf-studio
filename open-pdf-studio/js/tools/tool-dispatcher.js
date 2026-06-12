@@ -11,6 +11,7 @@ import { findAnnotationAt } from '../annotations/geometry.js';
 import { startPan, startContinuousPan, handlePanEnd, handleMiddleButtonPanEnd } from './pan-handler.js';
 import { performSnap, drawSnapIndicator, drawAlignmentGuides, setPolarAnchor, clearPolarAnchor } from './snap-engine.js';
 import { recordAdd, recordModify, recordBulkModify } from '../core/undo-manager.js';
+import { cloneForInsert } from './edit-ops.js';
 import { markDocumentModified } from '../ui/chrome/tabs.js';
 import { isPdfAReadOnly } from '../pdf/loader.js';
 import { setTypeLengthCursorScreen } from './type-length-input.js';
@@ -83,6 +84,27 @@ export function handlePointerDown(e) {
     return;
   }
 
+  // Blender-style 2D cursor: Shift+RIGHT-click places (or moves) it —
+  // regardless of the active tool. Hidden until first placed; drawn in the
+  // overlay pass (rendering.js) and exposed as a snap point (snap-engine).
+  // While the right button stays down the cursor FOLLOWS the pointer
+  // (drag-to-place); release fixes it.
+  if (e.button === 2 && e.shiftKey) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (doc) {
+      doc.cursor2D = {
+        page: coords.pageNum || doc.currentPage || 1,
+        x: state.startX,   // snapped position (object snap ran above)
+        y: state.startY,
+      };
+    }
+    state._cursor2DDragging = true;
+    state._suppressNextContextmenu = true;
+    redraw();
+    return;
+  }
+
   // Look up current tool
   const tool = getTool(state.currentTool);
   if (!tool) {
@@ -135,6 +157,22 @@ export function handlePointerMove(e) {
   const coords = resolvePointerCoords(e);
   const ctx = buildToolContext(e, coords);
 
+  // 2D-cursor drag: while Shift+right stays down the cursor follows the
+  // pointer (object-snapped); release ends the drag.
+  if (state._cursor2DDragging) {
+    const doc2d = getActiveDocument();
+    if (doc2d?.cursor2D) {
+      const snap2d = performSnap(coords.x, coords.y, doc2d.annotations || [], coords.pageNum, doc2d.scale || 1.5);
+      doc2d.cursor2D = {
+        page: coords.pageNum || doc2d.currentPage || 1,
+        x: snap2d.snapped ? snap2d.x : coords.x,
+        y: snap2d.snapped ? snap2d.y : coords.y,
+      };
+      redraw();
+    }
+    return;
+  }
+
   // Track screen-space cursor for the TypeLengthHUD overlay
   setTypeLengthCursorScreen(e.clientX, e.clientY);
 
@@ -174,6 +212,12 @@ export function handlePointerMove(e) {
 export function handlePointerUp(e) {
   if (!getActiveDocument()?.pdfDoc) return;
   if (isModalOpen()) return;
+  // End the 2D-cursor drag on right-button release.
+  if (state._cursor2DDragging && (e.button === 2 || e.buttons === 0)) {
+    state._cursor2DDragging = false;
+    state._suppressNextContextmenu = true;
+    return;
+  }
   if (state.isPanning) {
     // End the pan — pointer capture may prevent document-level listeners from firing
     if (state.isMiddleButtonPanning) {
@@ -532,9 +576,10 @@ function _handleDrag(ctx, e, coords) {
   const _dDoc = getActiveDocument();
   const _dSel = _dDoc ? _dDoc.selectedAnnotations : [];
 
-  // Ctrl+drag copy: create clones on first meaningful move
+  // Ctrl+drag copy: create clones on first meaningful move. Duplication
+  // goes through the edit-ops primitive (cloneForInsert) — same identity
+  // convention as CO and the array tool.
   if (state._ctrlDragCopy && !state._ctrlCopiesCreated && (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2)) {
-    const newId = () => Date.now().toString(36) + Math.random().toString(36).substring(2, 11);
     const selected = _dSel;
     const originals = state.originalAnnotations;
 
@@ -544,8 +589,7 @@ function _handleDrag(ctx, e, coords) {
           if (originals[i]) Object.assign(selected[i], cloneAnnotation(originals[i]));
         }
         const copies = originals.map(orig => {
-          const copy = cloneAnnotation(orig);
-          copy.id = newId();
+          const copy = cloneForInsert(orig);
           if (_dDoc) _dDoc.annotations.push(copy);
           return copy;
         });
@@ -557,8 +601,7 @@ function _handleDrag(ctx, e, coords) {
         const orig = state.originalAnnotation || originals[0];
         if (ann && orig) {
           Object.assign(ann, cloneAnnotation(orig));
-          const copy = cloneAnnotation(orig);
-          copy.id = newId();
+          const copy = cloneForInsert(orig);
           if (_dDoc) _dDoc.annotations.push(copy);
           if (_dDoc) { _dDoc.selectedAnnotations = [copy]; _dDoc.selectedAnnotation = copy; }
           state.originalAnnotation = cloneAnnotation(copy);

@@ -233,7 +233,16 @@ async function _renderPageImpl(pageNum) {
       const vr = await import('./vector-renderer.js');
       if (_isStaleDoc(doc)) { resumeThumbnails(); return; }
       const userRotation = getPageRotation(pageNum);
-      if (!vr.hasCachedCommands(doc.filePath, pageNum, userRotation)) {
+
+      // Engine-override gate: vector path only runs in Auto mode (override===null).
+      // If user picked 'pdfium' or 'rust-skia' in the status-bar dropdown,
+      // skip Vector entirely — even for pages whose draw-commands are already
+      // cached from a previous render. Without this gate, the override only
+      // affected the raster engine (PDFium vs Rust-Skia at the worker-pool
+      // level) but vector-classified pages still went through the Vector
+      // engine, making "Engine: PDFium" appear to do nothing for those pages.
+      const _vectorAllowed = state.renderEngineOverride == null;
+      if (_vectorAllowed && !vr.hasCachedCommands(doc.filePath, pageNum, userRotation)) {
         console.log(`[PERF] renderPage(${pageNum}) analyze_page_type START: ${(performance.now() - _rp0).toFixed(0)}ms`);
         // JS-side cache check FIRST — populated by analyze_page_type_batch
         // at cold-open. Skips the IPC roundtrip (which can be 1+ second
@@ -269,7 +278,7 @@ async function _renderPageImpl(pageNum) {
         }
       }
 
-      if (vr.hasCachedCommands(doc.filePath, pageNum, userRotation)) {
+      if (_vectorAllowed && vr.hasCachedCommands(doc.filePath, pageNum, userRotation)) {
         const dims = vr.getCachedPageDimensions(doc.filePath, pageNum, userRotation);
         if (dims) {
           const { initViewport, setPage, wireEvents, viewport: pdfVP } = await import('./pdf-viewport.js');
@@ -329,7 +338,14 @@ async function _renderPageImpl(pageNum) {
       // one used by vector mode) and let the unified _render() loop handle
       // paint. The OLD bitmap-mode path further down still runs during this
       // transition; Task 5 will rip it.
-      if (!_skipBitmapRender && !vr.hasCachedCommands(doc.filePath, pageNum, userRotation)) {
+      // Raster path runs when:
+      //  - vector path didn't already claim the render (_skipBitmapRender),
+      //  - AND either there are no cached vector commands, OR the user has
+      //    forced a raster engine (override !== null), in which case cached
+      //    vector commands must be bypassed.
+      const _useRaster = !_skipBitmapRender &&
+        (!_vectorAllowed || !vr.hasCachedCommands(doc.filePath, pageNum, userRotation));
+      if (_useRaster) {
         const { initViewport, setPage, wireEvents, viewport: pdfVP } =
           await import('./pdf-viewport.js');
         if (_isStaleDoc(doc)) { resumeThumbnails(); return; }
@@ -401,6 +417,45 @@ async function _renderPageImpl(pageNum) {
   // activated above in the raster-mode block; pixel-fill happens via
   // bitmap-orchestrator + drawImage in pdf-viewport.js _render() loop.
   // No predictive resize, no canvas-width mutation, no tile DOM canvas.
+  //
+  // EXCEPTION: blank in-memory docs (Bestand → Nieuw → A4/A3/etc.) have
+  // `doc.filePath === null` and are gated out of BOTH vector AND raster
+  // paths above. Without a fallback, pdf-canvas keeps its stale content
+  // from the previous document (or remains at its previous oversized
+  // dimensions) — the user sees "one big white screen" instead of an A4
+  // page. Render directly to pdf-canvas via PDF.js for blank docs.
+  if (!_hasFilePath && !_skipBitmapRender) {
+    try {
+      // Also deactivate the viewport singleton if it's leftover-active from
+      // a previously-opened real PDF — its RAF loop would otherwise repaint
+      // stale content over our PDF.js render every frame.
+      const _vpMod = await import('./pdf-viewport.js');
+      if (_vpMod.viewport && _vpMod.viewport.active && _vpMod.viewport.filePath !== doc.filePath) {
+        _vpMod.viewport.active = false;
+        _vpMod.viewport.filePath = null;
+        _vpMod.viewport.currentBitmap = null;
+      }
+
+      const dpr = getCanvasDPR();
+      pdfCanvas.width = Math.floor(viewport.width * dpr);
+      pdfCanvas.height = Math.floor(viewport.height * dpr);
+      pdfCanvas.style.width = Math.floor(viewport.width) + 'px';
+      pdfCanvas.style.height = Math.floor(viewport.height) + 'px';
+      const pdfCtx = pdfCanvas.getContext('2d');
+      pdfCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      pdfCtx.fillStyle = '#ffffff';
+      pdfCtx.fillRect(0, 0, viewport.width, viewport.height);
+      await page.render({
+        canvasContext: pdfCtx,
+        viewport,
+        annotationMode: 0,
+      }).promise;
+      if (_isStaleDoc(doc)) return;
+      state.renderEngine = 'Raster (PDF.js)';
+    } catch (e) {
+      console.warn('[render] Blank-doc PDF.js render failed:', e);
+    }
+  }
 
   // Annotation canvas resize is deferred to just before redrawAnnotations()
   // so the clear+redraw happens in one synchronous block (no blink).
@@ -436,7 +491,16 @@ async function _renderPageImpl(pageNum) {
       console.warn('Failed to create form layer:', e);
     }
 
-    if (state.currentTool === 'select' || state.currentTool === 'editText') {
+    // editText tool: annotation-canvas must drop below the textLayer so
+    // text-span clicks reach the span listeners (inline text editing).
+    // For the 'select' tool we do NOT set pe:none statically — the dynamic
+    // fall-through handler in tools/manager.js (_setSelectFallthroughEnabled)
+    // toggles annotation-canvas pointer-events on mousemove based on
+    // whether the cursor is over an annotation. Setting pe:none here on
+    // first render would block the very first click on an annotation
+    // (before any mousemove has fired) — symptom: "annotations visible
+    // but not selectable" in raster-engine mode.
+    if (state.currentTool === 'editText') {
       annotationCanvas.style.zIndex = '2';
       annotationCanvas.style.pointerEvents = 'none';
       const container = document.getElementById('canvas-container');
@@ -565,10 +629,13 @@ export async function renderPageOffscreen(pageNum) {
   try { await createSinglePageFormLayer(page, viewport); } catch {}
   if (_isStaleDoc(doc)) return;
 
-  // Re-apply overlay state
-  if (state.currentTool === 'select' || state.currentTool === 'editText') {
+  // Re-apply overlay state — see comment near renderer block ~line 455.
+  // Only editText forces pe:none statically; select uses dynamic fallthrough.
+  if (state.currentTool === 'editText') {
     annotationCanvas.style.zIndex = '2';
     annotationCanvas.style.pointerEvents = 'none';
+  }
+  if (state.currentTool === 'select' || state.currentTool === 'editText') {
     if (container) {
       container.querySelectorAll('.formLayer section, .linkLayer .pdf-link').forEach(el => {
         el.style.pointerEvents = 'none';
@@ -701,7 +768,9 @@ async function renderContinuousPage(pageNum) {
   setupCanvasHiDPI(annotationCanvasEl, viewport.width, viewport.height);
   // Cursor is handled centrally by js/ui/cursor.js — no need to set it here.
 
-  if (state.currentTool === 'select' || state.currentTool === 'editText') {
+  // Only editText forces pe:none statically; select uses dynamic fallthrough.
+  // See comment near renderer block ~line 455.
+  if (state.currentTool === 'editText') {
     annotationCanvasEl.style.zIndex = '2';
     annotationCanvasEl.style.pointerEvents = 'none';
   }
@@ -1062,7 +1131,12 @@ export async function zoomIn() {
   const doc = state.documents[state.activeDocumentIndex];
   if (!doc) return;
   const vp = window.__pdfViewport;
-  if (vp && vp.active) {
+  // Only delegate to vector viewport if the ACTIVE doc actually uses it.
+  // Blank docs (filePath===null) are rendered via PDF.js / legacy path
+  // — vp.active may still be true from a previously-opened PDF, but
+  // zoomStepAtCenter would mutate that stale page's zoom, not the blank
+  // doc's doc.scale → button appears dead from the user's perspective.
+  if (vp && vp.active && doc.filePath) {
     const m = await import('./pdf-viewport.js');
     m.zoomStepAtCenter(+1);
     return;
@@ -1079,7 +1153,8 @@ export async function zoomOut() {
   const doc = state.documents[state.activeDocumentIndex];
   if (!doc) return;
   const vp = window.__pdfViewport;
-  if (vp && vp.active) {
+  // Same blank-doc guard as zoomIn() — see comment there.
+  if (vp && vp.active && doc.filePath) {
     const m = await import('./pdf-viewport.js');
     m.zoomStepAtCenter(-1);
     return;
@@ -1105,12 +1180,15 @@ export async function setZoom(newScale) {
   const doc = state.documents[state.activeDocumentIndex];
   if (!doc) return;
   const vp = window.__pdfViewport;
-  if (vp && vp.active) {
-    // Set absolute zoom anchored at the canvas center.
+  // Same blank-doc guard as zoomIn() — see comment there.
+  if (vp && vp.active && doc.filePath) {
+    // Set absolute zoom anchored at the canvas center (CSS pixels — the
+    // backing store is dpr-scaled and would mis-centre on 125%/150%).
     const pdfCanvas = document.getElementById('pdf-canvas');
     if (pdfCanvas) {
       const m = await import('./pdf-viewport.js');
-      m.setZoomAtPoint(pdfCanvas.width / 2, pdfCanvas.height / 2, newScale);
+      const dpr = window.devicePixelRatio || 1;
+      m.setZoomAtPoint(pdfCanvas.width / dpr / 2, pdfCanvas.height / dpr / 2, newScale);
     }
     return;
   }
@@ -1133,15 +1211,21 @@ async function _getFitInputs() {
   if (!doc || !doc.pdfDoc) return null;
 
   const vp = window.__pdfViewport;
-  if (vp && vp.active) {
+  // Same blank-doc guard as zoomIn() — see comment there.
+  if (vp && vp.active && doc.filePath) {
     const pdfCanvas = document.getElementById('pdf-canvas');
     if (!pdfCanvas) return null;
+    // CSS pixels, NOT the dpr-scaled backing store: viewport zoom/offset are
+    // CSS-based, so fitting against canvas.width/height makes every fit dpr×
+    // too large (page sticks out of view on 125%/150% Windows scaling —
+    // most visible on tall A1/A0 sheets).
+    const dpr = window.devicePixelRatio || 1;
     return {
       mode: 'vector',
       pageW: vp.pageW,
       pageH: vp.pageH,
-      canvasW: pdfCanvas.width,
-      canvasH: pdfCanvas.height,
+      canvasW: pdfCanvas.width / dpr,
+      canvasH: pdfCanvas.height / dpr,
       pdfCanvas,
     };
   }
@@ -1207,11 +1291,15 @@ export async function actualSize() {
   // This makes 1 PDF point = 1 CSS pixel, the standard "Actual Size"
   // interpretation.
   const vp = window.__pdfViewport;
-  if (vp && vp.active) {
+  // Same blank-doc guard as zoomIn() — see comment there.
+  if (vp && vp.active && doc.filePath) {
     const pdfCanvas = document.getElementById('pdf-canvas');
     if (!pdfCanvas) return;
     const m = await import('./pdf-viewport.js');
-    m.setZoomAtPoint(pdfCanvas.width / 2, pdfCanvas.height / 2, 1.0);
+    // Anchor in CSS pixels (same unit as zoomStepAtCenter) — the backing
+    // store is dpr-scaled and would mis-centre on 125%/150% displays.
+    const dpr = window.devicePixelRatio || 1;
+    m.setZoomAtPoint(pdfCanvas.width / dpr / 2, pdfCanvas.height / dpr / 2, 1.0);
     return;
   }
 

@@ -10,7 +10,7 @@ import { getPropertyPanel } from '../../plugins/property-panel-registry.js';
 import { fireSelectionChange } from '../../plugins/selection-listener-registry.js';
 import i18next from '../../i18n/config.js';
 import { syncDocScale } from '../../annotations/scale-bar.js';
-import { recalculateAllMeasurements, calculateArea, calculatePerimeter, formatMeasurement } from '../../annotations/measurement.js';
+import { recalculateAllMeasurements, calculateArea, calculatePerimeter, formatMeasurement, getMeasureScale } from '../../annotations/measurement.js';
 
 // Panel visibility and collapsed state
 const [panelVisible, setPanelVisible] = createSignal(true);
@@ -60,6 +60,7 @@ const [annotProps, setAnnotProps] = createStore({
   imageHeight: 0,
   imageRotation: 0,
   lockAspectRatio: false,
+  linkedPath: '',
   startHead: 'none',
   endHead: 'open',
   headSize: 12,
@@ -68,6 +69,9 @@ const [annotProps, setAnnotProps] = createStore({
   measureUnit: '',
   measurePrecision: 2,
   measureName: '',
+  dimType: '',
+  styleType: '',
+  dimExtension: true,
   scaleBarUnit: 'mm',
   scaleBarTotalUnits: 5000,
   scaleBarDivisions: 5,
@@ -248,16 +252,33 @@ export function storeShowProperties(annotation) {
     imageHeight: annotation.type === 'image' ? Math.round(annotation.height) : 0,
     imageRotation: annotation.type === 'image' ? Math.round(annotation.rotation || 0) : 0,
     lockAspectRatio: annotation.type === 'image' ? (annotation.lockAspectRatio || false) : false,
-    startHead: annotation.startHead || (annotation.type === 'measureDistance' ? 'closed' : 'none'),
-    endHead: annotation.endHead || (annotation.type === 'measureDistance' ? 'closed' : 'open'),
+    linkedPath: annotation.linkedPath || '',
+    startHead: annotation.startHead || (annotation.type === 'measureDistance' ? 'openCircle' : 'none'),
+    endHead: annotation.endHead || (annotation.type === 'measureDistance' ? 'openCircle' : 'open'),
     headSize: annotation.headSize || 12,
     arrowLength: (annotation.type === 'arrow' || annotation.type === 'line')
-      ? (Math.sqrt(Math.pow(annotation.endX - annotation.startX, 2) + Math.pow(annotation.endY - annotation.startY, 2))).toFixed(2) + ' px'
+      ? (() => {
+          // Show the length in measured units (mm etc.), resolved at the
+          // line's midpoint so a line inside a scale region (schaalgebied)
+          // reports in that region's scale — never raw pixels.
+          const pxLen = Math.sqrt(
+            Math.pow(annotation.endX - annotation.startX, 2)
+            + Math.pow(annotation.endY - annotation.startY, 2)
+          );
+          const midX = (annotation.startX + annotation.endX) / 2;
+          const midY = (annotation.startY + annotation.endY) / 2;
+          const ms = getMeasureScale(annotation.page, midX, midY);
+          return `${(pxLen / (ms.pixelsPerUnit || 1)).toFixed(2)} ${ms.unit || 'mm'}`;
+        })()
       : '',
     measureScale: annotation.measureScale || 0,
     measureUnit: annotation.measureUnit || '',
     measurePrecision: annotation.measurePrecision !== undefined ? annotation.measurePrecision : 2,
     measureName: annotation.measureName || '',
+    dimType: annotation.dimType || '',
+    styleType: annotation.styleType || annotation.dimType || '',
+    dimExtension: annotation.dimExtension !== false, // default ON
+
     scaleBarUnit: annotation.unit || 'mm',
     scaleBarTotalUnits: annotation.totalUnits || 5000,
     scaleBarDivisions: annotation.divisions || 5,
@@ -268,9 +289,15 @@ export function storeShowProperties(annotation) {
     scaleRegionScale: annotation.scaleString || '1:100',
     scaleRegionUnits: annotation.units || 'mm',
     scaleRegionLabel: annotation.label || '',
+    scaleRegionWidth: annotation.type === 'scaleRegion'
+      ? Math.round(((annotation.width || 0) / _scaleRegionPpu(annotation)) * 10) / 10 : 0,
+    scaleRegionHeight: annotation.type === 'scaleRegion'
+      ? Math.round(((annotation.height || 0) / _scaleRegionPpu(annotation)) * 10) / 10 : 0,
     annotationType: annotation.type,
     symbolId: annotation.symbolId || '',
     params: annotation.params ? { ...annotation.params } : {},
+    dikteMm: annotation.dikteMm ?? 100,
+    isolatieType: annotation.isolatieType || 'steenwol',
     replies: annotation.replies || [],
     multiCount: 0,
   });
@@ -420,6 +447,7 @@ export function storeShowMultiSelection(selected) {
     imageHeight: 0,
     imageRotation: 0,
     lockAspectRatio: false,
+    linkedPath: '',
     startHead: sharedValue(selected, a => a.startHead || 'none', 'mixed'),
     endHead: sharedValue(selected, a => a.endHead || 'open', 'mixed'),
     headSize: sharedValue(selected, a => a.headSize || 12, 'mixed'),
@@ -704,7 +732,8 @@ function recomputeMeasureText(ann) {
     const dy = ann.endY - ann.startY;
     const pixelDist = Math.sqrt(dx * dx + dy * dy);
     const scaledVal = pixelDist * ann.measureScale;
-    ann.measureText = `${scaledVal.toFixed(prec)} ${unit}`;
+    // mm is the implied drawing unit on dimensions — no suffix.
+    ann.measureText = unit === 'mm' ? scaledVal.toFixed(prec) : `${scaledVal.toFixed(prec)} ${unit}`;
   } else if (ann.type === 'measureArea' && ann.points && ann.points.length >= 3) {
     const area = calculateArea(ann.points, ann.holes, ann.page);
     ann.measureText = formatMeasurement(area);
@@ -732,6 +761,17 @@ function recomputeMeasureText(ann) {
  * @param {string} key   Property name. May be a dot-path for nested writes.
  * @param {*}      value New value.
  */
+// Page-pixels per real-world unit for a scaleRegion's OWN scale + units
+// (e.g. '1:50' + 'mm' → 72/25.4/50 pt per mm). Used to show/edit the
+// region's physical width/height.
+function _scaleRegionPpu(ann) {
+  const m = String(ann?.scaleString || '1:100').match(/1\s*:\s*([\d.]+)/);
+  const ratio = m ? parseFloat(m[1]) : 100;
+  const unitToMm = { mm: 1, cm: 10, m: 1000, in: 25.4, ft: 304.8 };
+  const mmPerUnit = unitToMm[ann?.units || 'mm'] || 1;
+  return ((72 / 25.4) * mmPerUnit) / (ratio > 0 ? ratio : 100);
+}
+
 export function updateAnnotProp(key, value) {
   // Multi-selection mode: apply to all selected annotations
   if (annotProps.multiCount > 0) {
@@ -759,6 +799,26 @@ export function updateAnnotProp(key, value) {
 
   if (!currentAnnotation) return;
 
+  // Tool-defaults mode: user is editing the synthetic annotation that
+  // showToolDefaults() created. Route writes to state.preferences via
+  // setAsDefaultStyle so the NEXT annotation drawn picks up the changes,
+  // AND mirror the value on the synthetic so the panel updates visually.
+  if (currentAnnotation.id === '__tool-defaults__') {
+    // Apply to synthetic for immediate panel feedback.
+    applyPropToAnnotation(currentAnnotation, key, value);
+    setAnnotProps(key, value);
+    // Persist to state.preferences so annotation-creators picks it up.
+    (async () => {
+      try {
+        const prefMod = await import('../../core/preferences.js');
+        if (prefMod && typeof prefMod.setAsDefaultStyle === 'function') {
+          prefMod.setAsDefaultStyle(currentAnnotation);
+        }
+      } catch (_) { /* preferences module not ready — synthetic still visually updated */ }
+    })();
+    return;
+  }
+
   // Special handling for locked toggle
   if (key === 'locked' && currentAnnotation.locked && value === false) {
     currentAnnotation.locked = false;
@@ -783,9 +843,18 @@ export function updateAnnotProp(key, value) {
     case 'marked': currentAnnotation.marked = value; break;
     case 'altText': currentAnnotation.altText = value; break;
     case 'status': currentAnnotation.status = value === 'none' ? undefined : value; break;
-    case 'color': currentAnnotation.color = value; break;
+    case 'color':
+      currentAnnotation.color = value;
+      // Parametric symbols draw EVERYTHING (lines, fills, text) in one
+      // colour resolved as strokeColor||color — keep both in sync so either
+      // colour control recolours the whole symbol.
+      if (currentAnnotation.type === 'parametricSymbol') currentAnnotation.strokeColor = value;
+      break;
     case 'fillColor': currentAnnotation.fillColor = value; break;
-    case 'strokeColor': currentAnnotation.strokeColor = value; break;
+    case 'strokeColor':
+      currentAnnotation.strokeColor = value;
+      if (currentAnnotation.type === 'parametricSymbol') currentAnnotation.color = value;
+      break;
     case 'lineWidth': currentAnnotation.lineWidth = parseFloat(value); break;
     case 'opacity':
       currentAnnotation.opacity = parseInt(value) / 100;
@@ -841,6 +910,7 @@ export function updateAnnotProp(key, value) {
       break;
     }
     case 'imageRotation': currentAnnotation.rotation = parseInt(value) || 0; break;
+    case 'linkedPath': currentAnnotation.linkedPath = value || undefined; break;
     case 'lockAspectRatio': {
       currentAnnotation.lockAspectRatio = value;
       if (value && currentAnnotation.type === 'image' && currentAnnotation.originalWidth && currentAnnotation.originalHeight) {
@@ -950,6 +1020,33 @@ export function updateAnnotProp(key, value) {
       setAnnotProps('scaleRegionLabel', currentAnnotation.label);
       break;
     }
+    case 'scaleRegionWidth':
+    case 'scaleRegionHeight': {
+      // Real-world size of the region itself (in its own scale + units) →
+      // page-pixel bbox, top-left anchored.
+      const real = parseFloat(String(value).replace(',', '.'));
+      if (!(real > 0)) break;
+      const px = real * _scaleRegionPpu(currentAnnotation);
+      if (key === 'scaleRegionWidth') currentAnnotation.width = px;
+      else currentAnnotation.height = px;
+      setAnnotProps(key, Math.round(real * 10) / 10);
+      import('../../annotations/scale-region.js').then(m => m.invalidateScaleRegionCache());
+      recalculateAllMeasurements();
+      break;
+    }
+    case 'params': {
+      // Parametric symbol params (from ParametricSymbolSection). Dynamic-block
+      // behaviour: templates with a real-world size (steel profiles) resize
+      // their bbox around the centre when a size-driving param changes.
+      currentAnnotation.params = value;
+      if (currentAnnotation.type === 'parametricSymbol') {
+        const ann = currentAnnotation;
+        import('../../symbols/real-size.js').then(m => {
+          if (m.applyTemplateRealSize(ann, 'center')) redraw();
+        }).catch(() => {});
+      }
+      break;
+    }
     default: {
       // Dot-path support for plugin nested writes (e.g., 'data.address.email').
       // Walks the chain creating intermediate objects when missing.
@@ -977,6 +1074,68 @@ export function updateAnnotProp(key, value) {
   if (!key.startsWith('tb') && !key.includes('.')) {
     setAnnotProps(key, value);
   }
+
+  redraw();
+}
+
+// Apply a STYLE TYPE preset (generic concept — see annotations/style-types.js)
+// to the current selection or the tool defaults. Works for every annotation
+// kind with a preset list (maatlijnen, lijnen/pijlen, arceringen, …): one
+// pick sets all the preset's props in a single action (one undo record per
+// annotation) and persists them as the default for newly drawn ones.
+export async function applyStyleType(typeId) {
+  const annType = annotProps.type;
+  const { styleTypeProps } = await import('../../annotations/style-types.js');
+  const props = styleTypeProps(annType, typeId);
+  if (!props) return;
+
+  const applyAll = (ann) => {
+    for (const [k, v] of Object.entries(props)) applyPropToAnnotation(ann, k, v);
+  };
+  const mirrorAll = () => {
+    for (const [k, v] of Object.entries(props)) {
+      setAnnotProps(k, k === 'opacity' ? Math.round(v * 100) : v);
+    }
+  };
+
+  // Multi-selection: apply to every selected annotation of this kind.
+  if (annotProps.multiCount > 0) {
+    const _doc = getActiveDocument();
+    const selected = (_doc ? _doc.selectedAnnotations : []).filter(a => a.type === annType && !a.locked);
+    for (const ann of selected) {
+      recordPropertyChange(ann);
+      applyAll(ann);
+      if (annType === 'measureDistance') recomputeMeasureText(ann); // unit may change with type
+    }
+    mirrorAll();
+    redraw();
+    return;
+  }
+
+  if (!currentAnnotation) return;
+
+  // Tool-defaults synthetic: update panel + persist as the type's defaults.
+  if (currentAnnotation.id === '__tool-defaults__') {
+    applyAll(currentAnnotation);
+    mirrorAll();
+    try {
+      const prefMod = await import('../../core/preferences.js');
+      prefMod.setAsDefaultStyle?.(currentAnnotation);
+    } catch (_) { /* panel still shows the change */ }
+    return;
+  }
+
+  if (currentAnnotation.locked) return;
+  recordPropertyChange(currentAnnotation);
+  applyAll(currentAnnotation);
+  if (annType === 'measureDistance') recomputeMeasureText(currentAnnotation);
+  mirrorAll();
+
+  // New annotations drawn after this pick should match too — persist default.
+  try {
+    const prefMod = await import('../../core/preferences.js');
+    prefMod.setAsDefaultStyle?.(currentAnnotation);
+  } catch (_) { /* non-fatal */ }
 
   redraw();
 }
@@ -1050,6 +1209,69 @@ export function getLineWidthLabel() {
 // Get the current annotation reference
 export function getCurrentAnnotation() {
   return currentAnnotation;
+}
+
+// Show the properties panel populated with the current style defaults for
+// the active drawing tool. Builds a SYNTHETIC annotation tagged with id
+// '__tool-defaults__' so the rest of the panel pipeline treats it like a
+// normal selection — but no real annotation is created or modified.
+// Edits made by the user via panel inputs update the synthetic object for
+// visual feedback; persistent default changes still flow through the
+// Format ribbon's `setAsDefaultStyle` path.
+export async function showToolDefaults(toolName) {
+  if (!toolName) return;
+  // Map tool name → annotation type. Most are 1:1; exceptions go here.
+  const TOOL_TO_TYPE = {
+    rectangle: 'box',
+    rect: 'box',
+  };
+  const annType = TOOL_TO_TYPE[toolName] || toolName;
+
+  // Reasonable default annotation shape — applyDefaultStyle() will overlay
+  // any saved preferences on top of this.
+  const synthetic = {
+    id: '__tool-defaults__',
+    type: annType,
+    locked: false,
+    printable: true,
+    readOnly: false,
+    marked: false,
+    page: 1,
+    x: 0, y: 0, width: 100, height: 50,
+    color: '#000000',
+    strokeColor: '#000000',
+    fillColor: null,
+    lineWidth: 1,
+    opacity: 1.0,
+    borderStyle: 'solid',
+    fontSize: 14,
+    fontFamily: 'Arial',
+    textColor: '#000000',
+    fontBold: false,
+    fontItalic: false,
+    fontUnderline: false,
+    fontStrikethrough: false,
+    textAlign: 'left',
+    lineSpacing: 1.2,
+    rotation: 0,
+    author: '',
+    subject: '',
+    createdAt: new Date().toISOString(),
+    modifiedAt: new Date().toISOString(),
+    replies: [],
+  };
+
+  try {
+    // Lazy-import to avoid load-order cycles (preferences ↔ propertiesStore).
+    const prefMod = await import('../../core/preferences.js');
+    if (prefMod && typeof prefMod.applyDefaultStyle === 'function') {
+      prefMod.applyDefaultStyle(synthetic);
+    }
+  } catch (e) {
+    // Non-fatal — synthetic will just show the bare defaults above.
+  }
+
+  storeShowProperties(synthetic);
 }
 
 export {

@@ -418,6 +418,7 @@
     "image": "Image",
     "aligned": "Aligned",
     "linear": "Linear",
+    "dimension": "Dimension",
     "angular": "Angular",
     "spotCoord": "Spot Coord.",
     "radius": "Radius",

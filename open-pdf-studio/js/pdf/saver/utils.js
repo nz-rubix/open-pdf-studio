@@ -177,6 +177,7 @@ export function generateAppearanceStream(context, ann, convertY) {
     let bbox;
 
     switch (ann.type) {
+      case 'mask': // wipeout — white-filled rect appearance, same path as box
       case 'box': {
         const w = ann.width;
         const h = ann.height;

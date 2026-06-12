@@ -133,41 +133,10 @@ export default function StatusBar() {
   return (
     <div class="status-bar">
       <div class="status-bar-left">
-        <Show when={state.renderEngine}>
-          <div class="status-item" title={`Render engine: ${state.renderEngine}${state.renderTiming ? '  |  ' + state.renderTiming : ''}`}>
-            <span style={{
-              "font-size": "11px",
-              "padding": "1px 8px",
-              "border-radius": "2px",
-              "background": (() => {
-                const e = state.renderEngine || '';
-                if (e === 'ERROR' || e === 'UNSUPPORTED') return '#b22';
-                // Engine-name → status chip color:
-                //   • Raster (PDFium...) → blue — bitmap rendering via PDFium
-                //   • Vector             → green — vector renderer (Rust extract + JS canvas)
-                //   • UNSUPPORTED/ERROR  → red (handled above)
-                //   • anything else      → gray fallback
-                if (e.startsWith('Raster')) return '#2a5fa0';
-                if (e === 'Vector') return '#2a8a3a';
-                return '#666';
-              })(),
-              "color": "#fff",
-              "font-weight": "bold",
-              "letter-spacing": "0.3px",
-            }}>
-              {(() => {
-                const ov = state.renderEngineOverride;
-                if (ov === 'rust-skia') return 'Engine: Rust (alpha)';
-                if (ov === 'pdfium') return 'Engine: PDFium';
-                const e = state.renderEngine || '';
-                if (e.startsWith('Raster')) return 'Engine: PDFium';
-                if (e === 'Vector') return 'Engine: Vector';
-                return e ? `Engine: ${e}` : 'Engine: ?';
-              })()}
-            </span>
-          </div>
-          <div class="status-separator"></div>
-        </Show>
+        {/* Engine label chip removed — duplicated info with the engine
+            dropdown on the right (status-bar-right). The dropdown is the
+            source of truth; user picks engine there and the colored
+            background of the SELECT element reflects the active engine. */}
         <div class="status-item">
           <span class="status-item-label">{t('toolLabel')}</span>
           <span class="status-item-value">{toolName()}</span>
@@ -233,86 +202,16 @@ export default function StatusBar() {
             {state.statusMessage}
           </Show>
         </div>
-        <Show when={!!state.documents[state.activeDocumentIndex]?.pdfDoc}>
-          <div class="status-separator"></div>
-          <div
-            class="status-item"
-            title={`Canvas: ${
-              (typeof document !== 'undefined' && document.getElementById('pdf-canvas'))
-                ? `${document.getElementById('pdf-canvas').width}×${document.getElementById('pdf-canvas').height}px`
-                : '?'
-            }  |  DPR: ${typeof window !== 'undefined' ? window.devicePixelRatio : '?'}`}
-          >
-            <span style={{
-              "font-size": "11px",
-              "padding": "1px 8px",
-              "border-radius": "2px",
-              "background": (() => {
-                const s = state.documents[state.activeDocumentIndex]?.scale || 1;
-                if (s >= 4) return '#a23';      // very high zoom — likely slow
-                if (s >= 2) return '#a72';      // high zoom
-                return '#333';
-              })(),
-              "color": "#fff",
-              "font-weight": "bold",
-              "letter-spacing": "0.3px",
-            }}>
-              Zoom {localizeNumber(Math.round((state.documents[state.activeDocumentIndex]?.scale || 1) * 100))}%
-            </span>
-          </div>
-        </Show>
-        <Show when={state.renderEngine}>
-          <div class="status-separator"></div>
-          <div class="status-item" title={state.renderTiming || ''}>
-            {/* Dropdown replaces the old cycle-on-click badge. Auto / PDFium
-                (Raster) / Onze engine (Rust alpha). Triggers a re-render
-                of the current page on change so the engine swap is visible
-                immediately. */}
-            <select
-              value={state.renderEngineOverride ?? 'auto'}
-              onChange={(e) => {
-                const v = e.currentTarget.value;
-                state.renderEngineOverride = (v === 'auto') ? null : v;
-                try {
-                  if (window.__pdfViewport) {
-                    window.__pdfViewport.currentBitmap = null;
-                    window.__pdfViewport.dirty = true;
-                  }
-                  import('../../pdf/renderer.js').then(m => {
-                    const doc = state.documents[state.activeDocumentIndex];
-                    if (doc?.currentPage) m.renderPage(doc.currentPage);
-                  });
-                } catch {}
-              }}
-              style={{
-                "font-size": "10px",
-                "padding": "1px 4px",
-                "border-radius": "2px",
-                "background": (() => {
-                  const ov = state.renderEngineOverride;
-                  if (ov === 'rust-skia') return '#a04a2a'; // orange for alpha
-                  const e = state.renderEngine || '';
-                  if (e.startsWith('Raster')) return '#2a5fa0';
-                  if (e === 'Vector') return '#2a8a3a';
-                  return '#666';
-                })(),
-                "color": "#fff",
-                "font-weight": "bold",
-                "letter-spacing": "0.3px",
-                "border": "1px solid rgba(255,255,255,0.2)",
-                "cursor": "pointer",
-              }}>
-              <option value="auto" style={{ background: '#222' }}>Engine: Auto</option>
-              <option value="pdfium" style={{ background: '#222' }}>Engine: PDFium (Raster)</option>
-              <option value="rust-skia" style={{ background: '#222' }}>Engine: Onze engine (alpha)</option>
-            </select>
-            <Show when={state.renderTiming}>
-              <span style={{ "font-size": "10px", "margin-left": "4px", "opacity": "0.7" }}>
-                {state.renderTiming}
-              </span>
-            </Show>
-          </div>
-        </Show>
+        {/* Zoom % chip removed — duplicated info with the editable zoom
+            input in the center status bar (status-zoom-input). That input
+            is the source of truth (also lets the user type a value).
+            Canvas/DPR tooltip was secondary diagnostic info; can be
+            re-added on the input later if needed. */}
+        {/* Engine selector removed — PDFium is hardcoded as the only
+            engine (see state.ts: renderEngineOverride='pdfium' + the
+            init guard in App.jsx that overwrites any persisted value).
+            Vector / Open PDF.rs paths remain in the code for diagnostic
+            re-enable via devtools, but no UI affordance exposes them. */}
       </div>
     </div>
   );

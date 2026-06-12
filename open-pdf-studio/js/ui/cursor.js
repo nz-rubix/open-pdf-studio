@@ -69,8 +69,14 @@ const cursor = createMemo(() => {
     }
   }
 
-  // 7. Hovering an annotation → annotation-type-specific hover cursor
-  if (interactionState.hoverAnnotation) {
+  // 7. Hovering an annotation → annotation-type-specific hover cursor.
+  // ONLY active in select-tool (and 'selectComments') — when a drawing
+  // tool is active the user wants the draw-cursor (crosshair) regardless
+  // of what's underneath, otherwise hovering over an existing annotation
+  // would silently switch back to the arrow+badge "select-this" cursor
+  // and the user can't tell they're in draw mode.
+  if (interactionState.hoverAnnotation &&
+      (state.currentTool === 'select' || state.currentTool === 'selectComments')) {
     return getAnnotationHoverCursor(interactionState.hoverAnnotation.type);
   }
 

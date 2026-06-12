@@ -265,6 +265,28 @@ function makeMouseInit(x, y, opts = {}) {
   };
 }
 
+/** PointerEventInit on top of the mouse init — the annotation canvas (and
+ *  the drawing-tool dispatcher) listens for POINTER events, so every
+ *  synthetic interaction emits the pointer event first, then the legacy
+ *  mouse event for code that still listens to those. */
+function makePointerInit(x, y, opts = {}) {
+  return {
+    ...makeMouseInit(x, y, opts),
+    pointerId: 1,
+    pointerType: 'mouse',
+    isPrimary: true,
+    pressure: (opts.buttons ?? 0) ? 0.5 : 0,
+  };
+}
+
+function dispatchPointerAndMouse(target, kind, x, y, opts) {
+  // kind: 'down' | 'move' | 'up'
+  try {
+    target.dispatchEvent(new PointerEvent(`pointer${kind}`, makePointerInit(x, y, opts)));
+  } catch (_) { /* PointerEvent unavailable — mouse event below still fires */ }
+  target.dispatchEvent(new MouseEvent(`mouse${kind}`, makeMouseInit(x, y, opts)));
+}
+
 /** elementFromPoint can return null if the coords are off-screen — fall
  *  back to document.body so the dispatch still has a target. */
 function targetAt(x, y) {
@@ -289,8 +311,7 @@ async function handleMouseMove(params) {
     return { ok: false, error: 'missing or invalid params.x/y' };
   }
   const target = targetAt(x, y);
-  const ev = new MouseEvent('mousemove', makeMouseInit(x, y, { buttons: 0 }));
-  target.dispatchEvent(ev);
+  dispatchPointerAndMouse(target, 'move', x, y, { buttons: 0 });
   return { ok: true, x, y, target: describeTarget(target) };
 }
 
@@ -303,16 +324,18 @@ async function handleMouseClick(params) {
   const buttonName = (params?.button ?? 'left');
   const button = buttonIndexFor(buttonName);
   const buttonsMask = buttonsMaskFor(buttonName);
+  const mods = {
+    shiftKey: !!params?.shift,
+    ctrlKey: !!params?.ctrl,
+    altKey: !!params?.alt,
+  };
   const target = targetAt(x, y);
 
-  // Standard sequence: mousemove -> mousedown -> mouseup -> click
-  // (or contextmenu for right button).
-  target.dispatchEvent(new MouseEvent('mousemove',
-    makeMouseInit(x, y, { button: 0, buttons: 0 })));
-  target.dispatchEvent(new MouseEvent('mousedown',
-    makeMouseInit(x, y, { button, buttons: buttonsMask })));
-  target.dispatchEvent(new MouseEvent('mouseup',
-    makeMouseInit(x, y, { button, buttons: 0 })));
+  // Standard sequence: move -> down -> up (pointer + mouse pairs), then
+  // click/contextmenu.
+  dispatchPointerAndMouse(target, 'move', x, y, { button: 0, buttons: 0, ...mods });
+  dispatchPointerAndMouse(target, 'down', x, y, { button, buttons: buttonsMask, ...mods });
+  dispatchPointerAndMouse(target, 'up', x, y, { button, buttons: 0, ...mods });
 
   if (buttonName === 'right') {
     target.dispatchEvent(new MouseEvent('contextmenu',
@@ -338,26 +361,23 @@ async function handleMouseDrag(params) {
   const steps = Math.max(1, Math.min(200, Number(params?.steps) || 10));
 
   const startTarget = targetAt(x1, y1);
-  // mousedown at start
-  startTarget.dispatchEvent(new MouseEvent('mousedown',
-    makeMouseInit(x1, y1, { button, buttons: buttonsMask })));
+  // pointer/mouse down at start
+  dispatchPointerAndMouse(startTarget, 'down', x1, y1, { button, buttons: buttonsMask });
 
-  // Interpolated mousemoves. We dispatch each move on the element under
+  // Interpolated moves. We dispatch each move on the element under
   // that point so hit-testing works as the cursor crosses widgets.
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
     const x = x1 + (x2 - x1) * t;
     const y = y1 + (y2 - y1) * t;
     const t2 = targetAt(x, y);
-    t2.dispatchEvent(new MouseEvent('mousemove',
-      makeMouseInit(x, y, { button, buttons: buttonsMask })));
+    dispatchPointerAndMouse(t2, 'move', x, y, { button, buttons: buttonsMask });
     // Yield occasionally so pointer-driven raf loops can keep up.
     if (i % 4 === 0) await new Promise((r) => setTimeout(r, 0));
   }
 
   const endTarget = targetAt(x2, y2);
-  endTarget.dispatchEvent(new MouseEvent('mouseup',
-    makeMouseInit(x2, y2, { button, buttons: 0 })));
+  dispatchPointerAndMouse(endTarget, 'up', x2, y2, { button, buttons: 0 });
   // Some apps rely on a click after the up. We send it only for left
   // button to avoid spurious context menus.
   if (buttonName === 'left' && (x1 === x2 && y1 === y2)) {
@@ -855,6 +875,847 @@ async function handleZoomAnchorTest(params) {
   };
 }
 
+// ─── App control: tools, annotations, tabs, view, measurement scale ──────
+//
+// These handlers expose the remaining app surface to MCP clients so an
+// external harness can script the editor end-to-end (draw annotations,
+// manage tabs, save, change view mode) without synthetic mouse input.
+// Same conventions as the handlers above: all app modules are imported
+// lazily inside the handler, and every handler resolves to
+// { ok: true, ... } or { ok: false, error } — never throws upward.
+
+/** Redraw the annotation layer for the active document (single/continuous). */
+async function _redrawActive() {
+  const stateMod = await import('./core/state.js');
+  const rendering = await import('./annotations/rendering.js');
+  if (stateMod.getActiveDocument()?.viewMode === 'continuous') rendering.redrawContinuous();
+  else rendering.redrawAnnotations();
+}
+
+function _isNum(v) {
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+/** True when `arr` is an array of at least `min` {x, y} points. */
+function _validPoints(arr, min) {
+  return Array.isArray(arr) && arr.length >= min &&
+    arr.every(p => p && _isNum(p.x) && _isNum(p.y));
+}
+
+/** Plain-JSON deep copy of an annotation: drops functions, DOM/canvas/host
+ *  objects and circular references so the result always serializes over IPC. */
+function _sanitizeAnnotation(ann) {
+  const seen = new WeakSet();
+  return JSON.parse(JSON.stringify(ann, (key, value) => {
+    if (typeof value === 'function') return undefined;
+    if (typeof value === 'object' && value !== null) {
+      const tag = Object.prototype.toString.call(value);
+      // Keep plain objects/arrays; drop canvases, bitmaps, DOM nodes, etc.
+      if (tag !== '[object Object]' && tag !== '[object Array]') return undefined;
+      if (seen.has(value)) return undefined; // circular guard
+      seen.add(value);
+    }
+    return value;
+  }));
+}
+
+/** Compact one-line summary used by app_list_annotations. */
+function _summarizeAnnotation(a) {
+  const s = { id: a.id, type: a.type, page: a.page ?? 1 };
+  if (_isNum(a.x)) { s.x = a.x; s.y = a.y; }
+  if (_isNum(a.width)) { s.width = a.width; s.height = a.height; }
+  if (_isNum(a.startX)) {
+    s.startX = a.startX; s.startY = a.startY;
+    s.endX = a.endX; s.endY = a.endY;
+  }
+  const pts = a.points || a.path || a.controlPoints;
+  if (Array.isArray(pts)) s.pointCount = pts.length;
+  if (a.color != null) s.color = a.color;
+  if (a.fillColor != null) s.fillColor = a.fillColor;
+  if (typeof a.text === 'string' && a.text) {
+    s.text = a.text.length > 200 ? a.text.slice(0, 200) + '…' : a.text;
+  }
+  if (a.measureText) s.measureText = a.measureText;
+  if (a.scaleString) s.scaleString = a.scaleString;
+  if (a.locked) s.locked = true;
+  return s;
+}
+
+/** Refresh measureText/measureValue/measureUnit (plus measurePixels for
+ *  distances) from the annotation's own geometry and the position-aware
+ *  document scale. An explicit caller-provided measureText is preserved. */
+function _recomputeMeasureFields(ann, meas, userProps = {}) {
+  const keepText = typeof userProps.measureText === 'string';
+  if (ann.type === 'measureDistance') {
+    const d = meas.calculateDistance(ann.startX, ann.startY, ann.endX, ann.endY, ann.page);
+    ann.measureValue = d.value;
+    ann.measureUnit = d.unit;
+    ann.measurePixels = d.pixels;
+    if (!keepText) ann.measureText = meas.formatMeasurement(d);
+  } else if (ann.type === 'measureArea') {
+    const a = meas.calculateArea(ann.points, ann.holes, ann.page);
+    ann.measureValue = a.value;
+    ann.measureUnit = a.unit;
+    if (!keepText) ann.measureText = meas.formatMeasurement(a);
+  } else if (ann.type === 'measurePerimeter') {
+    const p = meas.calculatePerimeter(ann.points, ann.page);
+    ann.measureValue = p.value;
+    ann.measureUnit = p.unit;
+    if (!keepText) ann.measureText = meas.formatMeasurement(p);
+  }
+}
+
+async function handleSetTool(params) {
+  const tool = params?.tool;
+  if (typeof tool !== 'string' || !tool) {
+    return { ok: false, error: 'missing or invalid params.tool' };
+  }
+  const stateMod = await import('./core/state.js');
+  const registryMod = await import('./tools/tool-registry.js');
+  const typeRegistryMod = await import('./plugins/annotation-type-registry.js');
+  const known = registryMod.getTool(tool) != null ||
+                typeRegistryMod.getAnnotationType(tool) != null;
+  if (!known) {
+    return { ok: false, error: `unknown tool: ${tool}` };
+  }
+  const managerMod = await import('./tools/manager.js');
+  managerMod.setTool(tool);
+  // setTool can refuse the switch (PDF/A read-only) — report what actually
+  // became active so the client never has to guess.
+  return { ok: true, requested: tool, current: stateMod.state.currentTool };
+}
+
+async function handleGetCurrentTool() {
+  const stateMod = await import('./core/state.js');
+  return { ok: true, tool: stateMod.state.currentTool };
+}
+
+/** Build the default props object for one annotation type. Mirrors the field
+ *  names the interactive tools produce (see tools/annotation-creators.js and
+ *  the per-tool modules) so MCP-created annotations are indistinguishable
+ *  from hand-drawn ones. Returns { base, measure?, scaleRegion? } on success
+ *  or { error } when required geometry is missing. */
+async function _buildCreateProps(type, page, props) {
+  const stateMod = await import('./core/state.js');
+  const prefs = stateMod.state.preferences || {};
+  const p = props || {};
+
+  const needRect = () =>
+    (_isNum(p.x) && _isNum(p.y) && _isNum(p.width) && _isNum(p.height) && p.width > 0 && p.height > 0)
+      ? null : { error: `type '${type}' requires numeric props x, y, width > 0, height > 0` };
+  const needLine = () =>
+    (_isNum(p.startX) && _isNum(p.startY) && _isNum(p.endX) && _isNum(p.endY))
+      ? null : { error: `type '${type}' requires numeric props startX, startY, endX, endY` };
+  const validHoles = () =>
+    p.holes == null || (Array.isArray(p.holes) && p.holes.every(r => _validPoints(r, 3)));
+
+  switch (type) {
+    // Rect- and line-based shapes reuse the interactive creator so style
+    // defaults stay in lock-step with what hand-drawing produces.
+    case 'line':
+    case 'arrow':
+    case 'wall':
+    case 'box':
+    case 'mask':
+    case 'circle':
+    case 'highlight':
+    case 'cloud':
+    case 'polygon':
+    case 'textbox': {
+      const lineLike = type === 'line' || type === 'arrow' || type === 'wall';
+      const bad = lineLike ? needLine() : needRect();
+      if (bad) return bad;
+      const creators = await import('./tools/annotation-creators.js');
+      const base = lineLike
+        ? creators.buildAnnotationProps(type, p.startX, p.startY, p.endX, p.endY, null)
+        : creators.buildAnnotationProps(type, p.x, p.y, p.x + p.width, p.y + p.height, null);
+      if (!base) return { error: `could not build '${type}' props` };
+      return { base };
+    }
+
+    case 'polyline': {
+      if (!_validPoints(p.points, 2)) {
+        return { error: "type 'polyline' requires props.points: [{x,y}, ...] (>= 2)" };
+      }
+      return { base: {
+        type, page,
+        points: p.points.map(pt => ({ ...pt })),
+        color: prefs.polylineStrokeColor || '#000000',
+        strokeColor: prefs.polylineStrokeColor || '#000000',
+        lineWidth: prefs.polylineLineWidth || 1,
+        opacity: (prefs.polylineOpacity || 100) / 100,
+      } };
+    }
+
+    case 'spline': {
+      const pts = p.controlPoints || p.points;
+      if (!_validPoints(pts, 3)) {
+        return { error: "type 'spline' requires props.controlPoints (or points): [{x,y}, ...] (>= 3)" };
+      }
+      return { base: {
+        type, page,
+        controlPoints: pts.map(pt => ({ ...pt })),
+        color: prefs.lineStrokeColor || '#000000',
+        strokeColor: prefs.lineStrokeColor || '#000000',
+        lineWidth: prefs.lineLineWidth || 1,
+        opacity: (prefs.lineOpacity ?? 100) / 100,
+      } };
+    }
+
+    case 'draw': {
+      const pts = p.path || p.points;
+      if (!_validPoints(pts, 2)) {
+        return { error: "type 'draw' requires props.path (or points): [{x,y}, ...] (>= 2)" };
+      }
+      return { base: {
+        type, page,
+        path: pts.map(pt => ({ ...pt })),
+        color: prefs.drawStrokeColor || '#000000',
+        strokeColor: prefs.drawStrokeColor || '#000000',
+        lineWidth: prefs.drawLineWidth || 2,
+        opacity: (prefs.drawOpacity || 100) / 100,
+      } };
+    }
+
+    case 'filledArea': {
+      if (!_validPoints(p.points, 3)) {
+        return { error: "type 'filledArea' requires props.points: [{x,y}, ...] (>= 3)" };
+      }
+      if (!validHoles()) {
+        return { error: 'props.holes must be an array of point rings ([{x,y}, ...] each >= 3)' };
+      }
+      const pts = p.points.map(pt => ({ ...pt }));
+      const xs = pts.map(q => q.x), ys = pts.map(q => q.y);
+      const base = {
+        type, page,
+        points: pts,
+        color: prefs.filledAreaStrokeColor || '#000000',
+        strokeColor: prefs.filledAreaStrokeColor || '#000000',
+        fillColor: prefs.filledAreaFillNone ? null : (prefs.filledAreaFillColor || '#cccccc'),
+        lineWidth: prefs.filledAreaLineWidth ?? 1,
+        borderStyle: prefs.filledAreaBorderStyle || 'solid',
+        opacity: (prefs.filledAreaOpacity ?? 100) / 100,
+        hatchPattern: prefs.filledAreaHatchPattern || 'none',
+        hatchColor: prefs.filledAreaHatchColor || '#000000',
+        hatchScale: prefs.filledAreaHatchScale ?? 100,
+        hatchAngle: prefs.filledAreaHatchAngle ?? 0,
+        // Bounding box for selection helpers.
+        x: Math.min(...xs), y: Math.min(...ys),
+        width: Math.max(...xs) - Math.min(...xs),
+        height: Math.max(...ys) - Math.min(...ys),
+      };
+      if (Array.isArray(p.holes) && p.holes.length > 0) base.holes = p.holes;
+      return { base };
+    }
+
+    case 'comment': {
+      if (!_isNum(p.x) || !_isNum(p.y)) {
+        return { error: "type 'comment' requires numeric props x, y" };
+      }
+      return { base: {
+        type, page,
+        x: p.x, y: p.y, width: 24, height: 24,
+        text: typeof p.text === 'string' ? p.text : '',
+        color: prefs.commentColor || '#FFFF00',
+        fillColor: prefs.commentColor || '#FFFF00',
+        icon: prefs.commentIcon || 'comment',
+      } };
+    }
+
+    case 'callout': {
+      const bad = needRect();
+      if (bad) return bad;
+      // Arrow tip defaults to the left of the box; knee/arm follow the same
+      // geometry the interactive callout creator computes.
+      const arrowX = _isNum(p.arrowX) ? p.arrowX : p.x - 40;
+      const arrowY = _isNum(p.arrowY) ? p.arrowY : p.y + p.height / 2;
+      const isLeft = arrowX < p.x + p.width / 2;
+      const armOriginX = isLeft ? p.x : p.x + p.width;
+      const armOriginY = Math.max(p.y, Math.min(p.y + p.height, arrowY));
+      const armLength = Math.min(30, Math.abs(arrowX - armOriginX) * 0.4);
+      const kneeX = isLeft ? armOriginX - armLength : armOriginX + armLength;
+      return { base: {
+        type, page,
+        x: p.x, y: p.y, width: p.width, height: p.height,
+        arrowX, arrowY, kneeX, kneeY: armOriginY, armOriginX, armOriginY,
+        text: typeof p.text === 'string' ? p.text : '',
+        color: prefs.calloutStrokeColor || '#000000',
+        strokeColor: prefs.calloutStrokeColor || '#000000',
+        fillColor: prefs.calloutFillNone ? 'transparent' : (prefs.calloutFillColor || '#ffffff'),
+        textColor: '#000000',
+        fontSize: prefs.calloutFontSize || 12,
+        fontFamily: 'Arial',
+        lineWidth: prefs.calloutBorderWidth || 1,
+        borderStyle: prefs.calloutBorderStyle || 'solid',
+        opacity: (prefs.calloutOpacity || 100) / 100,
+      } };
+    }
+
+    case 'measureDistance': {
+      const bad = needLine();
+      if (bad) return bad;
+      return { base: {
+        type, page,
+        startX: p.startX, startY: p.startY, endX: p.endX, endY: p.endY,
+        color: prefs.measureDistStrokeColor || '#ff0000',
+        strokeColor: prefs.measureDistStrokeColor || '#ff0000',
+        lineWidth: prefs.measureDistLineWidth || 1,
+        borderStyle: prefs.measureDistBorderStyle || 'solid',
+        opacity: (prefs.measureDistOpacity || 100) / 100,
+      }, measure: true };
+    }
+
+    case 'measureArea': {
+      if (!_validPoints(p.points, 3)) {
+        return { error: "type 'measureArea' requires props.points: [{x,y}, ...] (>= 3)" };
+      }
+      if (!validHoles()) {
+        return { error: 'props.holes must be an array of point rings ([{x,y}, ...] each >= 3)' };
+      }
+      const base = {
+        type, page,
+        points: p.points.map(pt => ({ ...pt })),
+        color: prefs.measureAreaStrokeColor || '#ff0000',
+        strokeColor: prefs.measureAreaStrokeColor || '#ff0000',
+        lineWidth: prefs.measureAreaLineWidth || 1,
+        opacity: (prefs.measureAreaOpacity || 100) / 100,
+        fillColor: prefs.measureAreaFillNone ? null : (prefs.measureAreaFillColor || null),
+        borderStyle: prefs.measureAreaBorderStyle || 'dashed',
+        hatchPattern: prefs.measureAreaHatchPattern || 'diagonal-left',
+        hatchColor: prefs.measureAreaHatchColor || '#ff0000',
+        hatchScale: prefs.measureAreaHatchScale ?? 100,
+      };
+      if (Array.isArray(p.holes) && p.holes.length > 0) base.holes = p.holes;
+      return { base, measure: true };
+    }
+
+    case 'measurePerimeter': {
+      if (!_validPoints(p.points, 2)) {
+        return { error: "type 'measurePerimeter' requires props.points: [{x,y}, ...] (>= 2)" };
+      }
+      return { base: {
+        type, page,
+        points: p.points.map(pt => ({ ...pt })),
+        color: prefs.measurePerimStrokeColor || '#ff0000',
+        strokeColor: prefs.measurePerimStrokeColor || '#ff0000',
+        lineWidth: prefs.measurePerimLineWidth || 1,
+        opacity: (prefs.measurePerimOpacity || 100) / 100,
+        borderStyle: prefs.measurePerimBorderStyle || 'dashed',
+        startHead: prefs.measurePerimStartHead || 'none',
+        endHead: prefs.measurePerimEndHead || 'none',
+        headSize: prefs.measurePerimHeadSize || 12,
+      }, measure: true };
+    }
+
+    case 'scaleRegion': {
+      const bad = needRect();
+      if (bad) return bad;
+      return { base: {
+        type, page,
+        x: p.x, y: p.y, width: p.width, height: p.height,
+        scaleString: p.scaleString || '1:100',
+        units: p.units || 'mm',
+        label: p.label || '',
+        color: p.color || '#ff9800',
+        lineWidth: 1.5,
+        borderStyle: 'dashed',
+        opacity: 1,
+      }, scaleRegion: true };
+    }
+
+    case 'stamp':
+    case 'image': {
+      // Test/automation path: rect + optional SVG payload, passthrough.
+      const bad = needRect();
+      if (bad) return bad;
+      return { base: {
+        type, page,
+        x: p.x, y: p.y, width: p.width, height: p.height,
+        stampSvg: p.stampSvg || '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="none" stroke="black"/></svg>',
+        stampName: p.stampName || 'Stamp',
+        color: p.color || '#000000',
+        rotation: p.rotation || 0,
+        opacity: 1,
+      } };
+    }
+
+    case 'comment':
+    case 'text': {
+      if (!(_isNum(p.x) && _isNum(p.y))) {
+        return { error: `type '${type}' requires numeric props.x/y` };
+      }
+      return { base: {
+        type, page,
+        x: p.x, y: p.y,
+        text: p.text || 'Tekst',
+        color: p.color || '#000000',
+        fontSize: p.fontSize || 12,
+        opacity: 1,
+      } };
+    }
+
+    case 'parametricSymbol': {
+      if (typeof p.symbolId !== 'string' || !p.symbolId) {
+        return { error: "type 'parametricSymbol' requires props.symbolId (template id)" };
+      }
+      const reg = await import('./symbols/registry.js');
+      const tpl = reg.getTemplate(p.symbolId);
+      if (!tpl) return { error: `unknown template: ${p.symbolId}` };
+      const params = { ...reg.defaultParams(tpl), ...(p.params || {}) };
+      // Bbox: explicit rect wins; otherwise real-world size at (x,y) centre
+      // (steel profiles), falling back to the template's defaultSize.
+      let rect;
+      if (_isNum(p.x) && _isNum(p.y) && _isNum(p.width) && _isNum(p.height) && p.width > 0 && p.height > 0) {
+        rect = { x: p.x, y: p.y, width: p.width, height: p.height };
+      } else if (_isNum(p.x) && _isNum(p.y)) {
+        const rs = await import('./symbols/real-size.js');
+        const mm = typeof tpl.realSizeMm === 'function' ? tpl.realSizeMm(params) : null;
+        if (mm && mm.height > 0) {
+          const k = rs.pxPerMmAt(page, p.x, p.y);
+          const hPx = mm.height * k;
+          const wPx = mm.width > 0 ? mm.width * k : hPx * 4; // free-length beam
+          rect = { x: p.x - wPx / 2, y: p.y - hPx / 2, width: wPx, height: hPx };
+        } else {
+          const ds = tpl.defaultSize || { width: 80, height: 80 };
+          rect = { x: p.x, y: p.y, width: ds.width, height: ds.height };
+        }
+      } else {
+        return { error: "type 'parametricSymbol' requires props.x, y (insert point) or a full x/y/width/height rect" };
+      }
+      return { base: {
+        type, page,
+        ...rect,
+        symbolId: p.symbolId,
+        params,
+        color: p.color || '#000000',
+        strokeColor: p.strokeColor || p.color || '#000000',
+        lineWidth: _isNum(p.lineWidth) ? p.lineWidth : 1,
+        rotation: _isNum(p.rotation) ? p.rotation : 0,
+        opacity: _isNum(p.opacity) ? p.opacity : 1,
+      } };
+    }
+
+    default:
+      return { error: `unsupported annotation type: ${type}` };
+  }
+}
+
+async function handleCreateAnnotation(params) {
+  const type = params?.type;
+  if (typeof type !== 'string' || !type) {
+    return { ok: false, error: 'missing or invalid params.type' };
+  }
+  const props = (params?.props && typeof params.props === 'object' && !Array.isArray(params.props))
+    ? params.props : {};
+  const stateMod = await import('./core/state.js');
+  const doc = stateMod.getActiveDocument();
+  if (!doc?.pdfDoc) return { ok: false, error: 'no active document' };
+
+  // Page: top-level param wins, then props.page, then the current page.
+  let page = doc.currentPage || 1;
+  const pageArg = params?.page ?? props.page;
+  if (pageArg != null) {
+    page = Number(pageArg);
+    const numPages = doc.pdfDoc?.numPages ?? 1;
+    if (!Number.isInteger(page) || page < 1 || page > numPages) {
+      return { ok: false, error: `page ${pageArg} out of range (doc has ${numPages} pages)` };
+    }
+  }
+
+  const built = await _buildCreateProps(type, page, props);
+  if (built.error) return { ok: false, error: built.error };
+
+  // Caller props win over tool defaults; type and the page param are pinned.
+  const merged = { ...built.base, ...props, type, page };
+  // parametricSymbol without an explicit rect: (x,y) was an INSERT POINT —
+  // the builder centred a real-size bbox on it. Keep that computed bbox
+  // instead of letting the raw x/y overwrite it as a top-left corner.
+  if (type === 'parametricSymbol' && !(_isNum(props.width) && _isNum(props.height))) {
+    merged.x = built.base.x;
+    merged.y = built.base.y;
+    merged.width = built.base.width;
+    merged.height = built.base.height;
+  }
+  const factory = await import('./annotations/factory.js');
+  const meas = await import('./annotations/measurement.js');
+  const ann = factory.createAnnotation(merged);
+  if (built.measure) {
+    // Compute measureText/value from geometry + the scale at the target page
+    // BEFORE the undo snapshot so redo restores a complete annotation.
+    _recomputeMeasureFields(ann, meas, props);
+  }
+
+  doc.annotations.push(ann);
+  const undoMod = await import('./core/undo-manager.js');
+  undoMod.recordAdd(ann);
+
+  if (built.scaleRegion) {
+    // A new scale region changes the effective scale for everything inside
+    // it — refresh all measurements (this also redraws).
+    const srMod = await import('./annotations/scale-region.js');
+    srMod.invalidateScaleRegionCache();
+    meas.recalculateAllMeasurements();
+  } else {
+    await _redrawActive();
+  }
+
+  return { ok: true, id: ann.id, annotation: _summarizeAnnotation(ann) };
+}
+
+async function handleListAnnotations(params) {
+  const stateMod = await import('./core/state.js');
+  const doc = stateMod.getActiveDocument();
+  if (!doc) return { ok: false, error: 'no active document' };
+  let anns = doc.annotations || [];
+  if (params?.page != null) {
+    const page = Number(params.page);
+    if (!Number.isInteger(page) || page < 1) {
+      return { ok: false, error: 'invalid params.page (1-based integer)' };
+    }
+    anns = anns.filter(a => (a.page ?? 1) === page);
+  }
+  return { ok: true, count: anns.length, annotations: anns.map(_summarizeAnnotation) };
+}
+
+async function handleGetAnnotation(params) {
+  const id = params?.id;
+  if (typeof id !== 'string' || !id) {
+    return { ok: false, error: 'missing or invalid params.id' };
+  }
+  const stateMod = await import('./core/state.js');
+  const doc = stateMod.getActiveDocument();
+  if (!doc) return { ok: false, error: 'no active document' };
+  const ann = (doc.annotations || []).find(a => a.id === id);
+  if (!ann) return { ok: false, error: `annotation not found: ${id}` };
+  return { ok: true, annotation: _sanitizeAnnotation(ann) };
+}
+
+// Keys that change an annotation's shape — used to decide whether a patch
+// must trigger a measurement recompute / scale-region cache flush.
+const _GEOMETRY_KEYS = [
+  'x', 'y', 'width', 'height',
+  'startX', 'startY', 'endX', 'endY',
+  'points', 'holes', 'path', 'controlPoints',
+];
+
+async function handleUpdateAnnotation(params) {
+  const id = params?.id;
+  if (typeof id !== 'string' || !id) {
+    return { ok: false, error: 'missing or invalid params.id' };
+  }
+  const props = params?.props;
+  if (!props || typeof props !== 'object' || Array.isArray(props) || Object.keys(props).length === 0) {
+    return { ok: false, error: 'missing or empty params.props' };
+  }
+  const stateMod = await import('./core/state.js');
+  const doc = stateMod.getActiveDocument();
+  if (!doc) return { ok: false, error: 'no active document' };
+  const ann = (doc.annotations || []).find(a => a.id === id);
+  if (!ann) return { ok: false, error: `annotation not found: ${id}` };
+
+  const factory = await import('./annotations/factory.js');
+  const oldState = factory.cloneAnnotation(ann);
+
+  // id and type are immutable — silently drop them from the patch.
+  const { id: _id, type: _type, ...patch } = props;
+  Object.assign(ann, patch);
+  ann.modifiedAt = new Date().toISOString();
+
+  const geometryTouched = _GEOMETRY_KEYS.some(k => k in patch);
+  const meas = await import('./annotations/measurement.js');
+  const isMeasure = ann.type === 'measureDistance' ||
+                    ann.type === 'measureArea' ||
+                    ann.type === 'measurePerimeter';
+  if (isMeasure && geometryTouched) {
+    _recomputeMeasureFields(ann, meas, patch);
+  }
+
+  const undoMod = await import('./core/undo-manager.js');
+  undoMod.recordModify(ann.id, oldState, ann);
+
+  if (ann.type === 'scaleRegion' &&
+      (geometryTouched || 'scaleString' in patch || 'units' in patch)) {
+    // Region bounds/scale changed → measurements inside must follow.
+    const srMod = await import('./annotations/scale-region.js');
+    srMod.invalidateScaleRegionCache();
+    meas.recalculateAllMeasurements(); // also redraws
+  } else {
+    await _redrawActive();
+  }
+
+  // Keep the properties panel in sync when the patched annotation is selected.
+  if (doc.selectedAnnotation && doc.selectedAnnotation.id === ann.id) {
+    try {
+      const panel = await import('./ui/panels/properties-panel.js');
+      panel.showProperties(ann);
+    } catch { /* panel refresh is best-effort */ }
+  }
+
+  return { ok: true, id: ann.id, annotation: _sanitizeAnnotation(ann) };
+}
+
+async function handleDeleteAnnotation(params) {
+  const id = params?.id;
+  if (typeof id !== 'string' || !id) {
+    return { ok: false, error: 'missing or invalid params.id' };
+  }
+  const stateMod = await import('./core/state.js');
+  const doc = stateMod.getActiveDocument();
+  if (!doc) return { ok: false, error: 'no active document' };
+  const index = (doc.annotations || []).findIndex(a => a.id === id);
+  if (index === -1) return { ok: false, error: `annotation not found: ${id}` };
+
+  const ann = doc.annotations[index];
+  doc.annotations.splice(index, 1);
+  const undoMod = await import('./core/undo-manager.js');
+  undoMod.recordDelete(ann, index);
+
+  // Drop it from the selection so the panel doesn't show a dead annotation.
+  doc.selectedAnnotations = (doc.selectedAnnotations || []).filter(a => a.id !== id);
+  if (doc.selectedAnnotation?.id === id) {
+    doc.selectedAnnotation = doc.selectedAnnotations[0] ?? null;
+    if (!doc.selectedAnnotation) {
+      try {
+        const panel = await import('./ui/panels/properties-panel.js');
+        panel.hideProperties();
+      } catch { /* best-effort */ }
+    }
+  }
+
+  if (ann.type === 'scaleRegion') {
+    const srMod = await import('./annotations/scale-region.js');
+    const meas = await import('./annotations/measurement.js');
+    srMod.invalidateScaleRegionCache();
+    meas.recalculateAllMeasurements(); // also redraws
+  } else {
+    await _redrawActive();
+  }
+  return { ok: true, id, deletedType: ann.type };
+}
+
+async function handleSelectAnnotation(params) {
+  const id = params?.id;
+  if (typeof id !== 'string' || !id) {
+    return { ok: false, error: 'missing or invalid params.id' };
+  }
+  const stateMod = await import('./core/state.js');
+  const doc = stateMod.getActiveDocument();
+  if (!doc) return { ok: false, error: 'no active document' };
+  const ann = (doc.annotations || []).find(a => a.id === id);
+  if (!ann) return { ok: false, error: `annotation not found: ${id}` };
+
+  doc.selectedAnnotations = [ann];
+  doc.selectedAnnotation = ann;
+  try {
+    const panel = await import('./ui/panels/properties-panel.js');
+    panel.showProperties(ann);
+  } catch { /* panel is best-effort */ }
+  await _redrawActive();
+  return { ok: true, id, type: ann.type, page: ann.page };
+}
+
+async function handleClearSelection() {
+  const stateMod = await import('./core/state.js');
+  const doc = stateMod.getActiveDocument();
+  if (!doc) return { ok: false, error: 'no active document' };
+  stateMod.clearSelection();
+  try {
+    const panel = await import('./ui/panels/properties-panel.js');
+    panel.hideProperties();
+  } catch { /* best-effort */ }
+  await _redrawActive();
+  return { ok: true };
+}
+
+async function handleUndo() {
+  const undoMod = await import('./core/undo-manager.js');
+  if (!undoMod.canUndo()) return { ok: false, error: 'nothing to undo' };
+  await undoMod.undo();
+  return { ok: true, canUndo: undoMod.canUndo(), canRedo: undoMod.canRedo() };
+}
+
+async function handleRedo() {
+  const undoMod = await import('./core/undo-manager.js');
+  if (!undoMod.canRedo()) return { ok: false, error: 'nothing to redo' };
+  await undoMod.redo();
+  return { ok: true, canUndo: undoMod.canUndo(), canRedo: undoMod.canRedo() };
+}
+
+async function handleListTabs() {
+  const stateMod = await import('./core/state.js');
+  const docs = stateMod.state.documents || [];
+  return {
+    ok: true,
+    activeIndex: stateMod.state.activeDocumentIndex,
+    tabs: docs.map((d, i) => ({
+      index: i,
+      fileName: d.fileName ?? null,
+      filePath: d.filePath ?? null,
+      modified: !!d.modified,
+      active: i === stateMod.state.activeDocumentIndex,
+      pageCount: d.pdfDoc?.numPages ?? 0,
+      isUntitled: !!d.isUntitled,
+      currentPage: d.currentPage ?? null,
+      annotationCount: (d.annotations || []).length,
+    })),
+  };
+}
+
+async function handleSwitchTab(params) {
+  const index = Number(params?.index);
+  const stateMod = await import('./core/state.js');
+  const total = stateMod.state.documents.length;
+  if (!Number.isInteger(index) || index < 0 || index >= total) {
+    return { ok: false, error: `index out of range (have ${total} tabs)` };
+  }
+  const tabsMod = await import('./ui/chrome/tabs.js');
+  tabsMod.switchToTab(index);
+  return { ok: true, activeIndex: stateMod.state.activeDocumentIndex };
+}
+
+async function handleCloseTab(params) {
+  const index = Number(params?.index);
+  const force = params?.force === true;
+  const stateMod = await import('./core/state.js');
+  const docs = stateMod.state.documents;
+  if (!Number.isInteger(index) || index < 0 || index >= docs.length) {
+    return { ok: false, error: `index out of range (have ${docs.length} tabs)` };
+  }
+  // Headless guard: closing a modified document without force would pop the
+  // save/discard dialog and stall the bridge. Make the caller decide instead.
+  if (docs[index].modified && !force) {
+    return { ok: false, error: 'document has unsaved changes — pass force:true to discard, or save first' };
+  }
+  const tabsMod = await import('./ui/chrome/tabs.js');
+  // Always force here: the unsaved-changes policy was already enforced above.
+  const closed = await tabsMod.closeTab(index, true);
+  if (!closed) return { ok: false, error: 'closeTab refused' };
+  return { ok: true, remainingTabs: stateMod.state.documents.length };
+}
+
+async function handleNewBlankPdf(params) {
+  const widthPt = Number(params?.widthPt);
+  const heightPt = Number(params?.heightPt);
+  const pages = params?.pages != null ? Number(params.pages) : 1;
+  if (!Number.isFinite(widthPt) || widthPt <= 0 || !Number.isFinite(heightPt) || heightPt <= 0) {
+    return { ok: false, error: 'missing or invalid params.widthPt/heightPt (PDF points, > 0)' };
+  }
+  if (!Number.isInteger(pages) || pages < 1) {
+    return { ok: false, error: 'invalid params.pages (integer >= 1)' };
+  }
+  const loaderMod = await import('./pdf/loader.js');
+  try {
+    await loaderMod.createBlankPDF(widthPt, heightPt, pages);
+  } catch (e) {
+    return { ok: false, error: `createBlankPDF: ${e?.message ?? e}` };
+  }
+  const stateMod = await import('./core/state.js');
+  const doc = stateMod.getActiveDocument();
+  return {
+    ok: true,
+    tabIndex: stateMod.state.activeDocumentIndex,
+    fileName: doc?.fileName ?? null,
+    pageCount: doc?.pdfDoc?.numPages ?? pages,
+  };
+}
+
+async function handleSavePdf(params) {
+  const path = (typeof params?.path === 'string' && params.path) ? params.path : null;
+  const stateMod = await import('./core/state.js');
+  const doc = stateMod.getActiveDocument();
+  if (!doc?.pdfDoc) return { ok: false, error: 'no active document' };
+  if (!path && (!doc.filePath || doc.isUntitled)) {
+    // savePDF() without a real path falls through to the Save As file picker
+    // — never acceptable on a headless bridge. The caller must supply a path.
+    return { ok: false, error: 'document has no saved file path — pass params.path' };
+  }
+  const invoke = tauriInvoke();
+  if (path && invoke) {
+    // Grant FS scope for arbitrary target paths (same mechanism as open).
+    try { await invoke('allow_fs_scope', { path }); } catch { /* best-effort */ }
+  }
+  const saverMod = await import('./pdf/saver.js');
+  let success;
+  try {
+    success = await saverMod.savePDF(path);
+  } catch (e) {
+    return { ok: false, error: `savePDF: ${e?.message ?? e}` };
+  }
+  if (!success) return { ok: false, error: 'savePDF reported failure' };
+  return { ok: true, path: path || doc.filePath };
+}
+
+async function handleSetViewMode(params) {
+  const mode = params?.mode;
+  if (mode !== 'single' && mode !== 'continuous') {
+    return { ok: false, error: "params.mode must be 'single' or 'continuous'" };
+  }
+  const stateMod = await import('./core/state.js');
+  const doc = stateMod.getActiveDocument();
+  if (!doc?.pdfDoc) return { ok: false, error: 'no active document' };
+  const rendererMod = await import('./pdf/renderer.js');
+  try {
+    await rendererMod.setViewMode(mode);
+  } catch (e) {
+    return { ok: false, error: `setViewMode: ${e?.message ?? e}` };
+  }
+  return { ok: true, viewMode: doc.viewMode };
+}
+
+async function handleFitPage() {
+  const stateMod = await import('./core/state.js');
+  if (!stateMod.getActiveDocument()?.pdfDoc) return { ok: false, error: 'no active document' };
+  const rendererMod = await import('./pdf/renderer.js');
+  try {
+    await rendererMod.fitPage();
+  } catch (e) {
+    return { ok: false, error: `fitPage: ${e?.message ?? e}` };
+  }
+  const vp = window.__pdfViewport;
+  const actual = vp?.active ? vp.zoom : (stateMod.getActiveDocument()?.scale ?? null);
+  return { ok: true, actual };
+}
+
+async function handleFitWidth() {
+  const stateMod = await import('./core/state.js');
+  if (!stateMod.getActiveDocument()?.pdfDoc) return { ok: false, error: 'no active document' };
+  const rendererMod = await import('./pdf/renderer.js');
+  try {
+    await rendererMod.fitWidth();
+  } catch (e) {
+    return { ok: false, error: `fitWidth: ${e?.message ?? e}` };
+  }
+  const vp = window.__pdfViewport;
+  const actual = vp?.active ? vp.zoom : (stateMod.getActiveDocument()?.scale ?? null);
+  return { ok: true, actual };
+}
+
+async function handleGetPageCount() {
+  const stateMod = await import('./core/state.js');
+  const doc = stateMod.getActiveDocument();
+  if (!doc?.pdfDoc) return { ok: false, error: 'no active document' };
+  return { ok: true, pageCount: doc.pdfDoc.numPages, currentPage: doc.currentPage ?? 1 };
+}
+
+async function handleSetMeasureScale(params) {
+  const pixelsPerUnit = Number(params?.pixelsPerUnit);
+  const unit = params?.unit;
+  if (!Number.isFinite(pixelsPerUnit) || pixelsPerUnit <= 0) {
+    return { ok: false, error: 'missing or invalid params.pixelsPerUnit (> 0)' };
+  }
+  if (typeof unit !== 'string' || !unit) {
+    return { ok: false, error: 'missing or invalid params.unit' };
+  }
+  const stateMod = await import('./core/state.js');
+  const doc = stateMod.getActiveDocument();
+  if (!doc) return { ok: false, error: 'no active document' };
+  doc.measureScale = { pixelsPerUnit, unit, method: 'manual', scaleRatio: 0 };
+  const meas = await import('./annotations/measurement.js');
+  meas.saveDocumentScale();
+  meas.recalculateAllMeasurements(); // refreshes measureText everywhere + redraws
+  return { ok: true, measureScale: { pixelsPerUnit, unit } };
+}
+
 const HANDLERS = {
   'mcp:open-pdf':           handleOpenPdf,
   'mcp:set-zoom':           handleSetZoom,
@@ -873,6 +1734,32 @@ const HANDLERS = {
   'mcp:zoom-anchor-test':   handleZoomAnchorTest,
   'mcp:clear-caches':       handleClearCaches,
   'mcp:go-to-page':         handleGoToPage,
+  // App control: tools & annotations
+  'mcp:set-tool':           handleSetTool,
+  'mcp:get-current-tool':   handleGetCurrentTool,
+  'mcp:create-annotation':  handleCreateAnnotation,
+  'mcp:list-annotations':   handleListAnnotations,
+  'mcp:get-annotation':     handleGetAnnotation,
+  'mcp:update-annotation':  handleUpdateAnnotation,
+  'mcp:delete-annotation':  handleDeleteAnnotation,
+  'mcp:select-annotation':  handleSelectAnnotation,
+  'mcp:clear-selection':    handleClearSelection,
+  // App control: editing
+  'mcp:undo':               handleUndo,
+  'mcp:redo':               handleRedo,
+  // App control: documents / tabs
+  'mcp:list-tabs':          handleListTabs,
+  'mcp:switch-tab':         handleSwitchTab,
+  'mcp:close-tab':          handleCloseTab,
+  'mcp:new-blank-pdf':      handleNewBlankPdf,
+  'mcp:save-pdf':           handleSavePdf,
+  // App control: view
+  'mcp:set-view-mode':      handleSetViewMode,
+  'mcp:fit-page':           handleFitPage,
+  'mcp:fit-width':          handleFitWidth,
+  'mcp:get-page-count':     handleGetPageCount,
+  // App control: measurement scale
+  'mcp:set-measure-scale':  handleSetMeasureScale,
 };
 
 /** Wire up all `mcp:*` listeners. Safe to call once at startup. Becomes

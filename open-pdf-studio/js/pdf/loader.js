@@ -1,7 +1,7 @@
 import { state, getNextUntitledName, getActiveDocument } from '../core/state.js';
 import { showLoading, hideLoading } from '../ui/chrome/dialogs.js';
 import { updateAllStatus } from '../ui/chrome/status-bar.js';
-import { setViewMode } from './renderer.js';
+import { setViewMode, fitPage } from './renderer.js';
 import { generateThumbnails, refreshActiveTab } from '../ui/panels/left-panel.js';
 import { createTab, updateWindowTitle, markDocumentModified } from '../ui/chrome/tabs.js';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -459,10 +459,15 @@ export async function loadPDF(filePath, docIndex, preloadedData = null) {
       updateWindowTitle();
     }
 
-    // Track in recent files (always run)
-    if (filePath && !filePath.startsWith('__memory__')) {
+    // Track in recent files (skip in-memory keys and untitled temp-backed
+    // docs — their temp path is deleted on close and would clutter the list)
+    if (filePath && !filePath.startsWith('__memory__') && !doc.isUntitled) {
       addRecentFile(filePath, extractFileName(filePath));
     }
+
+    // Persist the session NOW (debounced) so a dev-reload or crash right
+    // after opening doesn't lose the open-documents list.
+    window.__OPDS_SESSION_SAVE__?.();
 
     // Load existing annotations in background (non-blocking).
     // Page 1 annotations are already loaded by ensureAnnotationsForPage() during
@@ -625,12 +630,57 @@ export async function openPDFFile() {
   }
 }
 
-// Create a new blank PDF document
+// Create a new UNTITLED document from a template PDF (drawing frame/kader):
+// the template bytes are COPIED to a temp file and opened through the exact
+// same loadPDF flow as createBlankPDF — the original frame file is never
+// touched and Save routes to Save-As.
+export async function createDocFromTemplate(templatePath) {
+  try {
+    showLoading('Creating document...');
+    if (!(isTauri() && window.__TAURI__?.path && window.__TAURI__?.fs)) {
+      throw new Error('templates require the desktop app');
+    }
+    try { await invoke('allow_fs_scope', { path: templatePath }); } catch {}
+    const bytes = await window.__TAURI__.fs.readFile(templatePath);
+    const typedArray = new Uint8Array(bytes);
+
+    const displayName = getNextUntitledName();
+    const tempDir = await window.__TAURI__.path.tempDir();
+    const sep = (tempDir.endsWith('\\') || tempDir.endsWith('/')) ? '' : '/';
+    const tempPath = `${tempDir}${sep}opds-untitled-${Date.now()}.pdf`;
+    try { await invoke('allow_fs_scope', { path: tempPath }); } catch {}
+    await window.__TAURI__.fs.writeFile(tempPath, typedArray);
+
+    const { index } = createTab(tempPath);
+    const doc = state.documents[index];
+    if (doc) doc.isUntitled = true;
+    await loadPDF(tempPath, index, typedArray);
+    if (doc) doc.fileName = displayName;
+    markDocumentModified();
+    try { await fitPage(); } catch (e) { console.warn('[template-pdf] fitPage failed:', e); }
+    updateWindowTitle();
+  } catch (e) {
+    console.error('[template-pdf] failed:', e);
+    alert('Kon document niet aanmaken van kader: ' + (e?.message ?? e));
+  } finally {
+    hideLoading();
+  }
+}
+
+// Create a new blank PDF document.
+//
+// Desktop: the blank document is written to a temp .pdf file and opened via
+// the EXACT same loadPDF() flow as any user-opened file — so render, zoom,
+// pan and drawing behave identically to a normal PDF (Rust vector/raster
+// pipeline, viewport fit, the lot). Only two things mark it as "new":
+//   * the tab shows an Untitled display name instead of the temp filename;
+//   * `isUntitled` routes Save → Save-As and deletes the temp file once the
+//     user picks a real location (or closes the tab).
 export async function createBlankPDF(widthPt, heightPt, numPages) {
   try {
     showLoading('Creating document...');
 
-    // Create blank PDF using pdf-lib
+    // Build the blank PDF bytes
     const pdfDocLib = await PDFDocument.create();
     for (let i = 0; i < numPages; i++) {
       pdfDocLib.addPage([widthPt, heightPt]);
@@ -638,13 +688,38 @@ export async function createBlankPDF(widthPt, heightPt, numPages) {
     const pdfBytes = await pdfDocLib.save();
     const typedArray = new Uint8Array(pdfBytes);
 
-    // Generate untitled name and create tab
-    const fileName = getNextUntitledName();
+    const displayName = getNextUntitledName();
+
+    // ─── Desktop: temp file + the normal open flow ───────────────────────
+    if (isTauri() && window.__TAURI__?.path && window.__TAURI__?.fs) {
+      const tempDir = await window.__TAURI__.path.tempDir();
+      const sep = (tempDir.endsWith('/') || tempDir.endsWith('\\')) ? '' : '/';
+      const tempPath = `${tempDir}${sep}opds-untitled-${Date.now()}.pdf`;
+      // The fs plugin's scope doesn't cover arbitrary paths — grant access to
+      // the temp file first (same mechanism loadPDF uses for opened files).
+      try { await invoke('allow_fs_scope', { path: tempPath }); } catch {}
+      await window.__TAURI__.fs.writeFile(tempPath, typedArray);
+
+      const { index } = createTab(tempPath);
+      // Flag BEFORE loadPDF so its recent-files tracking skips the temp path.
+      const doc = state.documents[index];
+      if (doc) doc.isUntitled = true;
+      // Pass the bytes as preloadedData: skips the redundant disk read and
+      // the file lock (we own the temp file), otherwise identical to a
+      // normal open.
+      await loadPDF(tempPath, index, typedArray);
+      if (doc) doc.fileName = displayName;
+      // Mark as modified so Ctrl+S triggers Save As right away
+      markDocumentModified();
+      try { await fitPage(); } catch (e) { console.warn('[blank-pdf] fitPage failed:', e); }
+      updateWindowTitle();
+      return;
+    }
+
+    // ─── Browser fallback: in-memory document (no filesystem available) ──
     const { index } = createTab(null);
-    // Use the proxy-wrapped document from state so that Solid reactivity
-    // picks up property changes (e.g. pdfDoc) and updates the UI.
     const doc = state.documents[index];
-    doc.fileName = fileName;
+    doc.fileName = displayName;
 
     // Pre-populate pageDims so plugins reading dimensions at click time
     // don't depend on the first renderPage having completed.
@@ -685,26 +760,17 @@ export async function createBlankPDF(widthPt, heightPt, numPages) {
     // Mark as modified so Ctrl+S will trigger Save As
     markDocumentModified();
 
-    // ─── INITIAL FIT for large blank docs ─────────────────────────────────
-    // Default doc.scale = 1.5 makes a fresh A2 (1191×1684 pt) render at
-    // 1786×2526 px — way bigger than any reasonable viewport. The user has
-    // to click Uitzoomen ~6× before they can see the full page outline.
-    // Blank docs bypass the vector viewport (gated on doc.filePath which is
-    // null for in-memory docs), so the auto-fit logic in fitToViewport()
-    // never triggers. Compute a fit-zoom from the container right here.
+    // Manual fit: the in-memory path bypasses the viewport, so fitPage() is
+    // a no-op — compute a fit-zoom from the container directly.
     if (pdfContainer) {
       const r = pdfContainer.getBoundingClientRect();
       const padding = 20; // small breathing room around the page
       const availW = Math.max(100, r.width - padding * 2);
       const availH = Math.max(100, r.height - padding * 2);
       const fitScale = Math.min(availW / widthPt, availH / heightPt);
-      // Cap at 1.5 so smaller-than-fit pages (A6, B5) still display at a
-      // reasonable size instead of being scaled UP to fill the viewport.
-      // Floor at 0.05 to match the new zoom-out limit below.
       doc.scale = Math.max(0.05, Math.min(1.5, fitScale));
     }
 
-    // Render
     await setViewMode(doc.viewMode);
     generateThumbnails();
     refreshActiveTab();
@@ -781,7 +847,7 @@ async function loadAnnotationsForSinglePage(doc, pageNum, waitForColors = false)
   if (annotations.length === 0) return;
 
   const stampAnnots = annotations.filter(a => a.subtype === 'Stamp');
-  const needsExtraData = annotations.some(a => ['FreeText', 'Square', 'Circle', 'Line', 'PolyLine', 'Polygon', 'Ink', 'Text', 'Highlight', 'Underline', 'StrikeOut', 'Squiggly'].includes(a.subtype));
+  const needsExtraData = annotations.some(a => ['FreeText', 'Square', 'Circle', 'Line', 'PolyLine', 'Polygon', 'Ink', 'Text', 'Highlight', 'Underline', 'StrikeOut', 'Squiggly', 'Stamp'].includes(a.subtype));
 
   let stampImageMap = null;
   let annotColorMap = null;
@@ -909,7 +975,7 @@ export async function loadExistingAnnotations(doc) {
       if (annotations.length === 0) continue;
 
       const stampAnnots = annotations.filter(a => a.subtype === 'Stamp');
-      const needsExtraData = annotations.some(a => ['FreeText', 'Square', 'Circle', 'Line', 'PolyLine', 'Polygon', 'Ink', 'Text', 'Highlight', 'Underline', 'StrikeOut', 'Squiggly'].includes(a.subtype));
+      const needsExtraData = annotations.some(a => ['FreeText', 'Square', 'Circle', 'Line', 'PolyLine', 'Polygon', 'Ink', 'Text', 'Highlight', 'Underline', 'StrikeOut', 'Squiggly', 'Stamp'].includes(a.subtype));
 
       let stampImageMap = null;
       let annotColorMap = null;
@@ -958,7 +1024,7 @@ export async function loadExistingAnnotations(doc) {
         if (annotations.length === 0) continue;
 
         const stampAnnots = annotations.filter(a => a.subtype === 'Stamp');
-        const needsExtraData = annotations.some(a => ['FreeText', 'Square', 'Circle', 'Line', 'PolyLine', 'Polygon', 'Ink', 'Text', 'Highlight', 'Underline', 'StrikeOut', 'Squiggly'].includes(a.subtype));
+        const needsExtraData = annotations.some(a => ['FreeText', 'Square', 'Circle', 'Line', 'PolyLine', 'Polygon', 'Ink', 'Text', 'Highlight', 'Underline', 'StrikeOut', 'Squiggly', 'Stamp'].includes(a.subtype));
 
         let stampImageMap = null;
         let annotColorMap = null;

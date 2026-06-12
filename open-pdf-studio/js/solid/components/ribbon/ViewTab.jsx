@@ -1,4 +1,3 @@
-import { For } from 'solid-js';
 import RibbonGroup from './RibbonGroup.jsx';
 import AdaptiveGroups from './AdaptiveGroups.jsx';
 import RibbonButton from './RibbonButton.jsx';
@@ -6,11 +5,9 @@ import ThemePicker from './ThemePicker.jsx';
 import { singlePageIcon, continuousIcon, navigationIcon, propertiesIcon, annotationsListIcon, toolPaletteIcon, fullscreenIcon, fullscreenExitIcon } from '../../data/ribbonIcons.js';
 import { isFullscreen } from '../../stores/ribbonStore.js';
 import { toggleFullscreen } from '../../../ui/chrome/fullscreen.js';
-import { toggleToolPalette, paletteVisible } from '../ToolPalette.jsx';
 import { toggleSymbolPalette } from '../SymbolPalette.jsx';
 import { symbolPaletteVisible } from '../../stores/symbolStore.js';
-import { getRegisteredPalettes } from '../../../plugins/palette-registry.js';
-import { toggleExtPalette, isExtPaletteVisible } from '../ExtensionToolPalette.jsx';
+import { toggleKeystrokeOverlay, keystrokeOverlayVisible } from '../KeystrokeOverlay.jsx';
 import { setViewMode } from '../../../pdf/renderer.js';
 import { redrawAnnotations } from '../../../annotations/rendering.js';
 import { toggleLeftPanel } from '../../../ui/panels/left-panel.js';
@@ -63,20 +60,13 @@ export default function ViewTab() {
             onClick={togglePropertiesPanel} />
           <RibbonButton id="ribbon-annotations-list" title={t('view.annotationsList')} icon={annotationsListIcon} label={t('view.annotationsLabel')}
             disabled={noPdf()} onClick={() => toggleAnnotationsListPanel()} />
-          <RibbonButton id="ribbon-tool-palette" title={t('view.toolPalette')} icon={toolPaletteIcon} label={t('view.toolPaletteLabel')}
-            active={paletteVisible()} onClick={toggleToolPalette} />
-          <RibbonButton id="ribbon-symbol-palette" title="Symbol Library" icon={toolPaletteIcon} label="Symbols"
+          {/* The symbol library IS the tool palette for the user — single
+              button, named accordingly. The old generic Tool Palette button
+              and the plugin extension-palette buttons were removed from this
+              tab on request (the palettes themselves still exist and can be
+              re-exposed later if needed). */}
+          <RibbonButton id="ribbon-symbol-palette" title="Toolpalette" icon={toolPaletteIcon} label="Toolpalette"
             active={symbolPaletteVisible()} onClick={toggleSymbolPalette} />
-          <For each={getRegisteredPalettes()}>
-            {(p) => {
-              const translated = p.translationKey ? t(p.translationKey) : null;
-              const label = (translated && translated !== p.translationKey) ? translated : p.label;
-              return (
-                <RibbonButton id={`ribbon-ext-palette-${p.id}`} title={label} icon={p.icon || toolPaletteIcon} label={label}
-                  active={isExtPaletteVisible(p.id)} onClick={() => toggleExtPalette(p.id)} />
-              );
-            }}
-          </For>
         </RibbonGroup>
 
         <RibbonGroup label={t('view.appearance')}>
@@ -103,6 +93,12 @@ export default function ViewTab() {
             label={t('view.fullscreen') || 'Fullscreen'}
             active={isFullscreen()}
             onClick={() => toggleFullscreen()} />
+          <RibbonButton id="ribbon-keystroke-overlay"
+            title="Toon ingedrukte sneltoetsen links onderin (voor video-opnames)"
+            icon={`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="6" width="20" height="12" rx="1"/><line x1="6" y1="10" x2="6" y2="10.01"/><line x1="10" y1="10" x2="10" y2="10.01"/><line x1="14" y1="10" x2="14" y2="10.01"/><line x1="18" y1="10" x2="18" y2="10.01"/><line x1="7" y1="14" x2="17" y2="14"/></svg>`}
+            label="Sneltoetsen"
+            active={keystrokeOverlayVisible()}
+            onClick={toggleKeystrokeOverlay} />
         </RibbonGroup>
       </AdaptiveGroups>
     </div>

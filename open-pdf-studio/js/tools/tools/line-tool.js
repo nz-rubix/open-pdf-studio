@@ -11,8 +11,17 @@ import {
   typeLengthHasBuffer,
 } from '../type-length-input.js';
 
-// Internal state for click-click line drawing
-const _lineState = { startX: 0, startY: 0, drawing: false, lastCursorX: 0, lastCursorY: 0 };
+// Internal state for click-click line drawing.
+// lockDirX/Y: direction anchor frozen at the moment the user STARTS typing a
+// length — typically right after Shift straightened the preview. While the
+// type-buffer is non-empty the segment direction stays locked to this anchor
+// (mouse movement no longer changes it); cleared when the buffer empties or
+// the segment commits/cancels.
+const _lineState = {
+  startX: 0, startY: 0, drawing: false,
+  lastCursorX: 0, lastCursorY: 0,
+  lockDirX: null, lockDirY: null,
+};
 
 export const lineTool = {
   name: 'line',
@@ -23,6 +32,8 @@ export const lineTool = {
       // Right-click cancels
       if (_lineState.drawing) {
         _lineState.drawing = false;
+        _lineState.lockDirX = null;
+        _lineState.lockDirY = null;
         state.isDrawing = false;
         exitTypeLengthMode();
         state._typeLengthCommit = null;
@@ -49,8 +60,11 @@ export const lineTool = {
       // Second click: create the line annotation
       let endX, endY;
       if (typeLengthHasBuffer()) {
-        // Honor typed length: use last cursor direction, length from buffer
-        const ep = applyToEndpoint(_lineState.startX, _lineState.startY, ctx.x, ctx.y);
+        // Honor typed length along the PREVIEW direction (includes snap +
+        // Shift angle-straightening) — what you saw is what you get.
+        const dirX = _lineState.lastCursorX ?? ctx.x;
+        const dirY = _lineState.lastCursorY ?? ctx.y;
+        const ep = applyToEndpoint(_lineState.startX, _lineState.startY, dirX, dirY);
         endX = ep.x;
         endY = ep.y;
       } else {
@@ -72,10 +86,6 @@ export const lineTool = {
       return;
     }
 
-    // Remember cursor for type-length direction when committing on Enter
-    _lineState.lastCursorX = x;
-    _lineState.lastCursorY = y;
-
     // Temporarily set state.startX/Y to the saved first-click position
     // so drawShapePreview uses the correct origin
     const savedStartX = state.startX;
@@ -88,11 +98,49 @@ export const lineTool = {
     let previewX = snap.snapped ? snap.x : x;
     let previewY = snap.snapped ? snap.y : y;
     state.lastSnapResult = snap.snapped ? snap : null;
-    // If user has typed a length, lock endpoint distance to typed value
+
+    // Shift = angle snap (straighten). Applied to the preview AND remembered
+    // as the type-length direction so a typed measurement commits along the
+    // straightened direction — not along the raw diagonal cursor.
+    const prefs = state.preferences;
+    if (!snap.snapped && e.shiftKey && prefs.enableAngleSnap && ctx.snapAngle) {
+      const dx = previewX - _lineState.startX;
+      const dy = previewY - _lineState.startY;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+      const snappedA = ctx.snapAngle(angle, prefs.angleSnapDegrees) * (Math.PI / 180);
+      previewX = _lineState.startX + len * Math.cos(snappedA);
+      previewY = _lineState.startY + len * Math.sin(snappedA);
+    }
+
+    // Direction lock while typing: the FIRST buffered character freezes the
+    // current (possibly Shift-straightened) direction; as long as the buffer
+    // is non-empty the segment keeps that direction no matter where the
+    // mouse moves. Releasing Shift to type digits therefore keeps the line
+    // horizontal/vertical exactly as previewed.
     if (typeLengthHasBuffer()) {
-      const ep = applyToEndpoint(_lineState.startX, _lineState.startY, x, y);
+      if (_lineState.lockDirX == null) {
+        _lineState.lockDirX = _lineState.lastCursorX;
+        _lineState.lockDirY = _lineState.lastCursorY;
+      }
+      previewX = _lineState.lockDirX;
+      previewY = _lineState.lockDirY;
+    } else {
+      _lineState.lockDirX = null;
+      _lineState.lockDirY = null;
+    }
+
+    // Remember the SNAPPED cursor for type-length direction on Enter-commit.
+    _lineState.lastCursorX = previewX;
+    _lineState.lastCursorY = previewY;
+    // If user has typed a length, lock endpoint distance to the typed value
+    // ALONG THE LOCKED DIRECTION (previewX/Y holds the frozen anchor).
+    if (typeLengthHasBuffer()) {
+      const ep = applyToEndpoint(_lineState.startX, _lineState.startY, previewX, previewY);
       previewX = ep.x;
       previewY = ep.y;
+      _lineState.lastCursorX = ep.x;
+      _lineState.lastCursorY = ep.y;
       state.lastSnapResult = null;
     }
     ctx.drawShapePreview(previewX, previewY, e);
@@ -110,6 +158,8 @@ export const lineTool = {
   },
 
   onDeactivate(ctx) {
+    _lineState.lockDirX = null;
+    _lineState.lockDirY = null;
     if (_lineState.drawing) {
       _lineState.drawing = false;
       state.isDrawing = false;
@@ -136,6 +186,8 @@ function _commitLineAt(ctx, e, endX, endY) {
   state.lastSnapResult = null;
   state.isDrawing = false;
   _lineState.drawing = false;
+  _lineState.lockDirX = null;
+  _lineState.lockDirY = null;
   if (ctx.clearPolarAnchor) ctx.clearPolarAnchor();
 
   const tool = state.currentTool;
@@ -147,6 +199,25 @@ function _commitLineAt(ctx, e, endX, endY) {
   }
   exitTypeLengthMode();
   state._typeLengthCommit = null;
+
+  // WALLS draw in a CHAIN: the committed endpoint immediately becomes the
+  // start of the next segment (the renderer miters the shared corner), so
+  // you trace a plattegrond in one continuous flow. Right-click ends the
+  // chain (the cancel path in onPointerDown / onDeactivate).
+  if (tool === 'wall' && ann) {
+    _lineState.startX = endX;
+    _lineState.startY = endY;
+    _lineState.lastCursorX = endX;
+    _lineState.lastCursorY = endY;
+    _lineState.drawing = true;
+    state.isDrawing = true;
+    enterTypeLengthMode(endX, endY);
+    state._typeLengthCommit = () => _commitLine(ctx, e);
+    if (ctx.setPolarAnchor) ctx.setPolarAnchor(endX, endY, ctx.pageNum);
+    ctx.redraw();
+    return;
+  }
+
   ctx.redraw();
 
   // Auto-reset to select tool

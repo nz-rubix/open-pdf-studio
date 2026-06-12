@@ -12,6 +12,27 @@
 <body>
   <div id="app-root"></div>
 
+  <script>
+    // Boot diagnostics — installed BEFORE the module graph loads so even
+    // import-time errors surface on the Rust stderr (detach_diag) and the
+    // %TEMP% diag file. Without this a broken module import = silent white
+    // screen in headless/test instances.
+    window.addEventListener('error', function (e) {
+      try {
+        window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke(
+          'detach_diag', { label: 'boot-error', msg: (e.message || '?') + ' @ ' + (e.filename || '?') + ':' + (e.lineno || 0) }
+        );
+      } catch (_) {}
+    });
+    window.addEventListener('unhandledrejection', function (e) {
+      try {
+        var r = e.reason || {};
+        window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke(
+          'detach_diag', { label: 'boot-rejection', msg: String(r.stack || r.message || r) }
+        );
+      } catch (_) {}
+    });
+  </script>
   <script src="js/main.js" type="module"></script>
 </body>
 </html>

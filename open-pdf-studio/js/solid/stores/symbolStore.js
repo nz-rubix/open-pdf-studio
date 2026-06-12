@@ -1,6 +1,8 @@
 import { createSignal, createMemo } from 'solid-js';
 import { BUILT_IN_CATEGORIES } from '../data/symbolLibrary.js';
 import { NEN1414_CATEGORIES } from '../data/nen1414Library.js';
+import { NL_CATEGORIES } from '../data/nlSymbolLibrary.js';
+import { INB_CATEGORIES } from '../data/inbSymbolLibrary.js';
 import { state } from '../../core/state.js';
 import { savePreferences } from '../../core/preferences.js';
 import { registerPaletteDock } from './paletteOrder.js';
@@ -49,6 +51,8 @@ const allCategories = createMemo(() => {
     icon: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/></svg>`,
   }));
   return [
+    ...NL_CATEGORIES,
+    ...INB_CATEGORIES,
     ...BUILT_IN_CATEGORIES,
     ...NEN1414_CATEGORIES,
     ...custom

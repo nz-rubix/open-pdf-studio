@@ -14,11 +14,20 @@ const READY_TIMEOUT: Duration = Duration::from_secs(5);
 pub async fn spawn_worker(worker: Arc<WorkerState>, exe_path: &std::path::Path) -> Result<()> {
     worker.set_status(Status::Spawning);
 
+    // Namespace SHM by THIS app process's PID so a detached document window
+    // running as its own process spawns workers with distinct SHM files
+    // (else both processes fight over pdfium-worker-{slot}.shm → os error 1224).
+    let ns = std::process::id().to_string();
     let mut cmd = Command::new(exe_path);
     cmd.arg(worker.slot.to_string())
+        .arg(&ns)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit());
+    // Hide the worker's console window — the GUI parent has no console to
+    // share, so without this every pool worker pops up a black console box.
+    #[cfg(windows)]
+    cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     let mut child = cmd.spawn()
         .with_context(|| format!("spawn worker {} from {:?}", worker.slot, exe_path))?;
 
@@ -36,10 +45,11 @@ pub async fn spawn_worker(worker: Arc<WorkerState>, exe_path: &std::path::Path) 
         return Err(anyhow!("worker {} did not send ready: {}", worker.slot, ready_line));
     }
 
-    // mmap the SHM file the worker created
+    // mmap the SHM file the worker created (same PID-namespaced path)
     let shm_path = format!(
-        "{}/pdfium-worker-{}.shm",
+        "{}/pdfium-worker-{}-{}.shm",
         std::env::temp_dir().to_string_lossy(),
+        ns,
         worker.slot
     );
     let file = std::fs::OpenOptions::new()

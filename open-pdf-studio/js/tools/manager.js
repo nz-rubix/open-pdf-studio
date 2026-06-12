@@ -94,7 +94,9 @@ function _setSelectFallthroughEnabled(enabled) {
 
       let appX, appY;
       const vp = window.__pdfViewport;
-      if (vp && vp.active) {
+      // Blank docs bypass the viewport — same guard as resolvePointerCoords.
+      const _useVp = vp && vp.active && doc?.filePath;
+      if (_useVp) {
         appX = (e.clientX - rect.left - vp.offsetX) / vp.zoom;
         appY = (e.clientY - rect.top - vp.offsetY) / vp.zoom;
       } else {
@@ -113,7 +115,7 @@ function _setSelectFallthroughEnabled(enabled) {
       if (!overAnnotation) {
         const selAnns = doc.selectedAnnotations || [];
         if (selAnns.length === 1) {
-          const effScale = (vp && vp.active) ? vp.zoom : scale;
+          const effScale = _useVp ? vp.zoom : scale;
           const handleHit = findHandleAt(appX, appY, selAnns[0], effScale);
           if (handleHit) overAnnotation = true;
         }
@@ -217,8 +219,9 @@ export function setTool(tool) {
   }
 
   state.currentTool = tool;
-  // Don't clear toolOverrides when switching TO stamp — SymbolPalette sets them before setTool
-  if (tool !== 'stamp') {
+  // Don't clear toolOverrides when switching TO stamp or wall — the
+  // SymbolPalette sets them (stamp SVG / wall material+dikte) before setTool.
+  if (tool !== 'stamp' && tool !== 'wall') {
     state.toolOverrides = null;
   }
 
@@ -227,10 +230,70 @@ export function setTool(tool) {
   // (js/ui/cursor.js) will pick up state.currentTool and recompute.
   state.hoverAnnotation = null;
   state.hoverHandle = null;
+  // Also reset interaction state — without this, isPanning left over from
+  // the Hand tool (or any pointerup that missed the canvas) keeps the
+  // cursor stuck on 'grabbing' (= the "handje") even after switching to
+  // a drawing tool.
+  state.isPanning = false;
+  state.isMiddleButtonPanning = false;
+  state.isDragging = false;
+  state.isResizing = false;
+  state.activeHandle = null;
+  state.dragCursor = null;
 
-  // Hide properties panel when switching tools (keep visible for annotation tools)
+  // CRITICAL: clear any INLINE cursor that previous tools (especially
+  // hand-tool) wrote directly to canvas elements. The reactive cursor
+  // module sets cursor on .main-view, but child canvases with inline
+  // style.cursor override the parent — so without this clear, the
+  // 'grab' cursor from hand-tool stays visible on top of the new
+  // tool's crosshair. Resetting to '' makes them inherit from .main-view.
+  //
+  // Also: when a DRAWING tool is active, suppress link-layer + form-layer
+  // events. linkLayer sits at z-index 10 (above annotation-canvas z:6)
+  // and applies `cursor: pointer` (= the "handje" the user sees) when
+  // hovering over a hyperlink. That cursor wins over the tool's crosshair
+  // because the link element is on top. Same for form fields. Disabling
+  // pointer-events on those layers makes hovers fall through to
+  // annotation-canvas where the tool cursor applies.
+  try {
+    const pdfCanvas = document.getElementById('pdf-canvas');
+    if (pdfCanvas) pdfCanvas.style.cursor = '';
+    document.querySelectorAll('.annotation-canvas, #annotation-canvas')
+      .forEach(c => { c.style.cursor = ''; });
+
+    const isDrawTool = tool !== 'select' && tool !== 'hand'
+                    && tool !== 'editText' && tool !== 'selectComments';
+    const linkPe = isDrawTool ? 'none' : '';
+    document.querySelectorAll('.linkLayer .pdf-link').forEach(el => {
+      el.style.pointerEvents = linkPe;
+      el.style.cursor = isDrawTool ? 'inherit' : '';
+    });
+    document.querySelectorAll('.formLayer section').forEach(el => {
+      el.style.pointerEvents = linkPe;
+    });
+  } catch (_) { /* DOM not ready yet */ }
+
+  // When switching to a drawing tool that has style preferences,
+  // populate the properties panel with the tool's current defaults
+  // (synthetic annotation) so the user can see them BEFORE drawing.
+  // Otherwise hide the panel (e.g. hand, editText). Select keeps its
+  // own state (selected annotation or none).
   if (tool !== 'select') {
-    hideProperties();
+    (async () => {
+      try {
+        const prefMod = await import('../core/preferences.js');
+        const hasStyle = prefMod && typeof prefMod.getStyleMapping === 'function'
+          && prefMod.getStyleMapping(tool) != null;
+        if (hasStyle) {
+          const propMod = await import('../solid/stores/propertiesStore.js');
+          if (propMod && typeof propMod.showToolDefaults === 'function') {
+            await propMod.showToolDefaults(tool);
+            return;
+          }
+        }
+      } catch (_) { /* fall through to hide */ }
+      hideProperties();
+    })();
   }
 
   // Text selection: enabled for unified select tool (text layer activates dynamically)

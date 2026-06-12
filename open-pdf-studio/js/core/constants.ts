@@ -48,8 +48,9 @@ export const DEFAULT_PREFERENCES: Preferences = {
   // General — authorName defaults to '' (resolved to OS username at load time)
   authorName: '',
 
-  // Snapping
-  angleSnapDegrees: 30,
+  // Snapping — 45 means Shift snaps to 0/45/90/135…: horizontaal,
+  // verticaal én diagonaal.
+  angleSnapDegrees: 45,
   enableAngleSnap: true,
 
   // Grid snapping (gridSize is in user units = mm by default — converted to

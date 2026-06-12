@@ -1051,8 +1051,9 @@
 .ribbon-group-compact .ribbon-btn-icon { width: 18px; height: 18px; }
 
 /* Compact CAD-style icon grid: 2 rows of 7 buttons (26×26 each ⇒ 7·26 = 182 px wide).
-   flex-wrap fills row 1 first, then row 2. align-content:center keeps them
-   vertically centered so the group label slot below stays even. */
+   flex-wrap fills row 1 first, then row 2. Icons top-aligned so the group
+   label sits close under them (was align-content:center which centered the
+   icons and pushed the label visually too low).  */
 .ribbon-group-compact .ribbon-group-content {
   display: flex;
   flex-direction: row;
@@ -1060,14 +1061,27 @@
   gap: 0;
   padding: 0;
   width: 182px;        /* 7 × 26 = exactly two rows of 7 */
-  align-content: center;
+  align-content: flex-start;
 }
 .ribbon-group-compact .ribbon-btn-stack { gap: 0; }
 .ribbon-group-compact { padding: 0 4px; }
-.ribbon-group-compact .ribbon-group-label { margin-top: 2px; text-align: center; }
+/* Label sits 2px under the icon grid, NOT pushed to flex-end of the group
+   (the base `.ribbon-group-label { margin-top: auto }` rule would otherwise
+   drop it to the bottom of the ribbon-group column even with the icons
+   top-aligned). */
+.ribbon-group-compact .ribbon-group-label {
+  margin-top: 2px;
+  margin-bottom: auto;
+  text-align: center;
+}
 
 /* ─── Adaptive ribbon: overflow ("More") group ───────────────────────────── */
 .ribbon-groups-adaptive { flex: 1 1 auto; width: 100%; min-width: 0; overflow: hidden; position: relative; }
+/* Groups must keep their NATURAL width — never shrink. Without this a narrow
+   window squashes the groups (buttons overlapping) BEFORE AdaptiveGroups'
+   width measurement can collapse them into the More-flyout: the measurement
+   then sees the squashed widths and concludes everything still fits. */
+.ribbon-groups-adaptive > .ribbon-group { flex: 0 0 auto; }
 .ribbon-group-overflow { min-width: 60px; position: relative; }
 .ribbon-group-overflow .ribbon-group-content { justify-content: center; }
 .ribbon-overflow-btn {

@@ -90,6 +90,9 @@
   "minimize": "Minimize",
   "maximize": "Maximize",
   "sendFeedback": "Send Feedback",
+  "openaecSignIn": "Sign in with OpenAEC",
+  "openaecSigningIn": "Signing in via the browser…",
+  "openaecSignOut": "Sign out",
   "loading": "Loading...",
   "leftPanel": {
     "noDocumentOpen": "No document open",

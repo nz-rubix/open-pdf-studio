@@ -1,6 +1,7 @@
 import { HANDLE_SIZE, HANDLE_TYPES } from '../core/constants.js';
 import { annotationCtx } from '../ui/dom-elements.js';
 import { state } from '../core/state.js';
+import { getTemplate } from '../symbols/registry.js';
 
 // Rotate a point around a center point
 function rotatePoint(x, y, centerX, centerY, rotationDegrees) {
@@ -24,6 +25,7 @@ function rotatePoint(x, y, centerX, centerY, rotationDegrees) {
 function getAnnotationCenter(annotation) {
   switch (annotation.type) {
     case 'box':
+    case 'mask':
     case 'highlight':
     case 'polygon':
     case 'cloud':
@@ -75,6 +77,7 @@ export function getAnnotationHandles(annotation, scale = 1) {
 
   switch (annotation.type) {
     case 'box':
+    case 'mask':
     case 'highlight':
     case 'polygon':
     case 'cloud':
@@ -205,6 +208,7 @@ export function getAnnotationHandles(annotation, scale = 1) {
       handles.push({ type: HANDLE_TYPES.ROTATE, x: circX + circW/2 - hs/2, y: circY - 25 / scale - hs/2 });
       break;
 
+    case 'wall':
     case 'line':
       // Endpoint handles + midpoint grip (move whole line)
       handles.push({ type: HANDLE_TYPES.LINE_START, x: annotation.startX - hs/2, y: annotation.startY - hs/2, isGrip: true });
@@ -384,6 +388,24 @@ export function getAnnotationHandles(annotation, scale = 1) {
     case 'scaleBar':
     case 'scheduleTable':
     case 'parametricSymbol':
+      // Fixed-size parametric symbols (steel profiles): size comes from the
+      // 'maat' × 'schaal' params, NOT from graphic resizing — only rotation.
+      // Line-form beam views (template.freeAxis → 'x') additionally get the
+      // LEFT/RIGHT grips so the beam LENGTH is draggable.
+      if (annotation.type === 'parametricSymbol') {
+        const _tpl = getTemplate(annotation.symbolId);
+        if (_tpl?.fixedSize) {
+          const _free = typeof _tpl.freeAxis === 'function'
+            ? _tpl.freeAxis(annotation.params || {})
+            : null;
+          if (_free === 'x') {
+            handles.push({ type: HANDLE_TYPES.LEFT, x: annotation.x - hs/2, y: annotation.y + annotation.height/2 - hs/2 });
+            handles.push({ type: HANDLE_TYPES.RIGHT, x: annotation.x + annotation.width - hs/2, y: annotation.y + annotation.height/2 - hs/2 });
+          }
+          handles.push({ type: HANDLE_TYPES.ROTATE, x: annotation.x + annotation.width/2 - hs/2, y: annotation.y - 25 / scale - hs/2 });
+          break;
+        }
+      }
       // Corner + edge + rotation handles
       handles.push({ type: HANDLE_TYPES.TOP_LEFT, x: annotation.x - hs/2, y: annotation.y - hs/2 });
       handles.push({ type: HANDLE_TYPES.TOP_RIGHT, x: annotation.x + annotation.width - hs/2, y: annotation.y - hs/2 });
