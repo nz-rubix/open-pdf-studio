@@ -1341,15 +1341,17 @@
 /* New Document Dialog */
 .new-doc-overlay { }
 
-.new-doc-dialog { width: 460px; }
+.new-doc-dialog { width: 560px; }
 
 .new-doc-content {
   display: flex;
   gap: 20px;
+  align-items: flex-start;
 }
 
 .new-doc-form {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1447,6 +1449,11 @@
 }
 
 .new-doc-preview-area {
+  /* Fixed-width column: WITHOUT this the long preview text (incl. the frame
+     filename) with nowrap stretched this column wide and pushed the whole
+     white sheet past the dialog's right edge ("het blad valt ernaast"). */
+  flex: 0 0 200px;
+  width: 200px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1454,26 +1461,32 @@
 }
 
 .new-doc-preview-box {
-  width: 120px;
-  height: 150px;
+  width: 200px;
+  height: 250px;
+  box-sizing: border-box;
   background: var(--theme-bg, #f0f0f0);
   border: 1px solid var(--theme-border, #d4d4d4);
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 .new-doc-preview-page {
   background: #ffffff;
   border: 1px solid var(--theme-border, #999);
   box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.15);
+  box-sizing: border-box;
 }
 
 .new-doc-preview-text {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--theme-text-secondary, #666);
   text-align: center;
-  white-space: nowrap;
+  width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
 }
 
 .new-doc-footer-right {
@@ -4195,3 +4208,36 @@ select.ste-field { padding: 2px 4px; cursor: pointer; }
 }
 .print-queue-actions { display: flex; gap: 4px; }
 .print-queue-actions .pref-btn { padding: 2px 7px; }
+
+/* ── Non-modal print progress (floating, bottom-right) ── */
+.print-progress-toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: 280px;
+  padding: 12px 14px;
+  background: var(--theme-surface, #fff);
+  border: 1px solid var(--theme-border, #d4d4d4);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  z-index: 3000;
+  color: var(--theme-text, #1f1f1f);
+}
+.print-progress-label {
+  font-size: 12px;
+  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.print-progress-track {
+  height: 6px;
+  background: var(--theme-bg, #ececec);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.print-progress-fill {
+  height: 100%;
+  background: var(--theme-accent, #0078d4);
+  transition: width 0.2s ease;
+}
+.print-progress-error .print-progress-fill { background: #c62828; }

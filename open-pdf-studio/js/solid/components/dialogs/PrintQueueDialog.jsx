@@ -8,7 +8,7 @@ import { closeDialog } from '../../stores/dialogStore.js';
 import { printQueueJobs, refreshPrintQueue, deletePrintJob } from '../../stores/printQueueStore.js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
 import { state } from '../../../core/state.js';
-import { isTauri, invoke, readBinaryFile } from '../../../core/platform.js';
+import { isTauri, invoke, readBinaryFile, saveFileDialog, writeBinaryFile } from '../../../core/platform.js';
 
 function fmtTime(ms) {
   if (!ms) return '';
@@ -105,6 +105,24 @@ export default function PrintQueueDialog() {
     setBusyMsg('');
   }
 
+  // "Direct opslaan": write one job straight to a user-chosen location.
+  async function handleSave(job) {
+    if (!isTauri()) return;
+    setBusyMsg(t('printQueue.saving') || 'Opslaan…');
+    try {
+      const dest = await saveFileDialog(job.file, [{ name: 'PDF', extensions: ['pdf'] }]);
+      if (!dest) { setBusyMsg(''); return; }
+      try { await invoke('allow_fs_scope', { path: job.path }); } catch {}
+      const bytes = await readBinaryFile(job.path);
+      await writeBinaryFile(dest, new Uint8Array(bytes));
+      await deletePrintJob(job.file);
+    } catch (e) {
+      setBusyMsg(String(e?.message ?? e));
+      return;
+    }
+    setBusyMsg('');
+  }
+
   async function handleMerge() {
     const targets = orderedJobs().filter(j => checked().has(j.file));
     if (targets.length === 0) return;
@@ -169,6 +187,9 @@ export default function PrintQueueDialog() {
                 <div class="print-queue-actions">
                   <button class="pref-btn" title={t('printQueue.moveUp') || 'Omhoog'} onClick={() => moveJob(job.file, -1)}>▲</button>
                   <button class="pref-btn" title={t('printQueue.moveDown') || 'Omlaag'} onClick={() => moveJob(job.file, 1)}>▼</button>
+                  <button class="pref-btn" title={t('printQueue.save') || 'Opslaan'} onClick={() => handleSave(job)}>
+                    {t('printQueue.save') || 'Opslaan'}
+                  </button>
                   <button class="pref-btn" title={t('printQueue.open') || 'Openen'} onClick={() => handleOpen(job)}>
                     {t('printQueue.open') || 'Openen'}
                   </button>

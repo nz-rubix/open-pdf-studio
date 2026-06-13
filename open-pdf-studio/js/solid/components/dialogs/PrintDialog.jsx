@@ -3,9 +3,10 @@ import Dialog from '../Dialog.jsx';
 import { closeDialog } from '../../stores/dialogStore.js';
 import { state, getActiveDocument, getPageRotation } from '../../../core/state.js';
 import { invoke } from '../../../core/platform.js';
-import { parsePageRange, renderPageOffscreen, canvasToBytes } from '../../../pdf/exporter.js';
-import { PDFDocument } from 'pdf-lib';
+import { parsePageRange } from '../../../pdf/exporter.js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
+import { loadPrinters, printerList as cachedPrinters, defaultPrinterName } from '../../stores/printerStore.js';
+import { runPrintJob } from '../../../pdf/print-job.js';
 
 export default function PrintDialog(props) {
   const { t } = useTranslation('dialogs');
@@ -210,116 +211,48 @@ export default function PrintDialog(props) {
     showPageSetupDialog();
   }
 
-  async function executePrint() {
+  function executePrint() {
     if (!selectedPrinter()) {
       setStatusMessage(t('print.noPrinterSelected'));
       setStatusType('error');
       return;
     }
-
     const pages = getPrintPages();
     if (pages.length === 0) {
       setStatusMessage(t('print.noPagesToPrint'));
       setStatusType('error');
       return;
     }
-
-    setPrintDisabled(true);
-    setStatusMessage(t('print.preparingPrintJob'));
-    setStatusType('');
-
-    try {
-      const exportScale = 300 / 72;
-      const newPdf = await PDFDocument.create();
-
-      for (let i = 0; i < pages.length; i++) {
-        const pageNum = pages[i];
-        setStatusMessage(`${t('print.renderingPage')} ${pageNum}...`);
-
-        const canvas = await renderPageOffscreen(pageNum, exportScale);
-        const jpegBytes = await canvasToBytes(canvas, 'jpeg', 0.92);
-        const jpegImage = await newPdf.embedJpg(jpegBytes);
-
-        const origPage = await getActiveDocument().pdfDoc.getPage(pageNum);
-        const extraRotation = getPageRotation(pageNum);
-        const origViewportOpts = { scale: 1 };
-        if (extraRotation) {
-          origViewportOpts.rotation = (origPage.rotate + extraRotation) % 360;
-        }
-        const origViewport = origPage.getViewport(origViewportOpts);
-
-        const pdfPage = newPdf.addPage([origViewport.width, origViewport.height]);
-        pdfPage.drawImage(jpegImage, {
-          x: 0,
-          y: 0,
-          width: origViewport.width,
-          height: origViewport.height,
-        });
-      }
-
-      setStatusMessage(t('print.savingPrintData'));
-      const pdfBytes = await newPdf.save();
-      const tempPath = await invoke('write_temp_pdf', { data: Array.from(pdfBytes) });
-
-      if (!tempPath) {
-        setStatusMessage(t('print.failedToCreateTempFile'));
-        setStatusType('error');
-        setPrintDisabled(false);
-        return;
-      }
-
-      const numCopies = Math.max(1, copies());
-      for (let c = 0; c < numCopies; c++) {
-        setStatusMessage(numCopies > 1
-          ? `${t('print.printingCopy')} ${c + 1} of ${numCopies}...`
-          : t('print.sendingToPrinter'));
-        await invoke('print_pdf', {
-          path: tempPath,
-          printer: selectedPrinter(),
-        });
-      }
-
-      setStatusMessage(t('print.printJobSent'));
-      setStatusType('success');
-
-      setTimeout(() => {
-        close();
-      }, 1500);
-
-      setTimeout(async () => {
-        try {
-          await invoke('delete_temp_file', { path: tempPath });
-        } catch (_) {}
-      }, 30000);
-    } catch (e) {
-      console.error('Print error:', e);
-      setStatusMessage(`${t('print.printFailed')} ${e.message || e}`);
-      setStatusType('error');
-      setPrintDisabled(false);
-    }
+    // Non-modal: close the dialog NOW and let the job render + spool in the
+    // background, reporting via the floating progress bar. The user keeps
+    // working meanwhile.
+    const printer = selectedPrinter();
+    const numCopies = Math.max(1, copies());
+    close();
+    runPrintJob({ pages, copies: numCopies, printer });
   }
 
   onMount(async () => {
-    try {
-      const json = await invoke('get_printers');
-      const parsed = JSON.parse(json);
-      // PowerShell's ConvertTo-Json returns a bare OBJECT when there is only
-      // one printer — normalize to an array so .find/.map always work.
-      const printers = Array.isArray(parsed) ? parsed : (parsed ? [parsed] : []);
-      setPrinterList(printers);
-
-      if (printers.length === 0) {
-        setPrintDisabled(true);
-        return;
+    // Instant: seed from the cache lazy-loaded at startup so the default
+    // printer is already selected without waiting on enumeration.
+    const cached = cachedPrinters();
+    if (cached.length) {
+      setPrinterList(cached);
+      const name = defaultPrinterName() || cached[0]?.Name || '';
+      setSelectedPrinter(name);
+      updatePrinterInfo(name);
+    }
+    // Refresh in the background (covers a first open before startup finished).
+    const fresh = await loadPrinters(true);
+    if (fresh.length) {
+      setPrinterList(fresh);
+      if (!selectedPrinter()) {
+        const name = defaultPrinterName() || fresh[0]?.Name || '';
+        setSelectedPrinter(name);
+        updatePrinterInfo(name);
       }
-
-      // Preselect the OS default printer (defensive about JSON bool shape).
-      const defaultPrinter = printers.find(p => p.Default === true || p.Default === 'True');
-      const printerName = defaultPrinter?.Name || printers[0]?.Name || '';
-      setSelectedPrinter(printerName);
-      updatePrinterInfo(printerName);
-    } catch (e) {
-      console.error('Failed to enumerate printers:', e);
+      setPrintDisabled(false);
+    } else if (!cached.length) {
       setPrintDisabled(true);
     }
 

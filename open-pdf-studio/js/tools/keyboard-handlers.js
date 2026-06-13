@@ -329,10 +329,10 @@ export async function handleKeydown(e) {
   } else if (ctrl && e.key === 'w') {
     e.preventDefault();
     closeActiveTab();
-  } else if (ctrl && e.key === 'p') {
-    e.preventDefault();
-    import('../ui/chrome/dialogs.js').then(({ showPrintDialog }) => showPrintDialog());
   }
+  // Ctrl+P is intercepted earlier in the capture phase (main.js
+  // disableBrowserShortcuts) so it can suppress WebView2's native print
+  // dialog; handling it here as well would open ours twice.
 
   // Edit shortcuts
   else if (ctrl && !shift && e.key === 'z') {

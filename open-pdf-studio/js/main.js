@@ -148,10 +148,20 @@ function disableBrowserShortcuts() {
     const ctrl = e.ctrlKey || e.metaKey;
     if (!ctrl) return;
 
-    // Browser shortcuts to block: inspect (I/Shift+I), view source (U), find (G/Shift+G), print (P is handled by app)
+    // Browser shortcuts to block: inspect (I/Shift+I), view source (U), find (G/Shift+G), console (J)
     const blocked = ['i', 'u', 'g', 'j'];
     if (blocked.includes(e.key.toLowerCase()) && !e.target.matches('input, textarea')) {
       e.preventDefault();
+    }
+    // Ctrl+P: suppress the WebView2 NATIVE print dialog (it fires as a
+    // browser accelerator that the app's bubble-phase handler is too late to
+    // stop) and open OUR print dialog instead. Same capture-phase
+    // preventDefault that already suppresses the other accelerators above.
+    if (e.key.toLowerCase() === 'p' && !e.shiftKey && !e.altKey && !e.target.matches('input, textarea')) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      import('./ui/chrome/dialogs.js').then(({ showPrintDialog }) => showPrintDialog());
+      return;
     }
     // Ctrl+Shift+I (DevTools), Ctrl+Shift+J (Console), Ctrl+Shift+C (Inspect element)
     if (e.shiftKey && ['I', 'J', 'C'].includes(e.key)) {
@@ -221,6 +231,12 @@ async function init() {
   // printer isn't installed.
   import('./solid/stores/printQueueStore.js')
     .then(m => m.startPrintQueueWatcher())
+    .catch(() => {});
+
+  // Lazy-load printer enumeration so the print dialog shows the OS default
+  // printer instantly (Ctrl+P) instead of waiting on PowerShell/lpstat.
+  import('./solid/stores/printerStore.js')
+    .then(m => m.loadPrinters())
     .catch(() => {});
 
   // Show the window after frontend init. The previous double-rAF paint-wait

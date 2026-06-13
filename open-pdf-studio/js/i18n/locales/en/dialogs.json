@@ -13,6 +13,8 @@
     "customSize": "Custom..."
   },
   "printQueue": {
+    "save": "Save",
+    "saving": "Saving…",
     "title": "Print jobs — Open PDF Printer",
     "empty": "No print jobs yet. Print from any application to \"Open PDF Printer\" and the job shows up here.",
     "pages": "Pages",

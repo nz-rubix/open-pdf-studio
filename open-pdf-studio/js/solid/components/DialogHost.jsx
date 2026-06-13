@@ -40,6 +40,7 @@ import PdfTextEditOverlay from './PdfTextEditOverlay.jsx';
 import StickyNotePopupHost from './StickyNotePopup.jsx';
 import ParametricSymbolPicker from './dialogs/ParametricSymbolPicker.jsx';
 import StyleTypeEditorDialog from './dialogs/StyleTypeEditorDialog.jsx';
+import PrintProgressToast from './PrintProgressToast.jsx';
 
 const DIALOG_MAP = {
   'doc-properties': DocPropertiesDialog,
@@ -94,6 +95,7 @@ export default function DialogHost() {
       <PdfTextEditOverlay />
       <StickyNotePopupHost />
       <ParametricSymbolPicker />
+      <PrintProgressToast />
     </>
   );
 }

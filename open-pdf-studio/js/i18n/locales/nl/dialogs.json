@@ -13,6 +13,8 @@
     "customSize": "Aangepast..."
   },
   "printQueue": {
+    "save": "Opslaan",
+    "saving": "Opslaan…",
     "title": "Afdrukopdrachten — Open PDF Printer",
     "empty": "Nog geen afdrukopdrachten. Print vanuit een programma naar \"Open PDF Printer\" en de opdracht verschijnt hier.",
     "pages": "Bladzijden",

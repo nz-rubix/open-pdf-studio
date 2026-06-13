@@ -105,6 +105,9 @@
     "detecting": "Detecteren..."
   },
   "home": {
+    "document": "Document",
+    "new": "Nieuw",
+    "newDocument": "Nieuw document (kader of blanco)",
     "tools": "Hulpmiddelen",
     "handTool": "Handgereedschap",
     "hand": "Hand",

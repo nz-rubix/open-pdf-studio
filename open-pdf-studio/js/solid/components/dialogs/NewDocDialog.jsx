@@ -123,8 +123,9 @@ export default function NewDocDialog() {
 
   const previewStyle = createMemo(() => {
     const dims = getDimensions();
-    const maxW = 100;
-    const maxH = 130;
+    // Fill the 200x250 preview box (10px breathing room each side).
+    const maxW = 180;
+    const maxH = 230;
     const aspect = dims.widthPt / dims.heightPt;
     let w, h;
     if (aspect > maxW / maxH) {

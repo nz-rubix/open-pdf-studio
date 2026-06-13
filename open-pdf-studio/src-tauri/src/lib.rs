@@ -166,7 +166,7 @@ async fn is_default_pdf_app() -> bool {
             };
 
             // Query the UserChoice ProgId for .pdf
-            let output = match std::process::Command::new("reg")
+            let output = match no_window_command("reg")
                 .args(&["query", r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.pdf\UserChoice", "/v", "ProgId"])
                 .output()
             {
@@ -192,7 +192,7 @@ async fn is_default_pdf_app() -> bool {
 
             // Look up the shell\open\command for this ProgId in HKCR
             let key_path = format!(r"HKCR\{}\shell\open\command", prog_id);
-            let output2 = match std::process::Command::new("reg")
+            let output2 = match no_window_command("reg")
                 .args(&["query", &key_path, "/ve"])
                 .output()
             {
@@ -234,7 +234,7 @@ fn open_default_apps_settings() -> Result<bool, String> {
     #[cfg(target_os = "windows")]
     {
         // Open the "Choose default apps by file type" settings page
-        std::process::Command::new("cmd")
+        no_window_command("cmd")
             .args(&["/c", "start", "ms-settings:defaultapps"])
             .spawn()
             .map_err(|e| e.to_string())?;
@@ -319,13 +319,26 @@ fn unlock_file(path: String, state: tauri::State<LockedFiles>) -> Result<bool, S
     Ok(true)
 }
 
+/// Build a process Command that never flashes a console window on Windows
+/// (CREATE_NO_WINDOW). Use this for EVERY helper-process spawn (reg, cmd,
+/// powershell, …) so the GUI app stays window-free — a bare Command::new
+/// pops a black console box for a split second.
+#[cfg(target_os = "windows")]
+fn no_window_command(program: &str) -> std::process::Command {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let mut c = std::process::Command::new(program);
+    c.creation_flags(CREATE_NO_WINDOW);
+    c
+}
+
 /// Enumerate installed printers via PowerShell CIM.
 /// Returns a JSON array of printer objects.
 #[tauri::command]
 fn get_printers() -> Result<String, String> {
     #[cfg(target_os = "windows")]
     {
-        let output = std::process::Command::new("powershell")
+        let output = no_window_command("powershell")
             .args(&[
                 "-NoProfile", "-NonInteractive", "-Command",
                 "Get-CimInstance -ClassName Win32_Printer | Select-Object Name, DriverName, Default, PrinterStatus | ConvertTo-Json -Compress"

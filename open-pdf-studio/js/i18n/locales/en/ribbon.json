@@ -117,6 +117,9 @@
     "detecting": "Detecting..."
   },
   "home": {
+    "document": "Document",
+    "new": "New",
+    "newDocument": "New document (frame or blank)",
     "tools": "Tools",
     "basic": "Basic",
     "handTool": "Hand Tool",
