@@ -1,11 +1,13 @@
 {
   "$schema": "https://schemas.tauri.app/config/2",
   "identifier": "default",
-  "description": "Default capabilities for the main window + detached document windows (desktop)",
+  "description": "Default capabilities for the main window + detached document windows + the standalone print-queue window (desktop)",
   "platforms": ["linux", "macOS", "windows"],
-  "windows": ["main", "pdf-*"],
+  "windows": ["main", "pdf-*", "print-queue"],
   "permissions": [
     "core:default",
+    "core:webview:allow-create-webview-window",
+    "core:window:allow-create",
     "core:window:allow-close",
     "core:window:allow-minimize",
     "core:window:allow-maximize",

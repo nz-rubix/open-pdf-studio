@@ -5,11 +5,11 @@
 // into unique job_<epoch>.pdf files (virtual_printer_collect) and lists them
 // (virtual_printer_jobs). This store polls the sweep while the app runs and
 // pops the queue dialog whenever a NEW job arrives — so printing from any
-// application lands in the in-app sort/merge dialog.
+// application opens the STANDALONE catch window (a separate Tauri window,
+// not an in-app dialog).
 
 import { createSignal } from 'solid-js';
 import { isTauri } from '../../core/platform.js';
-import { openDialog, getDialogs } from './dialogStore.js';
 
 const [jobs, setJobs] = createSignal([]);
 const [busy, setBusy] = createSignal(false);
@@ -42,6 +42,36 @@ export async function deletePrintJob(file) {
   await refreshPrintQueue();
 }
 
+/** Open (or focus) the STANDALONE print-queue window — a separate Tauri
+ *  window beside the main app, NOT an in-app dialog. Loads the frontend in
+ *  print-queue mode (?view=printqueue → main.js renders only PrintQueueWindow). */
+export async function openPrintQueueWindow() {
+  const wv = window.__TAURI__?.webviewWindow;
+  if (!wv?.WebviewWindow) return;
+  const W = wv.WebviewWindow;
+  const label = 'print-queue';
+  // Reuse an already-open window: just show + focus it.
+  try {
+    const existing = await W.getByLabel(label);
+    if (existing) { try { await existing.show(); await existing.setFocus(); } catch (_) {} return; }
+  } catch (_) {}
+  try {
+    const win = new W(label, {
+      url: 'index.html?view=printqueue',
+      title: 'PDF-opvang — Open PDF Studio',
+      width: 640,
+      height: 540,
+      minWidth: 420,
+      minHeight: 320,
+      resizable: true,
+      decorations: true,
+    });
+    win.once('tauri://error', (e) => console.warn('[printqueue] window error:', e));
+  } catch (e) {
+    console.warn('[printqueue] could not open window:', e);
+  }
+}
+
 async function _tick() {
   const list = await refreshPrintQueue();
   const files = new Set(list.map(j => j.file));
@@ -50,8 +80,9 @@ async function _tick() {
     if (!_knownFiles.has(f)) hasNew = true;
   }
   _knownFiles = files;
-  if (hasNew && !getDialogs().some(d => d.name === 'print-queue')) {
-    openDialog('print-queue');
+  // A new captured print opens the standalone catch window (beside the app).
+  if (hasNew) {
+    openPrintQueueWindow();
   }
 }
 

@@ -185,6 +185,18 @@ function disableBrowserShortcuts() {
 async function init() {
   const mobile = isMobile();
 
+  // STANDALONE PRINT-QUEUE WINDOW (?view=printqueue): a separate Tauri window
+  // opened by the print-catch watcher. Renders ONLY the catch/merge UI — no
+  // ribbon, no document workspace, no worker pool usage — so it works as its
+  // own window beside the main app instead of as an integrated dialog.
+  if (new URLSearchParams(location.search).get('view') === 'printqueue') {
+    if (!mobile) disableDefaultContextMenu();
+    try { await loadPreferences(); } catch (_) {}
+    const { default: PrintQueueWindow } = await import('./solid/components/PrintQueueWindow.jsx');
+    render(() => PrintQueueWindow(), document.getElementById('app-root'));
+    return;
+  }
+
   // Disable context menu on desktop only (long-press is expected on mobile)
   if (!mobile) {
     disableDefaultContextMenu();
