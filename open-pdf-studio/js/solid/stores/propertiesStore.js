@@ -12,6 +12,14 @@ import i18next from '../../i18n/config.js';
 import { syncDocScale } from '../../annotations/scale-bar.js';
 import { recalculateAllMeasurements, calculateArea, calculatePerimeter, formatMeasurement, getMeasureScale } from '../../annotations/measurement.js';
 
+// Types whose single 'color' control IS their stroke colour and which render
+// via `strokeColor || color`. For these, the 'color' control must mirror onto
+// strokeColor or a stale strokeColor would override the change (the reported
+// "polyline colour change does nothing" bug).
+const _STROKE_COLOR_DRIVEN = new Set([
+  'parametricSymbol', 'polyline', 'cloudPolyline', 'spline', 'draw',
+]);
+
 // Panel visibility and collapsed state
 const [panelVisible, setPanelVisible] = createSignal(true);
 const [panelCollapsed, setPanelCollapsed] = createSignal(false);
@@ -845,10 +853,12 @@ export function updateAnnotProp(key, value) {
     case 'status': currentAnnotation.status = value === 'none' ? undefined : value; break;
     case 'color':
       currentAnnotation.color = value;
-      // Parametric symbols draw EVERYTHING (lines, fills, text) in one
-      // colour resolved as strokeColor||color — keep both in sync so either
-      // colour control recolours the whole symbol.
-      if (currentAnnotation.type === 'parametricSymbol') currentAnnotation.strokeColor = value;
+      // Stroke-rendered types resolve their colour as `strokeColor || color`
+      // (rendering.js). If such an annotation already carries a strokeColor
+      // (set by its creator), changing only `color` has NO visible effect —
+      // the stale strokeColor wins. So when the 'color' control IS the colour
+      // for these types, mirror it onto strokeColor too.
+      if (_STROKE_COLOR_DRIVEN.has(currentAnnotation.type)) currentAnnotation.strokeColor = value;
       break;
     case 'fillColor': currentAnnotation.fillColor = value; break;
     case 'strokeColor':

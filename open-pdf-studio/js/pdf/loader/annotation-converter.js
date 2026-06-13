@@ -869,10 +869,14 @@ export async function convertPdfAnnotation(annot, pageNum, viewport, stampImageM
         borderColor = colorArrayToHex(annot.borderColor, '#000000');
       }
 
-      // Fill/background color: annot.color (C entry) for FreeText, fallback to backgroundColor (MK/BG)
-      const bgColor = annot.color
-        ? colorArrayToHex(annot.color)
-        : (annot.backgroundColor ? colorArrayToHex(annot.backgroundColor) : null);
+      // Fill/background color = the FreeText /C entry. Use pdf-lib's view
+      // (extraColors.cColor — set ONLY when /C is actually present): pdf.js's
+      // annot.color DEFAULTS to black when /C is absent, which would paint a
+      // no-fill textbox black on reopen. We deliberately do NOT fall back to
+      // annot.backgroundColor — pdf.js reports a default WHITE there, which
+      // would turn a transparent textbox into an opaque white box that hides
+      // whatever is behind it. No /C ⇒ no fill (transparent).
+      const bgColor = extraColors.cColor || null;
 
       // Border style: 1=SOLID, 2=DASHED, 3=BEVELED, 4=INSET, 5=UNDERLINE
       const bsStyle = annot.borderStyle?.style;

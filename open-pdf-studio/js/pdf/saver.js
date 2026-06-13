@@ -656,9 +656,12 @@ export async function savePDF(saveAsPath = null) {
             // FreeText color mapping (must match loader):
             //   C entry  = fill/background color (annot.color in pdf.js)
             //   IC entry = stroke/border color (extraColors.ic in loader)
-            const ftStrokeColorArr = (ann.strokeColor && ann.strokeColor !== 'none')
+            const ftStrokeColorArr = (ann.strokeColor && ann.strokeColor !== 'none' && ann.strokeColor !== 'transparent')
               ? hexToColorArray(ann.strokeColor) : [0, 0, 0];
-            const ftFillColorArr = (ann.fillColor && ann.fillColor !== 'none')
+            // 'transparent' = NO fill (same as 'none'/null). Without this guard
+            // hexToColorArray('transparent') → black, so /C was written black
+            // and the textbox came back as a black box on reopen.
+            const ftFillColorArr = (ann.fillColor && ann.fillColor !== 'none' && ann.fillColor !== 'transparent')
               ? hexToColorArray(ann.fillColor) : null;
 
             // Build DS (Default Style) string for better interop with other viewers
