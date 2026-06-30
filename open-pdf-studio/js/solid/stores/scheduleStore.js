@@ -152,6 +152,31 @@ function exportCSV() {
   URL.revokeObjectURL(url);
 }
 
+// --- Alle geplaatste elementen, geteld per type (heel het document) ---
+const ELEMENT_TYPE_NAMES = {
+  line: 'Lijn', arrow: 'Pijl', wall: 'Wand', box: 'Rechthoek', mask: 'Maskeer',
+  redaction: 'Redactie', circle: 'Cirkel', ellipse: 'Ellips', highlight: 'Markering',
+  cloud: 'Wolk', polygon: 'Polygoon', polyline: 'Polylijn', cloudPolyline: 'Wolk-polylijn',
+  spline: 'Spline', arc: 'Boog', draw: 'Pen', filledArea: 'Gevuld vlak',
+  textbox: 'Tekstvak', callout: 'Tekstballon', comment: 'Notitie', text: 'Tekst',
+  stamp: 'Stempel', signature: 'Handtekening', image: 'Afbeelding',
+  parametricSymbol: 'Symbool', count: 'Telmarkering',
+  measureDistance: 'Afstand', measureArea: 'Oppervlakte', measurePerimeter: 'Omtrek',
+  measureAngle: 'Hoek', scaleRegion: 'Schaalgebied', viewport: 'Viewport', scheduleTable: 'Hoeveelheden-tabel',
+};
+
+/** Telt élke geplaatste annotatie, gegroepeerd per type (aflopend op aantal). */
+export const allElementsTally = createMemo(() => {
+  const doc = getActiveDocument();
+  const byType = new Map();
+  for (const a of (doc?.annotations || [])) byType.set(a.type, (byType.get(a.type) || 0) + 1);
+  return [...byType.entries()]
+    .map(([type, count]) => ({ type, name: ELEMENT_TYPE_NAMES[type] || type, count }))
+    .sort((a, b) => b.count - a.count);
+});
+
+export const allElementsTotal = createMemo(() => (getActiveDocument()?.annotations || []).length);
+
 export function toggleSchedule() {
   setScheduleVisible(!scheduleVisible());
 }

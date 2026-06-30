@@ -1075,6 +1075,28 @@
   text-align: center;
 }
 
+/* Adaptive icon-only mode — when the window is too narrow to show every
+   group's labels, AdaptiveGroups drops the whole tab to icon-only (labels
+   hidden, buttons shrunk to a CAD-style toolbar) before collapsing groups
+   into the More-flyout. Full names stay available via each button's tooltip. */
+.ribbon-groups-icon-only .ribbon-btn-label { display: none; }
+.ribbon-groups-icon-only .ribbon-btn { min-width: 0; }
+.ribbon-groups-icon-only .ribbon-btn.small,
+.ribbon-groups-icon-only .ribbon-btn.medium {
+  min-width: 26px;
+  width: 26px;
+  height: 26px;
+  padding: 1px;
+  gap: 0;
+  justify-content: center;
+}
+.ribbon-groups-icon-only .ribbon-btn.small .ribbon-btn-icon,
+.ribbon-groups-icon-only .ribbon-btn.medium .ribbon-btn-icon {
+  width: 18px;
+  height: 18px;
+}
+.ribbon-groups-icon-only .ribbon-btn-stack { gap: 0; }
+
 /* ─── Adaptive ribbon: overflow ("More") group ───────────────────────────── */
 .ribbon-groups-adaptive { flex: 1 1 auto; width: 100%; min-width: 0; overflow: hidden; position: relative; }
 /* Groups must keep their NATURAL width — never shrink. Without this a narrow

@@ -1,6 +1,11 @@
 /* OpenAEC account widget in the title bar — matches the Open Calc Studio
    integration (avatar with initials + name, sign-in button, dropdown). */
 
+/* OpenAEC house accent. A signed-in company brand overrides --openaec-accent
+   at runtime (openaecStore.js). Scoped to this widget on purpose — the rest of
+   the app keeps the Windows-Forms theme (--theme-*). */
+:root { --openaec-accent: #d97706; }
+
 .openaec-signin-btn {
   display: flex;
   align-items: center;
@@ -8,10 +13,10 @@
   height: 22px;
   margin-right: 8px;
   padding: 0 10px;
-  border: 1px solid var(--theme-accent, #2563eb);
+  border: 1px solid var(--openaec-accent, #d97706);
   border-radius: 11px;
   background: transparent;
-  color: var(--theme-accent, #2563eb);
+  color: var(--openaec-accent, #d97706);
   font-size: 11px;
   font-weight: 600;
   font-family: 'Inter', system-ui, sans-serif;
@@ -20,7 +25,7 @@
   white-space: nowrap;
   align-self: center;
 }
-.openaec-signin-btn:hover { background: var(--theme-accent, #2563eb); color: var(--theme-accent-text, #fff); }
+.openaec-signin-btn:hover { background: var(--openaec-accent, #d97706); color: #fff; }
 .openaec-signin-btn:disabled { opacity: 0.5; pointer-events: none; }
 
 .openaec-account { position: relative; display: flex; align-items: center; margin-right: 8px; }
@@ -48,7 +53,7 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #d97706 0%, #f59e0b 60%, #ea580c 100%);
+  background: var(--openaec-accent, #d97706);
   color: #fff;
   font-size: 9px;
   font-weight: 700;
@@ -69,6 +74,7 @@
   z-index: 10000;
 }
 .openaec-account-menu-header { padding: 6px 8px 8px; border-bottom: 1px solid var(--theme-border, #d4d4d4); margin-bottom: 4px; }
+.openaec-brand-logo { display: block; max-height: 24px; max-width: 150px; object-fit: contain; margin-bottom: 6px; }
 .openaec-account-menu-name { font-size: 12px; font-weight: 600; color: var(--theme-text, #1e1e1e); }
 .openaec-account-menu-email { font-size: 11px; color: var(--theme-text-secondary, #6b6b6b); }
 .openaec-account-menu-item {

@@ -396,6 +396,84 @@ fn handle_tools_list() -> Value {
                 }
             },
             {
+                "name": "app_merge_pdf",
+                "description": "Merge one or more external PDF files into the LIVE active document (wraps mergeFiles()). Inserts the source pages at the given position and re-renders. Requires an active document. Returns { ok, position, mergedFiles, pagesBefore, pagesAfter, filePath } — filePath is the temp working copy the edited document now renders from (Issue #247: structural edits move to a fresh temp so the main view shows the merged result and the user's original stays untouched).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "filePaths": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "Absolute paths of PDF files to merge into the current document." },
+                        "position": { "type": "string", "enum": ["end", "start", "after"], "description": "Where to insert the merged pages: 'end' (default), 'start', or 'after' the current page." }
+                    },
+                    "required": ["filePaths"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_ai_complete",
+                "description": "Ask the LIVE app's OpenAEC AI assistant a question (POST /me/ai/complete via the signed-in OpenAEC account). Returns { ok, signedInAs, text, credits }. Tests the assistant end-to-end without driving the chat UI; requires the app to be signed in to OpenAEC.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "prompt": { "type": "string", "description": "The question/prompt for the assistant." },
+                        "system": { "type": "string", "description": "Optional system prompt." }
+                    },
+                    "required": ["prompt"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_accounts_status",
+                "description": "Report the LIVE app's OpenAEC sign-in state: { ok, signedIn, user:{sub,name,email}|null, brand|null }. Use to verify login from outside the WebView.",
+                "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
+            },
+            {
+                "name": "app_accounts_fetch",
+                "description": "Make an authenticated OpenAEC Accounts API call from the LIVE signed-in app (GET/POST/DELETE to /me/* paths, e.g. /me/apps, /me/files, /me/brand, /me/storage, /me/credits). Returns { ok, response }. Requires sign-in. Makes the whole Accounts API drivable/testable via MCP.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "path":   { "type": "string", "description": "API path, e.g. /me/apps" },
+                        "method": { "type": "string", "enum": ["GET", "POST", "DELETE"], "description": "HTTP method (default GET)" },
+                        "body":   { "type": "object", "description": "Optional JSON body for POST." }
+                    },
+                    "required": ["path"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_assistant_ask",
+                "description": "Submit a message into the LIVE app's assistant window as if the user typed it (opens the panel, runs the same send() path). Drives/tests the assistant from outside the WebView. Returns { ok }. The answer comes from whichever provider resolves: OpenAEC AI, a personal Claude key, or — when neither is available — the MCP relay (app_assistant_pending + app_assistant_answer).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": { "text": { "type": "string", "description": "The user message to submit." } },
+                    "required": ["text"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_assistant_pending",
+                "description": "Take the oldest assistant question waiting for an MCP client to answer (the relay provider). Returns { ok, question:{ id, prompt, system, docName }|null }. When non-null, compute an answer and deliver it with app_assistant_answer — this is how an external Claude becomes the assistant's AI brain.",
+                "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
+            },
+            {
+                "name": "app_assistant_answer",
+                "description": "Answer a pending assistant question (id from app_assistant_pending). The text appears in the assistant window as the assistant's reply. Returns { ok, id }.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "id":   { "type": "string", "description": "Question id from app_assistant_pending." },
+                        "text": { "type": "string", "description": "Answer text to show in the assistant window." }
+                    },
+                    "required": ["id", "text"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_assistant_history",
+                "description": "Return the LIVE assistant conversation: { ok, messages:[{ role, content }] }. Use to verify a delivered answer landed in the window.",
+                "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
+            },
+            {
                 "name": "app_create_annotation",
                 "description": "Create an annotation on the LIVE app's active document WITHOUT synthetic mouse input. Builds the same object the interactive tool would, pushes it onto the document, records an undo step and redraws. Geometry goes in `props` (page coordinates at 100% zoom): line/arrow/measureDistance need startX/startY/endX/endY; box/circle/highlight/cloud/polygon/textbox/callout/scaleRegion need x/y/width/height; polyline/filledArea/measureArea/measurePerimeter need points:[{x,y},...]; spline needs controlPoints; draw needs path; comment needs x/y. Optional style props (color, strokeColor, fillColor, lineWidth, opacity, text, fontSize, scaleString, units, leaderStartX/Y, leaderEndX/Y, ...) override the tool defaults. measure* annotations get measureText computed from the document scale automatically. Returns the new annotation id.",
                 "inputSchema": {
@@ -403,7 +481,7 @@ fn handle_tools_list() -> Value {
                     "properties": {
                         "type": {
                             "type": "string",
-                            "enum": ["line", "arrow", "wall", "box", "mask", "redaction", "viewport", "circle", "highlight", "cloud", "polygon", "polyline", "cloudPolyline", "spline", "draw", "filledArea", "textbox", "callout", "comment", "stamp", "signature", "image", "parametricSymbol", "measureDistance", "measureArea", "measurePerimeter", "scaleRegion"]
+                            "enum": ["line", "arrow", "wall", "box", "mask", "redaction", "viewport", "circle", "highlight", "cloud", "polygon", "polyline", "cloudPolyline", "spline", "draw", "filledArea", "textbox", "callout", "comment", "stamp", "signature", "image", "parametricSymbol", "measureDistance", "measureArea", "measurePerimeter", "scaleRegion", "count"]
                         },
                         "page":  { "type": "integer", "minimum": 1, "description": "1-based target page. Defaults to the current page." },
                         "props": { "type": "object", "description": "Geometry + style properties for the annotation." }
@@ -648,6 +726,14 @@ async fn handle_tools_call(state: &AppState, params: &Value) -> Result<Value, (i
         "app_go_to_page"         => tool_app_request(state, "mcp:go-to-page",         &arguments, Duration::from_secs(15)).await,
         "app_set_tool"           => tool_app_request(state, "mcp:set-tool",           &arguments, Duration::from_secs(10)).await,
         "app_get_current_tool"   => tool_app_request(state, "mcp:get-current-tool",   &arguments, Duration::from_secs(5)).await,
+        "app_merge_pdf"          => tool_app_request(state, "mcp:merge-pdf",           &arguments, Duration::from_secs(60)).await,
+        "app_ai_complete"        => tool_app_request(state, "mcp:ai-complete",         &arguments, Duration::from_secs(60)).await,
+        "app_accounts_status"    => tool_app_request(state, "mcp:accounts-status",     &arguments, Duration::from_secs(5)).await,
+        "app_accounts_fetch"     => tool_app_request(state, "mcp:accounts-fetch",      &arguments, Duration::from_secs(30)).await,
+        "app_assistant_ask"      => tool_app_request(state, "mcp:assistant-ask",       &arguments, Duration::from_secs(10)).await,
+        "app_assistant_pending"  => tool_app_request(state, "mcp:assistant-pending",   &arguments, Duration::from_secs(10)).await,
+        "app_assistant_answer"   => tool_app_request(state, "mcp:assistant-answer",    &arguments, Duration::from_secs(10)).await,
+        "app_assistant_history"  => tool_app_request(state, "mcp:assistant-history",   &arguments, Duration::from_secs(10)).await,
         "app_create_annotation"  => tool_app_request(state, "mcp:create-annotation",  &arguments, Duration::from_secs(15)).await,
         "app_list_annotations"   => tool_app_request(state, "mcp:list-annotations",   &arguments, Duration::from_secs(10)).await,
         "app_get_annotation"     => tool_app_request(state, "mcp:get-annotation",     &arguments, Duration::from_secs(10)).await,
@@ -1431,6 +1517,10 @@ mod tests {
         for tool in [
             "app_set_tool",
             "app_get_current_tool",
+            "app_assistant_ask",
+            "app_assistant_pending",
+            "app_assistant_answer",
+            "app_assistant_history",
             "app_create_annotation",
             "app_list_annotations",
             "app_get_annotation",

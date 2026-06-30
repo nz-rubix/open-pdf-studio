@@ -29,6 +29,7 @@ export default function AdaptiveGroups(props) {
   const moreLabel = () => t('common.more', 'More') || 'More';
 
   const [overflowStart, setOverflowStart] = createSignal(Infinity);
+  const [iconOnly, setIconOnly] = createSignal(false);
   const [open, setOpen] = createSignal(false);
 
   let containerRef;
@@ -84,9 +85,24 @@ export default function AdaptiveGroups(props) {
     }
 
     const containerW = containerRef.clientWidth;
+
+    // Pass 1 — measure with full labels.
+    containerRef.classList.remove('ribbon-groups-icon-only');
     let total = 0;
     for (const n of nodes) total += n.offsetWidth;
 
+    // If the labelled groups don't all fit, drop to icon-only first and
+    // re-measure the (smaller) widths — Office-style "shrink, then collapse".
+    let useIconOnly = false;
+    if (total > containerW) {
+      containerRef.classList.add('ribbon-groups-icon-only');
+      useIconOnly = true;
+      total = 0;
+      for (const n of nodes) total += n.offsetWidth;
+    }
+    setIconOnly(useIconOnly);
+
+    // Compute overflow cutoff on the decided (labelled or icon-only) widths.
     let cutoff;
     if (total <= containerW) {
       cutoff = nodes.length; // everything fits
@@ -149,7 +165,7 @@ export default function AdaptiveGroups(props) {
   });
 
   return (
-    <div class="ribbon-groups ribbon-groups-adaptive" ref={containerRef}>
+    <div class="ribbon-groups ribbon-groups-adaptive" classList={{ 'ribbon-groups-icon-only': iconOnly() }} ref={containerRef}>
       <div class="ribbon-groups-inline" ref={inlineHostRef} style="display:contents;">
         {resolved()}
       </div>

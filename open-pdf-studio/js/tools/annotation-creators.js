@@ -8,6 +8,7 @@ import { applyDynamicScaling } from '../annotations/dynamic-scaling.js';
 import { getTemplate, defaultParams } from '../symbols/registry.js';
 import { pxPerMmAt } from '../symbols/real-size.js';
 import { pendingSymbolId } from '../solid/stores/parametricSymbolStore.js';
+import { activeCountCategory as _activeCountCategory, nextCountNumber as _nextCountNumber } from '../solid/stores/countStore.js';
 
 /**
  * Build raw annotation properties from tool + coordinates.
@@ -348,6 +349,23 @@ export function buildAnnotationProps(tool, startX, startY, endX, endY, e) {
         strokeColor: '#000000',
         lineWidth: getLineWidthValue() || 1,
         rotation: 0,
+        opacity: 1,
+      };
+    }
+
+    case 'count': {
+      const cat = _activeCountCategory();
+      const n = _nextCountNumber(cat?.id);
+      return {
+        type: 'count',
+        page: getActiveDocument()?.currentPage || 1,
+        x: startX, y: startY,
+        categoryId: cat?.id || null,
+        number: n,
+        markerStyle: cat?.markerStyle || 'dot',
+        symbolId: cat?.symbolId,
+        color: cat?.color || '#e11d48',
+        strokeColor: cat?.color || '#e11d48',
         opacity: 1,
       };
     }

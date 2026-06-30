@@ -44,6 +44,7 @@ export function registerAllTools() {
   registerTool('textbox', shapeTool);
   registerTool('callout', shapeTool);
   registerTool('parametricSymbol', shapeTool);
+  registerTool('count', shapeTool);
 
   // Lines
   registerTool('line', lineTool);

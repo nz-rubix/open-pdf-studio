@@ -163,8 +163,8 @@ export async function reloadFromBytes(newBytes, annotations, rotations, targetPa
   const doc = getActiveDocument();
   if (!doc) return;
 
-  const cacheKey = getCacheKey();
-  if (!cacheKey) return;
+  const oldPath = doc.filePath || getCacheKey();
+  if (!oldPath) return;
 
   // Cancel any in-progress annotation loading
   cancelAnnotationLoading();
@@ -174,8 +174,49 @@ export async function reloadFromBytes(newBytes, annotations, rotations, targetPa
     doc.pdfDoc.destroy();
   }
 
-  // Update cache with new bytes
-  setCachedPdfBytes(cacheKey, newBytes.slice());
+  // ── Issue #247 fix ──────────────────────────────────────────────────────
+  // The PDFium main-view renderer reads each page bitmap from the file on
+  // DISK, keyed by path (the Rust DocHandle / PdfBytes / PdfiumDoc / pixmap
+  // caches are all path-keyed). After a structural edit (merge / insert /
+  // delete) only the in-memory bytes change — the on-disk file does not — so
+  // the main view kept rendering the pre-edit document while the thumbnails
+  // (drawn from pdf.js) updated. Fix: persist the edited bytes to a FRESH temp
+  // working file and point the document at it. A brand-new path has no cache
+  // entries anywhere, so the main view rebuilds from the edited content, and
+  // the user's original file is never touched (saved docs route Save → Save-As).
+  let renderPath = oldPath;
+  if (isTauri() && window.__TAURI__?.path && window.__TAURI__?.fs) {
+    const invoke = window.__TAURI__?.core?.invoke;
+    try {
+      const tempDir = await window.__TAURI__.path.tempDir();
+      const sep = (tempDir.endsWith('/') || tempDir.endsWith('\\')) ? '' : '/';
+      renderPath = `${tempDir}${sep}opds-edit-${Date.now()}.pdf`;
+      try { await invoke?.('allow_fs_scope', { path: renderPath }); } catch {}
+      await writeBinaryFile(renderPath, newBytes.slice());
+
+      const prevPath = oldPath;
+      const wasUntitled = !!doc.isUntitled;
+      const prevWasOurTemp = !!doc._renderTemp; // a temp working copy WE created earlier
+      // Remember the real file Ctrl+S must write to: the original opened path.
+      // An untitled doc has none → it stays untitled (Ctrl+S → Save-As).
+      const saveTarget = doc.saveTargetPath || (wasUntitled ? null : oldPath);
+      doc.filePath = renderPath;
+      doc._renderTemp = true;
+      doc.saveTargetPath = saveTarget;
+      doc.isUntitled = !saveTarget; // saved docs keep Ctrl+S → original; untitled → Save-As
+
+      // Delete the previous working/temp file (never a real saved original).
+      if ((prevWasOurTemp || wasUntitled) && prevPath && prevPath !== renderPath) {
+        try { await window.__TAURI__.fs.remove(prevPath); } catch {}
+      }
+    } catch (e) {
+      console.warn('[reloadFromBytes] temp working-file write failed; main view may stay stale', e);
+      renderPath = oldPath;
+    }
+  }
+
+  // Update cache with new bytes (keyed by the path we now render from)
+  setCachedPdfBytes(renderPath, newBytes.slice());
 
   // Reset form field annotation storage
   resetAnnotationStorage();
@@ -611,13 +652,17 @@ export async function mergeFiles(filePaths, position) {
   if (!isTauri()) return;
 
   // Must have a document open
-  if (!getActiveDocument()?.pdfDoc) return;
+  const doc = getActiveDocument();
+  if (!doc?.pdfDoc) return;
 
   const cacheKey = getCacheKey();
-  const currentBytes = getCachedPdfBytes(cacheKey);
+  let currentBytes = getCachedPdfBytes(cacheKey);
+  if (!currentBytes && doc.filePath) {
+    // Bytes may not be in the JS cache yet (e.g. a just-opened doc) — read
+    // them from disk like savePDF does, so merge never silently no-ops.
+    try { currentBytes = new Uint8Array(await readBinaryFile(doc.filePath)); } catch {}
+  }
   if (!currentBytes) return;
-
-  const doc = getActiveDocument();
   const oldAnnotations = doc.annotations.map(a => ({ ...a }));
   const oldRotations = { ...doc.pageRotations };
   const oldPage = doc.currentPage;
@@ -640,6 +685,8 @@ export async function mergeFiles(filePaths, position) {
     let totalInserted = 0;
     for (const filePath of filePaths) {
       try {
+        // Ensure the picked source file is inside the fs allowlist scope.
+        try { await window.__TAURI__?.core?.invoke?.('allow_fs_scope', { path: filePath }); } catch {}
         const fileData = await readBinaryFile(filePath);
         const srcBytes = new Uint8Array(fileData);
         const srcDoc = await PDFDocument.load(srcBytes, { ignoreEncryption: true });
@@ -658,7 +705,9 @@ export async function mergeFiles(filePaths, position) {
         totalInserted += srcPageCount;
       } catch (err) {
         console.error(`Failed to merge file: ${filePath}`, err);
-        showMessage(i18next.t('failedToMergeFile', { file: filePath.split(/[\\/]/).pop(), error: err.message }));
+        const fileName = filePath.split(/[\\/]/).pop();
+        const detail = err?.message || String(err);
+        showMessage(`${i18next.t('failedToMergeFile', { file: fileName, error: detail })}\n(${detail})`);
       }
     }
 

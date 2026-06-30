@@ -87,7 +87,13 @@ fn store_tokens(access: &str, refresh: Option<&str>, id_token: Option<&str>) -> 
         keyring_set("refresh_token", r)?;
     }
     if let Some(i) = id_token {
-        keyring_set("id_token", i)?;
+        // Best-effort: een vol id_token kan groter zijn dan de ~2,5 KB-limiet
+        // van de Windows Credential Manager. Dat mag de login NIET laten falen
+        // — het profiel komt uit het in-memory id_token (decode) en bij
+        // herstart uit het userinfo-endpoint. Dus alleen loggen bij een fout.
+        if let Err(e) = keyring_set("id_token", i) {
+            log::warn!("[Accounts] id_token niet opgeslagen (te groot voor keyring?): {e}");
+        }
     }
     Ok(())
 }
@@ -98,6 +104,8 @@ fn store_tokens(access: &str, refresh: Option<&str>, id_token: Option<&str>) -> 
 struct Discovery {
     authorization_endpoint: String,
     token_endpoint: String,
+    #[serde(default)]
+    userinfo_endpoint: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -151,6 +159,37 @@ async fn fetch_discovery(client: &reqwest::Client, issuer: &str) -> Result<Disco
         .json::<Discovery>()
         .await
         .map_err(|e| format!("OIDC-discovery onleesbaar: {e}"))
+}
+
+/// Profiel ophalen via het userinfo-endpoint — fallback wanneer de token-
+/// respons geen id_token bevat (de Zitadel-client van deze app levert er geen,
+/// in tegenstelling tot bv. Open Calc Studio).
+async fn fetch_userinfo(
+    client: &reqwest::Client,
+    userinfo_endpoint: &str,
+    access_token: &str,
+) -> Result<UserInfo, String> {
+    let resp = client
+        .get(userinfo_endpoint)
+        .bearer_auth(access_token)
+        .send()
+        .await
+        .map_err(|e| format!("userinfo onbereikbaar: {e}"))?;
+    let status = resp.status();
+    let text = resp.text().await.map_err(|e| format!("userinfo lezen: {e}"))?;
+    eprintln!("[Accounts] userinfo status={} bodylen={}", status, text.len());
+    if !status.is_success() {
+        return Err(format!("userinfo {status}: {text}"));
+    }
+    let claims: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| format!("userinfo geen JSON ({e}) — body: {}", &text[..text.len().min(120)]))?;
+    let sub = claims
+        .get("sub")
+        .and_then(|v| v.as_str())
+        .ok_or("userinfo zonder sub")?
+        .to_string();
+    let field = |k: &str| claims.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
+    Ok(UserInfo { sub, name: field("name"), email: field("email") })
 }
 
 // ── Loopback-callback ──────────────────────────────────────────────────
@@ -289,7 +328,7 @@ pub async fn accounts_sign_in(app: tauri::AppHandle) -> Result<UserInfo, String>
         return Err("state-mismatch in OAuth-callback (mogelijke spoof) — login afgebroken".into());
     }
 
-    let token: TokenResponse = client
+    let token_resp = client
         .post(&disco.token_endpoint)
         .form(&[
             ("grant_type", "authorization_code"),
@@ -300,10 +339,19 @@ pub async fn accounts_sign_in(app: tauri::AppHandle) -> Result<UserInfo, String>
         ])
         .send()
         .await
-        .map_err(|e| format!("token-exchange mislukt: {e}"))?
-        .json()
+        .map_err(|e| format!("token-exchange mislukt: {e}"))?;
+    let token_status = token_resp.status();
+    let token_text = token_resp
+        .text()
         .await
+        .map_err(|e| format!("token-respons lezen: {e}"))?;
+    eprintln!("[Accounts] token-exchange status={} bodylen={}", token_status, token_text.len());
+    if !token_status.is_success() {
+        return Err(format!("token-exchange {token_status}: {token_text}"));
+    }
+    let token: TokenResponse = serde_json::from_str(&token_text)
         .map_err(|e| format!("token-respons onleesbaar: {e}"))?;
+    eprintln!("[Accounts] id_token_present={}", token.id_token.is_some());
 
     store_tokens(
         &token.access_token,
@@ -311,18 +359,36 @@ pub async fn accounts_sign_in(app: tauri::AppHandle) -> Result<UserInfo, String>
         token.id_token.as_deref(),
     )?;
 
-    let user = token
-        .id_token
-        .as_deref()
-        .and_then(decode_id_token)
-        .ok_or_else(|| "id_token ontbreekt of onleesbaar".to_string())?;
+    // Profiel uit het id_token (goedkoop); valt terug op het userinfo-endpoint
+    // wanneer er geen id_token is (deze Zitadel-client levert er geen).
+    let user = match token.id_token.as_deref().and_then(decode_id_token) {
+        Some(u) => u,
+        None => {
+            let endpoint = disco
+                .userinfo_endpoint
+                .as_deref()
+                .ok_or("geen id_token én geen userinfo_endpoint in discovery")?;
+            fetch_userinfo(&client, endpoint, &token.access_token).await?
+        }
+    };
     log::info!("[Accounts] Ingelogd als {} <{}>", user.name, user.email);
     Ok(user)
 }
 
 #[tauri::command]
-pub fn accounts_get_user() -> Option<UserInfo> {
-    keyring_get("id_token").as_deref().and_then(decode_id_token)
+pub async fn accounts_get_user() -> Option<UserInfo> {
+    // Voorkeur: het opgeslagen id_token (goedkoop). Zonder id_token (deze
+    // client levert er geen) → userinfo met het opgeslagen access_token, zodat
+    // de sessie ook na herstart hersteld wordt.
+    if let Some(u) = keyring_get("id_token").as_deref().and_then(decode_id_token) {
+        return Some(u);
+    }
+    let access = keyring_get("access_token")?;
+    let client = reqwest::Client::new();
+    let cfg = load_config();
+    let disco = fetch_discovery(&client, &cfg.issuer).await.ok()?;
+    let endpoint = disco.userinfo_endpoint.as_deref()?;
+    fetch_userinfo(&client, endpoint, &access).await.ok()
 }
 
 #[tauri::command]
@@ -483,6 +549,52 @@ pub async fn accounts_download_file(id: String) -> Result<String, String> {
             .await
             .map_err(|e| format!("download lezen mislukt: {e}"))?;
         return Ok(base64::engine::general_purpose::STANDARD.encode(&bytes));
+    }
+    unreachable!()
+}
+
+/// Logo van de actieve organisatie/entiteit als data-URL (base64), of `None`
+/// bij 404 (geen logo ingesteld). De webview kan de string direct als
+/// `<img src>` zetten; het access-token blijft aan de Rust-kant (de webview
+/// kan het geauthenticeerde logo-endpoint zelf niet bereiken). Sluit het
+/// binaire gat in de generieke `accounts_fetch` (die tekst teruggeeft).
+#[tauri::command]
+pub async fn accounts_brand_logo() -> Result<Option<String>, String> {
+    let cfg = load_config();
+    let client = reqwest::Client::new();
+    let mut access = keyring_get("access_token").ok_or("niet ingelogd")?;
+    for attempt in 0..2 {
+        let url = format!("{}/me/brand/logo", cfg.accounts_api_url);
+        let resp = client
+            .get(&url)
+            .bearer_auth(&access)
+            .send()
+            .await
+            .map_err(|e| format!("Accounts API onbereikbaar ({url}): {e}"))?;
+        let status = resp.status().as_u16();
+        if status == 401 && attempt == 0 {
+            access = refresh_tokens(&client, &cfg).await?;
+            continue;
+        }
+        if status == 404 {
+            return Ok(None); // geen logo ingesteld
+        }
+        if !(200..300).contains(&status) {
+            let text = resp.text().await.unwrap_or_default();
+            return Err(format!("logo ophalen mislukt ({status}): {text}"));
+        }
+        let mime = resp
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("image/png")
+            .to_string();
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| format!("logo lezen mislukt: {e}"))?;
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+        return Ok(Some(format!("data:{mime};base64,{b64}")));
     }
     unreachable!()
 }

@@ -219,6 +219,11 @@ export async function createTextLayer(page, viewport, container, pageNum) {
     span.dataset.pdfItalic = isItalic;
   }
 
+  // Insert <br> between horizontally-distant spans on the same baseline so the
+  // browser doesn't merge separate columns/labels into one selection range
+  // (prevents over-broad "weird" selections on drawings with scattered text).
+  insertColumnBreaks(textItems, textDivs);
+
   textLayers.set(pageNum, { element: textLayerDiv, textLayer });
 
   // Enable text selection when select or editText tool is active

@@ -771,6 +771,33 @@ async function handleGoToPage(params) {
   return { ok: true, page: pageNum };
 }
 
+async function handleMergePdf(params) {
+  const filePaths = params?.filePaths;
+  if (!Array.isArray(filePaths) || filePaths.length === 0) {
+    return { ok: false, error: 'missing params.filePaths (non-empty array of PDF paths)' };
+  }
+  const position = ['end', 'start', 'after'].includes(params?.position) ? params.position : 'end';
+  const stateMod = await import('./core/state.js');
+  const doc = stateMod.getActiveDocument();
+  if (!doc?.pdfDoc) return { ok: false, error: 'no active document to merge into' };
+  const pagesBefore = doc.pdfDoc.numPages;
+  const pm = await import('./pdf/page-manager.js');
+  try {
+    await pm.mergeFiles(filePaths, position);
+  } catch (e) {
+    return { ok: false, error: `merge failed: ${e?.message ?? e}` };
+  }
+  const after = stateMod.getActiveDocument();
+  return {
+    ok: true,
+    position,
+    mergedFiles: filePaths.length,
+    pagesBefore,
+    pagesAfter: after?.pdfDoc?.numPages ?? pagesBefore,
+    filePath: after?.filePath,
+  };
+}
+
 async function handleClearCaches() {
   const invoke = tauriInvoke();
   if (!invoke) return { ok: false, error: 'tauri invoke unavailable' };
@@ -1135,6 +1162,23 @@ async function _buildCreateProps(type, page, props) {
       };
       if (Array.isArray(p.holes) && p.holes.length > 0) base.holes = p.holes;
       return { base };
+    }
+
+    case 'count': {
+      if (!_isNum(p.x) || !_isNum(p.y)) {
+        return { error: "type 'count' requires numeric props x, y" };
+      }
+      return { base: {
+        type, page,
+        x: p.x, y: p.y,
+        categoryId: typeof p.categoryId === 'string' ? p.categoryId : null,
+        number: _isNum(p.number) ? p.number : 1,
+        markerStyle: p.markerStyle === 'symbol' ? 'symbol' : 'dot',
+        symbolId: typeof p.symbolId === 'string' ? p.symbolId : undefined,
+        color: p.color || '#e11d48',
+        strokeColor: p.color || '#e11d48',
+        opacity: 1,
+      } };
     }
 
     case 'comment': {
@@ -1746,6 +1790,86 @@ async function handleSetMeasureScale(params) {
   return { ok: true, measureScale: { pixelsPerUnit, unit } };
 }
 
+/** Ask the OpenAEC AI assistant (POST /me/ai/complete via the signed-in
+ *  account) — lets an MCP client test the assistant end-to-end without the
+ *  chat UI. */
+async function handleAiComplete(params) {
+  const prompt = params?.prompt;
+  if (typeof prompt !== 'string' || !prompt) return { ok: false, error: 'missing params.prompt' };
+  const store = await import('./solid/stores/openaecStore.js');
+  const user = store.openaecUser?.();
+  let key = '';
+  try { key = localStorage.getItem('opds-anthropic-key') || ''; } catch { /* no localStorage */ }
+  // (1) OpenAEC platform AI (server-side bridge).
+  if (user) {
+    try {
+      const res = await store.openaecAiComplete(prompt, params?.system);
+      return { ok: true, via: 'openaec', signedInAs: user.name || user.email || user.sub, text: (res && (res.text ?? res.answer)) || '', credits: res?.credits ?? null };
+    } catch (e) {
+      if (!key) return { ok: false, error: `OpenAEC-AI faalde en geen Claude-key gezet: ${e?.message ?? e}` };
+      // OpenAEC AI down → fall back to Claude-direct (the OpenCalc way).
+    }
+  }
+  // (2) Claude (Anthropic) direct — uses the personal key set via the 🔑 button.
+  if (!key) return { ok: false, error: 'niet ingelogd bij OpenAEC en geen Claude-key gezet (🔑)' };
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 512, system: params?.system || undefined, messages: [{ role: 'user', content: prompt }] }),
+  });
+  if (!r.ok) { const tx = await r.text().catch(() => ''); return { ok: false, error: `Claude API ${r.status}: ${tx.slice(0, 200)}` }; }
+  const data = await r.json();
+  return { ok: true, via: 'claude-direct', text: data?.content?.[0]?.text || '' };
+}
+
+/** Report the OpenAEC sign-in state (user + brand) for MCP introspection. */
+async function handleAccountsStatus() {
+  const store = await import('./solid/stores/openaecStore.js');
+  const user = store.openaecUser?.() || null;
+  const brand = store.openaecBrand?.() || null;
+  return { ok: true, signedIn: !!user, user, brand };
+}
+
+/** Generic authenticated OpenAEC Accounts API call (GET/POST/DELETE to /me/*),
+ *  so the whole API is drivable/testable via MCP. */
+async function handleAccountsFetch(params) {
+  const path = params?.path;
+  if (typeof path !== 'string' || !path) return { ok: false, error: 'missing params.path' };
+  const store = await import('./solid/stores/openaecStore.js');
+  if (!store.openaecUser?.()) return { ok: false, error: 'niet ingelogd bij OpenAEC' };
+  const res = await store.openaecFetch(path, params?.method || 'GET', params?.body);
+  return { ok: true, response: res };
+}
+
+/** Assistant relay — submit a user message programmatically (app_assistant_ask). */
+async function handleAssistantAsk(params) {
+  const text = params?.text;
+  if (typeof text !== 'string' || !text) return { ok: false, error: 'missing params.text' };
+  const relay = await import('./assistant-mcp-relay.js');
+  return relay.submitAssistantMessage(text);
+}
+
+/** Assistant relay — take the oldest question awaiting an MCP answer. */
+async function handleAssistantPending() {
+  const relay = await import('./assistant-mcp-relay.js');
+  return relay.takePendingQuestion();
+}
+
+/** Assistant relay — answer a pending question; it appears in the chat window. */
+async function handleAssistantAnswer(params) {
+  const id = params?.id;
+  const text = params?.text;
+  if (!id || typeof text !== 'string') return { ok: false, error: 'need params.id and params.text' };
+  const relay = await import('./assistant-mcp-relay.js');
+  return relay.answerAssistantQuestion(id, text);
+}
+
+/** Assistant relay — read the current conversation (verify delivery). */
+async function handleAssistantHistory() {
+  const relay = await import('./assistant-mcp-relay.js');
+  return relay.getAssistantMessages();
+}
+
 const HANDLERS = {
   'mcp:open-pdf':           handleOpenPdf,
   'mcp:set-zoom':           handleSetZoom,
@@ -1764,6 +1888,7 @@ const HANDLERS = {
   'mcp:zoom-anchor-test':   handleZoomAnchorTest,
   'mcp:clear-caches':       handleClearCaches,
   'mcp:go-to-page':         handleGoToPage,
+  'mcp:merge-pdf':          handleMergePdf,
   // App control: tools & annotations
   'mcp:set-tool':           handleSetTool,
   'mcp:get-current-tool':   handleGetCurrentTool,
@@ -1790,6 +1915,16 @@ const HANDLERS = {
   'mcp:get-page-count':     handleGetPageCount,
   // App control: measurement scale
   'mcp:set-measure-scale':  handleSetMeasureScale,
+  // OpenAEC assistant — test the AI end-to-end
+  'mcp:ai-complete':        handleAiComplete,
+  // OpenAEC account/API introspection
+  'mcp:accounts-status':    handleAccountsStatus,
+  'mcp:accounts-fetch':     handleAccountsFetch,
+  // OpenAEC assistant relay — external MCP client as the AI brain
+  'mcp:assistant-ask':      handleAssistantAsk,
+  'mcp:assistant-pending':  handleAssistantPending,
+  'mcp:assistant-answer':   handleAssistantAnswer,
+  'mcp:assistant-history':  handleAssistantHistory,
 };
 
 /** Wire up all `mcp:*` listeners. Safe to call once at startup. Becomes

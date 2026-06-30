@@ -17,7 +17,7 @@ import {
   handIcon, selectCommentsIcon, findIcon,
   lineIcon, arrowIcon, drawIcon, rectIcon, polylineIcon, textboxIcon, noteIcon, ellipseIcon, circleIcon,
   calloutIcon, cloudIcon,
-  measureDistanceIcon, measureAngleIcon, measurePerimeterIcon,
+  measureDistanceIcon, measureAngleIcon, measurePerimeterIcon, measureAreaIcon,
   alignLeftIcon, alignTopIcon, alignBottomIcon,
   flipHIcon, flipVIcon, rotateCwIcon,
   preferencesIcon, clearAllIcon
@@ -148,7 +148,8 @@ export default function DrawingTab() {
             disabled={ro()} active={state.currentTool === 'circle'} onClick={() => setTool('circle')} />
           <RibbonButton size="small" id="dr-ellipse" title={t('comment.ellipse') || 'Ellips'} icon={ellipseIcon}
             disabled={ro()} active={state.currentTool === 'ellipse'} onClick={() => setTool('ellipse')} />
-          <RibbonButton size="small" id="dr-pattern-rect" title={cs} icon={placeholderIcon} disabled={true} />
+          <RibbonButton size="small" id="dr-count" title="Tellen" icon={circleIcon}
+            disabled={ro()} active={state.currentTool === 'count'} onClick={() => setTool('count')} />
           <RibbonButton size="small" id="dr-l-shape" title={cs} icon={placeholderIcon} disabled={true} />
           <RibbonButton size="small" id="dr-image" title={t('drawing.image')} icon={imageIcon}
             disabled={ro()} active={state.currentTool === 'image'} onClick={() => setTool('image')} />
@@ -182,6 +183,12 @@ export default function DrawingTab() {
 
         {/* ANNOTATE */}
         <RibbonGroup label={t('drawing.annotate')}>
+          <RibbonButtonStack>
+            <RibbonButton size="small" id="dr-area" title={t('measure.measureArea') || 'Oppervlakte meten'} icon={measureAreaIcon} label={t('drawing.area') || 'Oppervlakte'}
+              disabled={ro()} active={state.currentTool === 'measureArea'} onClick={() => setTool('measureArea')} />
+            <RibbonButton size="small" id="dr-length" title={t('measure.measureDistance')} icon={measureDistanceIcon} label={t('drawing.length') || 'Lengte'}
+              disabled={ro()} active={state.currentTool === 'measureDistance'} onClick={() => setTool('measureDistance')} />
+          </RibbonButtonStack>
           <RibbonButtonStack>
             {/* "Uitgelijnd" + "Lineair" merged into a single Maatlijn button —
                 both fired the same measureDistance tool anyway. */}

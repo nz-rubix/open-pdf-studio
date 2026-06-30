@@ -10,7 +10,8 @@ import { redrawAnnotations, redrawContinuous } from '../annotations/rendering.js
 import { applyMove } from '../annotations/transforms.js';
 import { createMeasureAreaAnnotation, createMeasurePerimeterAnnotation } from './annotation-creators.js';
 import { openPDFFile, isPdfAReadOnly } from '../pdf/loader.js';
-import { actualSize, fitWidth, fitPage } from '../pdf/renderer.js';
+import { actualSize, fitWidth, fitPage, goToPage } from '../pdf/renderer.js';
+import { activeTab } from '../solid/stores/leftPanelStore.js';
 import { savePDF, savePDFAs } from '../pdf/saver.js';
 import { toggleAnnotationsListPanel } from '../ui/panels/annotations-list.js';
 import { toggleLeftPanel } from '../ui/panels/left-panel.js';
@@ -419,6 +420,21 @@ export async function handleKeydown(e) {
       }
       redraw();
     }
+    // Inhoudsopgave (TOC / bladwijzers) actief → met pijl omhoog/omlaag pagina-voor-
+    // pagina door het document lopen i.p.v. de bladwijzerlijst te scrollen (GitHub #248).
+    // Draait alleen als de nudge de toets niet al gebruikte (geen selectie) — ook read-only.
+    if (!e.defaultPrevented && (e.key === 'ArrowDown' || e.key === 'ArrowUp')
+        && ['thumbnails', 'bookmarks'].includes(activeTab())
+        && !['INPUT', 'TEXTAREA'].includes(e.target?.tagName) && !e.target?.isContentEditable) {
+      e.preventDefault();
+      const navDoc = getActiveDocument();
+      if (navDoc?.pdfDoc) {
+        const total = navDoc.pdfDoc.numPages || 1;
+        const cur = navDoc.currentPage || 1;
+        const next = e.key === 'ArrowDown' ? Math.min(total, cur + 1) : Math.max(1, cur - 1);
+        if (next !== cur) goToPage(next);
+      }
+    }
   }
 
   else if (ctrl && shift && e.key === 'C') {
@@ -569,6 +585,10 @@ export async function handleKeydown(e) {
       redraw();
     }
     setTool('select');
+    // Arm the marquee so a drag immediately after Escape starts a
+    // cross-selection (even when it begins on an element), mirroring the
+    // Select ribbon button. Consumed on the next pointerdown in select-tool.
+    state.armedMarquee = true;
   }
 
   // View shortcuts

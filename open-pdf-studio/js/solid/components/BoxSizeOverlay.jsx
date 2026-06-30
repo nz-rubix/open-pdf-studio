@@ -80,6 +80,13 @@ export default function BoxSizeOverlay() {
     reposition();
   }
 
+  // Select the field's text on the focusing click so a new value can be typed
+  // immediately. WebView2/Chromium otherwise collapses the selection on mouseup;
+  // guard the first click, while later clicks still place the caret normally.
+  let _selectOnClick = false;
+  const onDimFocus = (e) => { _selectOnClick = true; e.currentTarget.select(); };
+  const onDimMouseUp = (e) => { if (_selectOnClick) { e.preventDefault(); _selectOnClick = false; } };
+
   const inputStyle = {
     width: '64px',
     'font-size': '12px',
@@ -108,6 +115,7 @@ export default function BoxSizeOverlay() {
         <div style={{ display: 'flex', 'align-items': 'center', gap: '4px' }}>
           <span style={{ width: '14px', 'font-weight': 600 }}>B</span>
           <input style={inputStyle} value={wVal()}
+            onFocus={onDimFocus} onMouseUp={onDimMouseUp}
             onInput={(e) => setWVal(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') commit('width', wVal()); e.stopPropagation(); }}
             onBlur={() => refreshValues()} />
@@ -116,6 +124,7 @@ export default function BoxSizeOverlay() {
         <div style={{ display: 'flex', 'align-items': 'center', gap: '4px' }}>
           <span style={{ width: '14px', 'font-weight': 600 }}>H</span>
           <input style={inputStyle} value={hVal()}
+            onFocus={onDimFocus} onMouseUp={onDimMouseUp}
             onInput={(e) => setHVal(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') commit('height', hVal()); e.stopPropagation(); }}
             onBlur={() => refreshValues()} />

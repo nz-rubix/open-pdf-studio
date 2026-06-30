@@ -149,11 +149,11 @@ export default function CommentTab() {
         {/* Schaal group (Schaalgebied / Schaalgebied op pagina) moved to the
             Tekenen tab — see DrawingTab.jsx. */}
 
-        <RibbonGroup label={t('measure.schedule') || 'TAKE-OFF'}>
+        <RibbonGroup label={t('measure.schedule') || 'HOEVEELHEDEN'}>
           <RibbonButton id="btn-open-schedule"
-            title={t('measure.openSchedule') || 'Take-Off'}
+            title={t('measure.openSchedule') || 'Hoeveelheden'}
             icon={scheduleIcon}
-            label={t('measure.takeOff') || 'Take-Off'}
+            label={t('measure.takeOff') || 'Hoeveelheden'}
             disabled={noPdf()}
             active={scheduleVisible()}
             onClick={toggleSchedule} />

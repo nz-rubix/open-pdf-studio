@@ -693,6 +693,35 @@ export function drawAnnotation(ctx, annotation) {
       break;
     }
 
+    case 'count': {
+      const cx = annotation.x, cy = annotation.y;
+      const col = annotation.color || annotation.strokeColor || '#e11d48';
+      ctx.save();
+      ctx.globalAlpha = annotation.opacity ?? 1;
+      if (annotation.markerStyle === 'symbol' && annotation.symbolId) {
+        const tpl = getTemplate(annotation.symbolId);
+        if (tpl && typeof tpl.draw === 'function') {
+          const s = 22;
+          ctx.translate(cx - s / 2, cy - s / 2);
+          ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1;
+          try { tpl.draw(ctx, { width: s, height: s, color: col }, {}); } catch (_) { /* symbol draw signature mismatch */ }
+        } else {
+          ctx.beginPath(); ctx.arc(cx, cy, 9, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill();
+        }
+      } else {
+        const r = 9;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = col; ctx.fill();
+        ctx.lineWidth = 1.5; ctx.strokeStyle = '#ffffff'; ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${Math.round(r * 1.3)}px sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(annotation.number ?? ''), cx, cy);
+      }
+      ctx.restore();
+      break;
+    }
+
     case 'text': {
       const txtRawFamily = annotation.fontFamily || 'Arial';
       // camelCase-expanded fallback chain — see comment in shapes.js drawTextboxContent.
@@ -1757,7 +1786,14 @@ function drawTextEdits(ctx, pageNum) {
 
   const canvasEl = ctx.canvas;
   const docForScale = state.documents[state.activeDocumentIndex];
-  const pageHeight = canvasEl.height / (docForScale ? docForScale.scale : 1);
+  // In viewport mode the annotation canvas is the CONTAINER (not the page), so
+  // canvas.height/scale is NOT the page height — that broke the Y-flip below and
+  // drew the cover/new text ~hundreds of pt off (text edits "did nothing"). Use
+  // the viewport's real page height; fall back to the canvas math for blank/legacy docs.
+  const _vpTE = window.__pdfViewport;
+  const pageHeight = (_vpTE && _vpTE.active && docForScale?.filePath && _vpTE.pageH)
+    ? _vpTE.pageH
+    : canvasEl.height / (docForScale ? docForScale.scale : 1);
 
   for (const edit of pageEdits) {
     const fontSize = edit.fontSize;

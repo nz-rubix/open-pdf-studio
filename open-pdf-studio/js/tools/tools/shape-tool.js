@@ -64,8 +64,8 @@ export const shapeTool = {
       // Click places arrow tip; box appears offset above-right
       endX = state.startX + 80;
       endY = state.startY - 40;
-    } else if (isClick && (tool === 'comment' || tool === 'stamp' || tool === 'signature')) {
-      // These already handle single click
+    } else if (isClick && (tool === 'comment' || tool === 'stamp' || tool === 'signature' || tool === 'count')) {
+      // These already handle single click (count = place one marker at the click)
     } else if (isClick && tool === 'parametricSymbol') {
       // Single click: use template default size
       // (handled inside buildAnnotationProps via b.width/height fallback)

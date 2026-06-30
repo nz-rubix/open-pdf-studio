@@ -2210,6 +2210,7 @@ pub fn run(opts: StartupOpts) {
             accounts::accounts_fetch,
             accounts::accounts_upload_file,
             accounts::accounts_download_file,
+            accounts::accounts_brand_logo,
             email::email_pdf,
             window_mgmt::spawn_window_with_pdf,
             window_mgmt::try_dock_pdf_at_screen,

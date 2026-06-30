@@ -1891,7 +1891,7 @@ export async function savePDF(saveAsPath = null) {
 
     // Save the PDF
     const pdfBytes = await pdfDocLib.save();
-    const outputPath = saveAsPath || currentPath;
+    const outputPath = saveAsPath || activeDoc?.saveTargetPath || currentPath;
     const savedBytes = new Uint8Array(pdfBytes);
 
     // Temporarily release lock so we can write, then re-lock
@@ -1949,7 +1949,7 @@ export async function savePDFAs() {
 
   if (savePath) {
     const wasUntitled = !!doc?.isUntitled || !currentPath;
-    const tempPath = doc?.isUntitled ? currentPath : null;
+    const tempPath = (doc?.isUntitled || doc?._renderTemp) ? currentPath : null;
     const success = await savePDF(savePath);
 
     // If saved to a new path, update the current path and UI
@@ -1965,6 +1965,8 @@ export async function savePDFAs() {
         doc.filePath = savePath;
         doc.fileName = savePath ? savePath.split(/[\\/]/).pop() : 'Untitled';
         doc.isUntitled = false; // now a real, user-chosen file
+        doc.saveTargetPath = null; // lives at its real path now; no separate save target
+        doc._renderTemp = false;
       }
       updateWindowTitle();
       // Session now contains the new path (debounced persist).

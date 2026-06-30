@@ -3,7 +3,7 @@
 // initials + name and a dropdown when signed in).
 import { Show, createSignal, onCleanup } from 'solid-js';
 import {
-  openaecUser, openaecBusy, openaecError,
+  openaecUser, openaecBusy, openaecError, openaecBrand,
   openaecSignIn, openaecSignOut,
 } from '../stores/openaecStore.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
@@ -77,6 +77,9 @@ export default function OpenAecAccount() {
         <Show when={menuOpen()}>
           <div class="openaec-account-menu">
             <div class="openaec-account-menu-header">
+              <Show when={openaecBrand()?.logo}>
+                <img class="openaec-brand-logo" src={openaecBrand().logo} alt={openaecBrand()?.orgName || ''} />
+              </Show>
               <div class="openaec-account-menu-name">{openaecUser().name || openaecUser().email}</div>
               <Show when={openaecUser().email && openaecUser().email !== openaecUser().name}>
                 <div class="openaec-account-menu-email">{openaecUser().email}</div>
