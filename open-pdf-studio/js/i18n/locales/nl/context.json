@@ -44,7 +44,8 @@
     "exportAsImage": "Exporteren als afbeelding...",
     "addHole": "Sparing toevoegen",
     "properties": "Eigenschappen...",
-    "calibrateFromLine": "Kalibreren vanuit deze lijn..."
+    "calibrateFromLine": "Kalibreren vanuit deze lijn...",
+    "setScale": "Schaal instellen..."
   },
   "multiSelect": {
     "copyAnnotations": "{{count}} annotaties kopiëren",
@@ -99,7 +100,14 @@
     "deletePages": "Pagina's verwijderen",
     "deletePageConfirm": "Pagina {{page}} verwijderen?",
     "deletePageTitle": "Pagina verwijderen",
-    "properties": "Eigenschappen"
+    "properties": "Eigenschappen",
+    "cutPages": "{{count}} pagina's knippen",
+    "copyPages": "{{count}} pagina's kopiëren",
+    "rotateLeftPages": "{{count}} pagina's linksom draaien",
+    "rotateRightPages": "{{count}} pagina's rechtsom draaien",
+    "deletePagesMulti": "{{count}} pagina's verwijderen",
+    "selectAll": "Alle pagina's selecteren",
+    "deselectAll": "Selectie opheffen"
   },
   "textSelection": {
     "highlightSelection": "Selectie markeren",
