@@ -17,8 +17,10 @@
 const HEAVY_CONTENT_BYTES = 1_000_000;
 // PDFium / browser canvas axis-limiet (zelfde cap als bitmap-orchestrator).
 const MAX_BITMAP_AXIS_PX = 4096;
-// Tegel-doelgrootte in output-pixels.
-const TILE_PX = 256;
+// Ondergrens tegelgrootte in output-pixels. De werkelijke tegelgrootte schaalt
+// mee met de bitmap (zie orchestrator) zodat het aantal tegels ~begrensd blijft
+// (~10 per lange as, max ~80) i.p.v. honderden op een grote pagina.
+const TILE_MIN_PX = 384;
 
 /** Zwaar zodra de gecomprimeerde content-stream de drempel overschrijdt. */
 export function isHeavyBytes(bytes) {
@@ -87,37 +89,47 @@ let _progGen = 0;
 export async function ensureProgressiveBitmapForCurrentView() {
   const { viewport } = await import('./pdf-viewport.js');
   const { invoke } = await import('../core/platform.js');
-  const { computeZoomBucket, getBestAvailableBitmap, setCachedBitmapEntry, ensureBitmap } =
+  const { computeZoomBucket, getBestAvailableBitmap, getCachedBitmap, setCachedBitmapEntry, ensureBitmap } =
     await import('./page-bitmap-cache.js');
 
   if (!viewport.active || !viewport.filePath || viewport.pageType !== 'raster') return;
   const myGen = ++_progGen;
 
-  // Doelbucket identiek aan bitmap-orchestrator: zoom*dpr, gecapt op 4096 px-as.
+  // Render-schaal: zoom*dpr, HARD gecapt op 4096 px langste as. Belangrijk: we
+  // gebruiken de GECAPTE schaal direct, niet via computeZoomBucket — dat rondt
+  // naar boven af en zou de cap overschrijden (bv. 6740 px i.p.v. 4096 op MV-03),
+  // wat bij herhaald createImageBitmap tot een geheugen-crash leidde. cacheBucket
+  // is enkel de cache-sleutel.
   const dpr = window.devicePixelRatio || 1;
   const targetScale = viewport.zoom * dpr;
   const maxAxisPt = Math.max(viewport.pageW, viewport.pageH);
   if (maxAxisPt <= 0) return;
   const capScale = MAX_BITMAP_AXIS_PX / maxAxisPt;
-  const useBucket = computeZoomBucket(Math.min(targetScale, capScale));
+  const renderScale = Math.min(targetScale, capScale);
+  const cacheBucket = computeZoomBucket(renderScale);
   const rotation = viewport.rotation || 0;
-  // Leg pagina-identiteit vast: de rest van de render gebruikt deze locals, niet
-  // live viewport-velden, zodat een tab-/paginawissel midden in de render nooit
-  // een verkeerde pagina rendert of cachet (de myGen-guard stopt het publiceren).
+  // Leg pagina-identiteit vast: de render gebruikt deze locals, niet live
+  // viewport-velden, zodat een tab-/paginawissel nooit de verkeerde pagina rendert.
   const filePath = viewport.filePath;
   const pageNum = viewport.pageNum;
 
-  // Cache-hit? Meteen tonen. Is het de EXACTE bucket, dan is er niets te doen.
-  const cached = getBestAvailableBitmap(filePath, pageNum, rotation, useBucket);
-  if (cached && cached.bitmap) {
-    viewport.currentBitmap = cached.bitmap;
+  // Al gerenderd op deze bucket? Meteen tonen en klaar.
+  const exact = getCachedBitmap(filePath, pageNum, rotation, cacheBucket);
+  if (exact && exact.bitmap) {
+    viewport.currentBitmap = exact.bitmap;
     viewport.dirty = true;
-    if (Math.abs((cached.scale || 0) - useBucket) < 1e-6) return;
+    return;
+  }
+  // Anders: toon vast de best beschikbare (lagere bucket) terwijl we renderen.
+  const fallback = getBestAvailableBitmap(filePath, pageNum, rotation, cacheBucket);
+  if (fallback && fallback.bitmap) {
+    viewport.currentBitmap = fallback.bitmap;
+    viewport.dirty = true;
   }
 
-  // Volledige bitmapmaat op deze bucket (pixel-equivalent aan ensureBitmap).
-  const fullW = Math.max(1, Math.round(viewport.pageW * useBucket));
-  const fullH = Math.max(1, Math.round(viewport.pageH * useBucket));
+  // Volledige bitmapmaat (≤ 4096 px per as door de cap hierboven).
+  const fullW = Math.max(1, Math.round(viewport.pageW * renderScale));
+  const fullH = Math.max(1, Math.round(viewport.pageH * renderScale));
 
   // Accumulator-canvas. Zonder OffscreenCanvas-ondersteuning: gewone render.
   let acc, actx;
@@ -127,35 +139,44 @@ export async function ensureProgressiveBitmapForCurrentView() {
     actx.fillStyle = '#ffffff';
     actx.fillRect(0, 0, fullW, fullH);
   } catch {
-    const e = await ensureBitmap(filePath, pageNum, rotation, useBucket);
+    const e = await ensureBitmap(filePath, pageNum, rotation, cacheBucket);
     if (myGen === _progGen && e && e.bitmap) { viewport.currentBitmap = e.bitmap; viewport.dirty = true; }
     return;
   }
 
-  const tiles = computeTileGrid(fullW, fullH, TILE_PX);
+  // Tegelgrootte schaalt mee zodat het aantal region-renders begrensd blijft
+  // (~10 tegels op de lange as → ~80 max), ongeacht paginagrootte.
+  const tilePx = Math.max(TILE_MIN_PX, Math.ceil(Math.max(fullW, fullH) / 10));
+  const tiles = computeTileGrid(fullW, fullH, tilePx);
   let failed = false;
-  let lastPublish = 0; // throttle tussentijdse publicaties (~10 fps)
+  let lastPublish = 0;         // throttle tussentijdse publicaties
+  let lastIntermediate = null; // vorige tussenstand-bitmap (sluiten na swap)
 
+  // Publiceer de accumulator als viewport-bitmap; sluit de vorige tussenstand
+  // meteen na de swap zodat het geheugen begrensd blijft (elke ImageBitmap is
+  // ~fullW*fullH*4 bytes; zonder sluiten stapelt dat op tot een OOM-crash). Veilig:
+  // JS is single-threaded, dus geen RAF-frame tekent de oude bitmap na de swap.
   const publish = async () => {
     const bmp = await createImageBitmap(acc);
-    if (myGen !== _progGen) { try { bmp.close && bmp.close(); } catch {} return null; }
+    if (myGen !== _progGen) { try { bmp.close && bmp.close(); } catch {} return; }
     viewport.currentBitmap = bmp;
     viewport.dirty = true;
-    return bmp;
+    if (lastIntermediate) { try { lastIntermediate.close && lastIntermediate.close(); } catch {} }
+    lastIntermediate = bmp;
   };
 
   const renderTile = async (t) => {
     if (myGen !== _progGen || failed) return;
-    // output-pixel-tegel -> PDF-punt-regio (scale = useBucket => tegel = t.pw×t.ph px)
-    const regionXPt = t.px / useBucket;
-    const regionYPt = t.py / useBucket;
-    const regionWPt = t.pw / useBucket;
-    const regionHPt = t.ph / useBucket;
+    // output-pixel-tegel -> PDF-punt-regio (scale = renderScale => tegel = t.pw×t.ph px)
+    const regionXPt = t.px / renderScale;
+    const regionYPt = t.py / renderScale;
+    const regionWPt = t.pw / renderScale;
+    const regionHPt = t.ph / renderScale;
     let bytes;
     try {
       const res = await invoke('render_pdf_page_region', {
         path: filePath, pageIndex: pageNum - 1,
-        scale: useBucket, rotation,
+        scale: renderScale, rotation,
         regionXPt, regionYPt, regionWPt, regionHPt,
       });
       bytes = res instanceof Uint8Array ? res : new Uint8Array(res);
@@ -168,17 +189,22 @@ export async function ensureProgressiveBitmapForCurrentView() {
     if (w * h * 4 !== bytes.length - 8) return;
     const rgba = new Uint8ClampedArray(bytes.buffer, bytes.byteOffset + 8, w * h * 4);
     actx.putImageData(new ImageData(rgba, w, h), t.px, t.py);
-    // Tussenstand publiceren, getthrottled zodat grote pagina's niet honderden
+    // Tussenstand publiceren, getthrottled zodat grote pagina's niet te veel
     // volledige-canvas-bitmaps maken.
     const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
-    if (now - lastPublish >= 100) {
+    if (now - lastPublish >= 300) {
       lastPublish = now;
       await publish();
     }
   };
 
-  // Beperkte gelijktijdigheid (worker-pool = 4). Wave-runner over de tegels.
-  const CONC = 4;
+  // Serieel (CONC=1). render_pdf_page_region is een SYNCHROON Tauri-command dat op
+  // het hoofdthread draait; parallelle in-proc PDFium-renders van hetzelfde document
+  // lieten het Rust-proces crashen (de worker-pool gebruikt aparte processen juist
+  // daarom). Serieel is stabiel maar bezet het hoofdthread tijdens de render — reden
+  // waarom dit pad EXPERIMENTEEL + standaard uitgeschakeld is. Robuuste versie:
+  // regio-rendering via de multi-proces worker-pool, zoals hele pagina's.
+  const CONC = 1;
   let idx = 0;
   const workers = Array.from({ length: CONC }, async () => {
     while (idx < tiles.length && myGen === _progGen && !failed) {
@@ -191,15 +217,17 @@ export async function ensureProgressiveBitmapForCurrentView() {
 
   if (failed) {
     // Terugval: één gewone whole-page render via de bestaande cache-weg.
-    const e = await ensureBitmap(filePath, pageNum, rotation, useBucket);
+    const e = await ensureBitmap(filePath, pageNum, rotation, cacheBucket);
     if (myGen === _progGen && e && e.bitmap) { viewport.currentBitmap = e.bitmap; viewport.dirty = true; }
     return;
   }
 
-  // Klaar: publiceer + cache de volledige bitmap (zoom/pan/re-visit = cache-hit).
+  // Klaar: cache de volledige bitmap (zoom/pan/re-visit = cache-hit); sluit de
+  // laatste tussenstand. De finalBmp blijft leven in de cache/viewport.
   const finalBmp = await createImageBitmap(acc);
   if (myGen !== _progGen) { try { finalBmp.close && finalBmp.close(); } catch {} return; }
-  setCachedBitmapEntry(filePath, pageNum, rotation, useBucket, finalBmp, fullW, fullH, useBucket);
+  if (lastIntermediate) { try { lastIntermediate.close && lastIntermediate.close(); } catch {} }
+  setCachedBitmapEntry(filePath, pageNum, rotation, cacheBucket, finalBmp, fullW, fullH, renderScale);
   viewport.currentBitmap = finalBmp;
   viewport.dirty = true;
 }

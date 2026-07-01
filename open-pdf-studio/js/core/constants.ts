@@ -248,7 +248,12 @@ export const DEFAULT_PREFERENCES: Preferences = {
   // View
   thinLines: false,
   showScrollbars: false,
-  progressiveRender: true,
+  // Experimenteel + standaard UIT. Het progressieve tegel-pad rendert zware
+  // pagina's via het IN-PROC render_pdf_page_region, wat voor extreem zware
+  // vector-pagina's (miljoenen segmenten, bv. grote CAD-tekeningen) instabiel is
+  // (hoog geheugengebruik / crash). Een robuuste implementatie vereist regio-
+  // rendering via de multi-proces worker-pool; tot dan blijft dit opt-in.
+  progressiveRender: false,
 
   // Panels
   propertiesPanelVisible: true,
