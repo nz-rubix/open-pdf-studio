@@ -17,6 +17,8 @@
 import { viewport } from './pdf-viewport.js';
 import { computeZoomBucket, ensureBitmap, getBestAvailableBitmap } from './page-bitmap-cache.js';
 import { tileCacheGet, tileCacheSet } from './tile-cache.js';
+import { state } from '../core/state.js';
+import { isHeavyPage, ensureProgressiveBitmapForCurrentView } from './progressive-render.js';
 
 // PDFium / browser canvas axis limit. Above this, we cap the whole-page
 // bitmap resolution and rely on the tile augment for crispness in the
@@ -37,6 +39,16 @@ export async function ensureBitmapForCurrentView() {
         viewport.dirty = true;
         return;
     }
+
+    // Additief pad: een ZWARE raster-pagina (grote content-stream) met de voorkeur
+    // aan, vullen we progressief tegel-voor-tegel in i.p.v. één trage whole-page
+    // render. Niet-zware pagina's of voorkeur uit → exact het bestaande pad hieronder.
+    if (state.preferences.progressiveRender &&
+        await isHeavyPage(viewport.filePath, viewport.pageNum)) {
+        _bitmapGen++; // maak een eventuele in-flight gewone render stale
+        return ensureProgressiveBitmapForCurrentView();
+    }
+
     const myGen = ++_bitmapGen;
     const dpr = window.devicePixelRatio || 1;
     const targetScale = viewport.zoom * dpr;
