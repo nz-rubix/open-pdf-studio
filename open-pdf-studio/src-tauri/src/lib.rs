@@ -1646,6 +1646,49 @@ fn render_pdf_page_region(
     Ok(tauri::ipc::Response::new(data))
 }
 
+/// Goedkope zwaarte-probe: som van de GECOMPRIMEERDE content-stream-lengtes van
+/// een pagina (raw stream-bytes, geen decompressie). Groot => zware vector-pagina.
+/// Gebruikt door het progressieve render-pad om alleen echt-zware pagina's tegel-
+/// voor-tegel te renderen.
+#[tauri::command]
+fn page_content_size(path: String, page_index: u32) -> Result<u64, String> {
+    use lopdf::{Document, Object};
+    let doc = Document::load(&path).map_err(|e| format!("load: {}", e))?;
+    let pages = doc.get_pages(); // BTreeMap<u32, ObjectId>, gesorteerd op paginanummer
+    let page_id = pages
+        .values()
+        .nth(page_index as usize)
+        .copied()
+        .ok_or_else(|| format!("page {} out of range", page_index))?;
+    let page = doc
+        .get_dictionary(page_id)
+        .map_err(|e| format!("page dict: {}", e))?;
+    let contents = match page.get(b"Contents") {
+        Ok(c) => c,
+        Err(_) => return Ok(0), // geen content-stream (bv. lege pagina) => niet zwaar
+    };
+    // Verzamel de stream-object-ids (Contents = Reference of Array van References).
+    let mut ids: Vec<lopdf::ObjectId> = Vec::new();
+    match contents {
+        Object::Reference(id) => ids.push(*id),
+        Object::Array(arr) => {
+            for o in arr {
+                if let Object::Reference(id) = o {
+                    ids.push(*id);
+                }
+            }
+        }
+        _ => {}
+    }
+    let mut total: u64 = 0;
+    for id in ids {
+        if let Ok(Object::Stream(s)) = doc.get_object(id) {
+            total += s.content.len() as u64;
+        }
+    }
+    Ok(total)
+}
+
 #[tauri::command]
 fn render_thumbnail(
     path: String,
@@ -2190,6 +2233,7 @@ pub fn run(opts: StartupOpts) {
             read_plugin_file,
             render_pdf_page,
             render_pdf_page_region,
+            page_content_size,
             get_page_dimensions,
             invalidate_pdf_cache,
             clear_pdf_cache,
