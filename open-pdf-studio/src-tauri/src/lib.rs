@@ -1597,7 +1597,7 @@ async fn render_pdf_page(
 }
 
 #[tauri::command]
-fn render_pdf_page_region(
+async fn render_pdf_page_region(
     path: String,
     page_index: u32,
     scale: f32,
@@ -1606,10 +1606,32 @@ fn render_pdf_page_region(
     region_y_pt: f32,
     region_w_pt: f32,
     region_h_pt: f32,
-    bytes_cache: tauri::State<PdfBytesCache>,
-    pdfium_cache: tauri::State<pdfium_renderer::PdfiumDocCache>,
+    bytes_cache: tauri::State<'_, PdfBytesCache>,
+    pdfium_cache: tauri::State<'_, pdfium_renderer::PdfiumDocCache>,
+    pool: tauri::State<'_, std::sync::Arc<tokio::sync::OnceCell<worker_pool::WorkerPool>>>,
 ) -> Result<tauri::ipc::Response, String> {
     let extra_rot = rotation.unwrap_or(0);
+
+    // Try the worker pool first: region tiles are small (fit the 64 MB SHM), so
+    // they render in a SEPARATE process — safe for parallel/pre-cache rendering
+    // and off the main thread. Falls back to in-proc PDFium on any failure.
+    if let Some(p) = pool.get() {
+        match p
+            .render_region(&path, page_index, scale, extra_rot, region_x_pt, region_y_pt, region_w_pt, region_h_pt)
+            .await
+        {
+            Ok((width, height, rgba)) => {
+                let mut data = Vec::with_capacity(8 + rgba.len());
+                data.extend_from_slice(&width.to_le_bytes());
+                data.extend_from_slice(&height.to_le_bytes());
+                data.extend_from_slice(&rgba);
+                return Ok(tauri::ipc::Response::new(data));
+            }
+            Err(e) => {
+                eprintln!("[render_pdf_page_region] pool failed: {} — in-proc fallback", e);
+            }
+        }
+    }
 
     let bytes = {
         let mut bm = bytes_cache.0.lock().map_err(|e| format!("Bytes cache lock: {}", e))?;

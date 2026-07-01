@@ -64,6 +64,61 @@ impl Renderer {
             rgba: bitmap.as_rgba_bytes(),
         })
     }
+
+    /// Render a sub-region of a page at `scale` into an output bitmap of
+    /// (region_w_pt*scale × region_h_pt*scale) px. Same technique as the app's
+    /// render_page_region_to_rgba. `rotation` must be 0.
+    pub fn render_region(
+        &self,
+        path: &str,
+        page_index: u32,
+        scale: f32,
+        rotation: i32,
+        region_x_pt: f32,
+        region_y_pt: f32,
+        region_w_pt: f32,
+        region_h_pt: f32,
+    ) -> Result<RenderResult> {
+        if rotation != 0 {
+            return Err(anyhow!("render_region: rotation {} not supported", rotation));
+        }
+        if region_w_pt <= 0.0 || region_h_pt <= 0.0 {
+            return Err(anyhow!("render_region: region must be positive"));
+        }
+        let bytes = std::fs::read(path).with_context(|| format!("read {}", path))?;
+        let doc = self.pdfium.load_pdf_from_byte_slice(&bytes, None)
+            .map_err(|e| anyhow!("PDFium parse: {}", e))?;
+        let pages = doc.pages();
+        let page = pages.get(page_index as i32)
+            .map_err(|e| anyhow!("page {}: {}", page_index, e))?;
+
+        let bitmap_w = (region_w_pt * scale).ceil() as i32;
+        let bitmap_h = (region_h_pt * scale).ceil() as i32;
+        if bitmap_w <= 0 || bitmap_h <= 0 {
+            return Err(anyhow!("render_region: invalid bitmap {}x{}", bitmap_w, bitmap_h));
+        }
+
+        // Affine matrix: scale the page and translate so the region's top-left
+        // lands at pixel (0,0). set_fixed_size pins the output to the tile size.
+        let tx = -region_x_pt * scale;
+        let ty = -region_y_pt * scale;
+        let config = PdfRenderConfig::new()
+            .set_fixed_size(bitmap_w, bitmap_h)
+            .transform(scale, 0.0, 0.0, scale, tx, ty)
+            .map_err(|e| anyhow!("invalid transform: {}", e))?
+            .render_annotations(false)
+            .use_lcd_text_rendering(true)
+            .set_format(PdfBitmapFormat::BGRA);
+
+        let bitmap = page.render_with_config(&config)
+            .map_err(|e| anyhow!("PDFium region render: {}", e))?;
+
+        Ok(RenderResult {
+            width: bitmap.width() as u32,
+            height: bitmap.height() as u32,
+            rgba: bitmap.as_rgba_bytes(),
+        })
+    }
 }
 
 #[cfg(test)]

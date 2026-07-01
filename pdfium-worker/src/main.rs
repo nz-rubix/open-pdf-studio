@@ -81,6 +81,35 @@ fn main() -> Result<()> {
                 writeln!(stdout, "{}", serde_json::to_string(&resp)?)?;
                 stdout.flush()?;
             }
+            Request::RenderRegion {
+                id, path, page_index, scale, rotation,
+                region_x_pt, region_y_pt, region_w_pt, region_h_pt,
+            } => {
+                let resp = match renderer.render_region(
+                    &path, page_index, scale, rotation,
+                    region_x_pt, region_y_pt, region_w_pt, region_h_pt,
+                ) {
+                    Ok(result) => {
+                        match shm_region.write_bitmap(result.width, result.height, &result.rgba) {
+                            Ok(bytes) => Response::RenderOk {
+                                id, ok: true,
+                                w: result.width, h: result.height,
+                                shm_bytes: bytes,
+                            },
+                            Err(e) => Response::RenderErr {
+                                id, ok: false,
+                                error: format!("SHM write: {}", e),
+                            },
+                        }
+                    }
+                    Err(e) => Response::RenderErr {
+                        id, ok: false,
+                        error: format!("{}", e),
+                    },
+                };
+                writeln!(stdout, "{}", serde_json::to_string(&resp)?)?;
+                stdout.flush()?;
+            }
             Request::Shutdown => {
                 eprintln!("[worker {}] shutting down", slot);
                 break;
