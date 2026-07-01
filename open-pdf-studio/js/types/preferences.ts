@@ -181,6 +181,7 @@ export interface Preferences {
   // View
   thinLines: boolean;
   showScrollbars: boolean;
+  progressiveRender: boolean;
 
   // Panels
   propertiesPanelVisible: boolean;

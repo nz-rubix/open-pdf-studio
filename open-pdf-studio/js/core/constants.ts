@@ -248,6 +248,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   // View
   thinLines: false,
   showScrollbars: false,
+  progressiveRender: true,
 
   // Panels
   propertiesPanelVisible: true,
