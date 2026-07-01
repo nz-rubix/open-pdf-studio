@@ -73,6 +73,22 @@ export function getCachedBitmap(filePath, pageNum, rotation, zoomBucket) {
   return entry || null;
 }
 
+/**
+ * Zet een EXTERN gebouwde bitmap (bv. de progressieve accumulator) in de cache
+ * onder dezelfde key als ensureBitmap, zodat zoom/pan/re-visit op deze pagina
+ * cache-hits blijven (getBestAvailableBitmap vindt hem net als een normale
+ * whole-page render). Sluit een eventuele vorige bitmap onder deze key.
+ */
+export function setCachedBitmapEntry(filePath, pageNum, rotation, zoomBucket, bitmap, w, h, scale) {
+  const key = _key(filePath, pageNum, rotation, zoomBucket);
+  const prev = _cache.get(key);
+  if (prev && prev.bitmap && prev.bitmap !== bitmap) {
+    try { prev.bitmap.close && prev.bitmap.close(); } catch {}
+  }
+  _cache.set(key, { bitmap, w, h, scale });
+  _evictIfNeeded();
+}
+
 // Find the best available cached bitmap for a target bucket: prefer exact
 // match, otherwise the nearest available bucket (lower preferred for speed,
 // higher acceptable as fallback during downscale).
