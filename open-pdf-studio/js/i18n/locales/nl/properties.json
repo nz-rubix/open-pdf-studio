@@ -134,7 +134,10 @@
     "circle": "Cirkel",
     "square": "Vierkant",
     "slash": "Schuine streep",
-    "headSize": "Puntgrootte"
+    "headSize": "Puntgrootte",
+    "butt": "Plat",
+    "openArrowReversed": "Open pijl (omgekeerd)",
+    "closedArrowReversed": "Gesloten pijl (omgekeerd)"
   },
   "textFormat": {
     "title": "Teken",
@@ -290,7 +293,8 @@
     "summarize": "Opmerkingen samenvatten...",
     "importComments": "Opmerkingen importeren...",
     "exportComments": "Opmerkingen exporteren naar gegevensbestand...",
-    "exportSelectedComments": "Geselecteerde opmerkingen exporteren naar gegevensbestand..."
+    "exportSelectedComments": "Geselecteerde opmerkingen exporteren naar gegevensbestand...",
+    "measurements": "Metingen"
   },
   "scaleBar": {
     "title": "Scale Bar",
@@ -314,5 +318,13 @@
     "precision": "Precision (Decimals)",
     "dimType": "Type",
     "dimTypeCustom": "Aangepast"
+  },
+  "measurements": {
+    "scale": "Schaal",
+    "noScale": "Geen schaal ingesteld",
+    "viewports": "Viewports",
+    "noViewports": "Geen viewports gedefinieerd",
+    "measurements": "Metingen",
+    "noMeasurements": "Nog geen metingen"
   }
 }
