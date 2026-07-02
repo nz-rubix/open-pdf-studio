@@ -972,6 +972,15 @@ export async function renderContinuous(forceRebuild) {
   if (window.__pdfViewport) window.__pdfViewport.active = false;
 
   const continuousContainer = document.getElementById('continuous-container');
+
+  // Boekweergave (issue #201): sync the spread-layout class + display with
+  // the doc flag HERE so every re-render path (zoom, search, tab switch,
+  // thin-lines toggle) keeps the book layout without knowing about it.
+  continuousContainer.classList.toggle('book-spread', !!doc.bookSpread);
+  if (continuousContainer.style.display !== 'none') {
+    continuousContainer.style.display = doc.bookSpread ? 'grid' : 'flex';
+  }
+
   // Cleanup previous observer
   if (_continuousObserver) {
     _continuousObserver.disconnect();
@@ -1076,17 +1085,29 @@ export async function setViewMode(mode) {
   const doc = getActiveDocument();
   if (!doc?.pdfDoc) return;
 
-  if (doc) doc.viewMode = mode;
+  // 'book' (boekweergave, issue #201) is a LAYOUT VARIANT of continuous:
+  // spreads of two pages side by side with page 1 alone on the right, like
+  // a real book. Internally doc.viewMode stays 'continuous' so every
+  // existing `viewMode === 'continuous'` branch (redraw dispatch, hit
+  // testing, search, clipboard, tools, zoom) keeps working unchanged;
+  // the doc.bookSpread flag drives the grid layout in renderContinuous().
+  if (mode === 'book') {
+    doc.viewMode = 'continuous';
+    doc.bookSpread = true;
+  } else {
+    doc.viewMode = mode;
+    if (mode === 'continuous') doc.bookSpread = false;
+  }
   const singleContainer = document.getElementById('canvas-container');
   const continuousContainer = document.getElementById('continuous-container');
 
-  if (mode === 'single') {
+  if (doc.viewMode === 'single') {
     singleContainer.style.display = 'inline-block';
     continuousContainer.style.display = 'none';
     await renderPage(doc.currentPage);
-  } else if (mode === 'continuous') {
+  } else {
     singleContainer.style.display = 'none';
-    continuousContainer.style.display = 'flex';
+    continuousContainer.style.display = doc.bookSpread ? 'grid' : 'flex';
     await renderContinuous();
   }
 }

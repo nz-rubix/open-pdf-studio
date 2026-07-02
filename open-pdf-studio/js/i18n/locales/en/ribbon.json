@@ -156,6 +156,8 @@
     "single": "Single",
     "continuousTitle": "Continuous (coming soon)",
     "continuous": "Continuous",
+    "bookTitle": "Book View (two pages side by side, page 1 on the right)",
+    "book": "Book",
     "panels": "Panels",
     "navigationPanel": "Navigation Panel (F9)",
     "navigation": "Navigation",

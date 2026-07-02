@@ -45,6 +45,8 @@ export interface DocumentState {
   currentPage: number;
   scale: number;
   viewMode: 'single' | 'continuous';
+  /** Boekweergave (issue #201): continuous met 2-pagina-spreads, pagina 1 rechts. */
+  bookSpread?: boolean;
   annotations: Annotation[];
   textEdits: TextEdit[];
   watermarks: Watermark[];

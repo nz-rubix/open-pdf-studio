@@ -156,6 +156,8 @@
     "single": "Enkel",
     "continuousTitle": "Doorlopend (binnenkort beschikbaar)",
     "continuous": "Doorlopend",
+    "bookTitle": "Boekweergave (twee pagina's naast elkaar, pagina 1 rechts)",
+    "book": "Boek",
     "panels": "Panelen",
     "navigationPanel": "Navigatiepaneel (F9)",
     "navigation": "Navigatie",
