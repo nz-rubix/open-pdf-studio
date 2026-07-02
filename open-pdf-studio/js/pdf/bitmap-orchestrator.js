@@ -86,6 +86,90 @@ export async function ensureBitmapForCurrentView() {
     }
 }
 
+/**
+ * Pre-warm van zoom-tegels (300%-pre-cache voor zware pagina's): rendert vast
+ * de tegel(s) die het tegel-pad zou opvragen bij gecentreerd inzoomen naar
+ * ~150% en ~300%, en zet ze in de tile-cache onder exact dezelfde sleutels als
+ * ensureTileForCurrentView. Gecentreerd inzoomen is daarna direct scherp
+ * (cache-hit); ver pannen valt terug op de normale on-demand-render.
+ * Aangeroepen door het progressieve pad ná de eerste volledige render;
+ * fire-and-forget en stopt stil bij tab-/paginawissel.
+ */
+export async function prewarmZoomTiles(filePath, pageNum) {
+    const canvas = document.getElementById('pdf-canvas');
+    if (!canvas || !viewport.active || viewport.filePath !== filePath || viewport.pageNum !== pageNum) return;
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = canvas.width / dpr;
+    const cssH = canvas.height / dpr;
+    const maxAxisPt = Math.max(viewport.pageW, viewport.pageH);
+    if (maxAxisPt <= 0 || cssW < 1 || cssH < 1) return;
+    const capScale = MAX_BITMAP_AXIS_PX / maxAxisPt;
+
+    // Huidig weergave-centrum in paginapunten: gecentreerd zoomen houdt dit
+    // punt in beeld, dus daaromheen ligt de toekomstige zichtregio.
+    const centerXpt = (cssW / 2 - viewport.offsetX) / viewport.zoom;
+    const centerYpt = (cssH / 2 - viewport.offsetY) / viewport.zoom;
+
+    // 1.5 en 3.0 landen (met dpr ~1.25) in zoom-buckets 2 en 4 — dat dekt
+    // inzoomen tot ruim 300%.
+    for (const zoom of [1.5, 3.0]) {
+        if (zoom <= capScale) continue; // whole-page bitmap dekt dit bereik al
+        if (!viewport.active || viewport.filePath !== filePath || viewport.pageNum !== pageNum) return;
+
+        // Zelfde formule als ensureTileForCurrentView, met hypothetische zoom.
+        const visW = Math.min(viewport.pageW, cssW / zoom);
+        const visH = Math.min(viewport.pageH, cssH / zoom);
+        const visX = Math.max(0, Math.min(viewport.pageW - visW, centerXpt - visW / 2));
+        const visY = Math.max(0, Math.min(viewport.pageH - visH, centerYpt - visH / 2));
+        const bufW = visW * TILE_BUFFER_FRACTION;
+        const bufH = visH * TILE_BUFFER_FRACTION;
+        const region = {
+            x: Math.max(0, visX - bufW),
+            y: Math.max(0, visY - bufH),
+            w: Math.min(viewport.pageW, visW + 2 * bufW),
+            h: Math.min(viewport.pageH, visH + 2 * bufH),
+        };
+        const stepX = viewport.pageW * TILE_BUFFER_FRACTION;
+        const stepY = viewport.pageH * TILE_BUFFER_FRACTION;
+        const regionBucket = `${Math.round(Math.floor(region.x / stepX) * stepX * 100)},${Math.round(Math.floor(region.y / stepY) * stepY * 100)}`;
+        const zoomBucket = computeZoomBucket(zoom * dpr);
+        if (tileCacheGet(filePath, pageNum, zoomBucket, viewport.rotation, regionBucket)) continue;
+
+        try {
+            const { invoke } = window.__TAURI__.core;
+            const raw = await invoke('render_pdf_page_region', {
+                path: filePath,
+                pageIndex: pageNum - 1,
+                scale: zoom,
+                rotation: viewport.rotation || 0,
+                regionXPt: region.x,
+                regionYPt: region.y,
+                regionWPt: region.w,
+                regionHPt: region.h,
+            });
+            if (!viewport.active || viewport.filePath !== filePath || viewport.pageNum !== pageNum) return;
+            const bytes = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
+            if (!bytes || bytes.length <= 8) continue;
+            const dv = new DataView(bytes.buffer, bytes.byteOffset, 8);
+            const w = dv.getUint32(0, true);
+            const h = dv.getUint32(4, true);
+            if (w * h * 4 !== bytes.length - 8) continue;
+            const imageData = new ImageData(new Uint8ClampedArray(bytes.buffer, bytes.byteOffset + 8, w * h * 4), w, h);
+            await tileCacheSet(filePath, pageNum, zoomBucket, viewport.rotation, regionBucket, imageData, {
+                regionXpt: region.x,
+                regionYpt: region.y,
+                regionWpt: region.w,
+                regionHpt: region.h,
+                zoom,
+            });
+            console.log(`[tile-orch] prewarm z=${zoom} bucket=${zoomBucket} reg=${regionBucket} (${w}x${h})`);
+        } catch (e) {
+            console.warn('[tile-orch] prewarm faalde:', e);
+            return;
+        }
+    }
+}
+
 export async function ensureTileForCurrentView(canvas) {
     if (!viewport.active || !viewport.filePath || viewport.pageType !== 'raster' || !canvas) {
         viewport.currentTile = null;

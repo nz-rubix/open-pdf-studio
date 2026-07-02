@@ -22,7 +22,7 @@ const MAX_BITMAP_AXIS_PX = 4096;
 // (~10 per lange as, max ~80) i.p.v. honderden op een grote pagina. Laag genoeg
 // dat óók de fit-zoom-accumulator (~500px) in ~4x3 tegels vult: dat spreidt het
 // zware rasterwerk over alle workers én geeft zichtbare progressie.
-const TILE_MIN_PX = 128;
+const TILE_MIN_PX = 192;
 
 /** Zwaar zodra de gecomprimeerde content-stream de drempel overschrijdt. */
 export function isHeavyBytes(bytes) {
@@ -165,9 +165,12 @@ export async function ensureProgressiveBitmapForCurrentView() {
     return;
   }
 
-  // Tegelgrootte schaalt mee zodat het aantal region-renders begrensd blijft
-  // (~10 tegels op de lange as → ~80 max), ongeacht paginagrootte.
-  const tilePx = Math.max(TILE_MIN_PX, Math.ceil(Math.max(fullW, fullH) / 10));
+  // Tegelgrootte schaalt mee zodat het aantal region-renders HARD begrensd
+  // blijft (~4 op de lange as → ~12 totaal). Belangrijk: op extreme vector-
+  // pagina's betaalt élke tegel een flink deel van de display-list-walk, dus
+  // meer tegels = meer totaaltijd. 6-12 tegels geeft zichtbare progressie én
+  // een begrensde totaaltijd, op elke schaal.
+  const tilePx = Math.max(TILE_MIN_PX, Math.ceil(Math.max(fullW, fullH) / 4));
   const tiles = computeTileGrid(fullW, fullH, tilePx);
   let failed = false;
   let lastPublish = 0;         // throttle tussentijdse publicaties
@@ -266,4 +269,12 @@ export async function ensureProgressiveBitmapForCurrentView() {
   if (_inflightKey === runKey) _inflightKey = null;
   const tEnd = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
   console.log(`[prog] klaar @${Math.round(tEnd - t0)}ms (${tiles.length} tegels)`);
+
+  // 300%-pre-cache: warm de zoom-tegels voor de huidige view alvast op zodat
+  // gecentreerd inzoomen direct scherp is. Fire-and-forget; de pre-warm stopt
+  // zelf bij tab-/paginawissel.
+  try {
+    const orch = await import('./bitmap-orchestrator.js');
+    orch.prewarmZoomTiles(filePath, pageNum);
+  } catch { /* pre-warm is best-effort */ }
 }
