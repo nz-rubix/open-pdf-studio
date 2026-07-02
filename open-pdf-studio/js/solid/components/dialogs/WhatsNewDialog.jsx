@@ -21,6 +21,11 @@ export default function WhatsNewDialog() {
     }));
   });
 
+  // Taal-tabs alleen tonen als minstens één release daadwerkelijk een
+  // Nederlandse sectie heeft — anders tonen beide tabs dezelfde Engelse
+  // tekst en lijkt de vertaling "kapot" (#240).
+  const hasAnyDutch = createMemo(() => parsed().some(r => !!r.sections.nl));
+
   const close = async () => {
     if (dontShow()) {
       try {
@@ -71,10 +76,12 @@ export default function WhatsNewDialog() {
       footerClass="whats-new-footer"
       bodyClass="whats-new-body"
     >
-      <div class="wn-tabs">
-        {langTab('nl', t('whatsNew.tabNl'))}
-        {langTab('en', t('whatsNew.tabEn'))}
-      </div>
+      <Show when={hasAnyDutch()}>
+        <div class="wn-tabs">
+          {langTab('nl', t('whatsNew.tabNl'))}
+          {langTab('en', t('whatsNew.tabEn'))}
+        </div>
+      </Show>
       <div class="wn-content">
         <Show when={isLoading()}>
           <p class="wn-loading">{t('whatsNew.loading')}</p>
@@ -97,12 +104,18 @@ export default function WhatsNewDialog() {
               try { return new Date(rel.publishedAt).toLocaleDateString(); }
               catch { return ''; }
             };
+            // NL-tab actief maar deze release heeft geen Nederlandse
+            // sectie -> Engelse fallback tonen mét melding.
+            const showsEnFallback = () => lang() === 'nl' && !rel.sections.nl && !!rel.sections.en;
             return (
               <article class="wn-release">
                 <header class="wn-release-header">
                   <span class="wn-release-tag">{rel.tag}</span>
                   <span class="wn-release-date">{date()}</span>
                 </header>
+                <Show when={showsEnFallback()}>
+                  <p class="wn-lang-fallback">{t('whatsNew.noDutchFallback')}</p>
+                </Show>
                 <div class="wn-release-body" innerHTML={renderMarkdown(body())} />
               </article>
             );
