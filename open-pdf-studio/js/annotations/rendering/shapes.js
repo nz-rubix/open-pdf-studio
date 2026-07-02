@@ -32,11 +32,13 @@ export function drawPolygonShape(ctx, x, y, width, height, sides = 6) {
 // elkaar in naar binnen wijzende cusps raken. De puff-maat is (per stuk)
 // vast i.p.v. boxafhankelijk, zodat grote ballonnen dezelfde wolkjes krijgen
 // als kleine (gedrag van externe editors bij /BE cloudy).
-export function buildCloudPath(ctx, x, y, width, height, puffSize = 24) {
+export function buildCloudPath(ctx, x, y, width, height, puffSize = 15) {
   const w = Math.max(1, width);
   const h = Math.max(1, height);
-  // Booghoek per puff: ~230° geeft het volle, overlappende wolk-karakter.
-  const THETA = 230 * Math.PI / 180;
+  // Booghoek per puff: ~252° geeft de diepe krullen met naar binnen wijzende
+  // cusps zoals de "grote wolk"-randstijl van externe editors (dunne lijn
+  // langs diep ingesneden scallops).
+  const THETA = 252 * Math.PI / 180;
 
   // Omtrek-punten met de klok mee; per zijde een geheel aantal koorden van
   // ~puffSize (minimaal 2, zodat mini-boxen nog steeds wolken).

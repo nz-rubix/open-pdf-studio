@@ -801,10 +801,11 @@ export async function savePDF(saveAsPath = null) {
             // Stroke/border color in IC
             annDictObj.IC = ftStrokeColorArr;
 
-            // Wolkrand-effect (/BE { /S /C }) roundtrippen zodat de ballon ook
-            // na opslaan+heropenen (en in externe viewers) wolkjes houdt.
+            // Wolkrand-effect (/BE { /S /C /I intensiteit }) roundtrippen zodat
+            // de ballon ook na opslaan+heropenen (en in externe viewers)
+            // dezelfde wolkjes houdt.
             if (ann.borderEffect === 'cloudy') {
-              annDictObj.BE = { S: 'C', I: 1 };
+              annDictObj.BE = { S: 'C', I: ann.cloudIntensity !== undefined ? ann.cloudIntensity : 2 };
             }
 
             // Callout-specific data (set after context.obj for reliable PDF serialization)

@@ -1031,7 +1031,10 @@ export async function convertPdfAnnotation(annot, pageNum, viewport, stampImageM
           kneeY: clKneeVy,
           armOriginX: clArmVx,
           armOriginY: clArmVy,
-          ...(extraColors.borderCloudy ? { borderEffect: 'cloudy' } : {})
+          ...(extraColors.borderCloudy ? {
+            borderEffect: 'cloudy',
+            ...(extraColors.cloudIntensity !== undefined ? { cloudIntensity: extraColors.cloudIntensity } : {})
+          } : {})
         });
       }
 
@@ -1057,7 +1060,10 @@ export async function convertPdfAnnotation(annot, pageNum, viewport, stampImageM
         lineSpacing: extraColors.lineSpacing || undefined,
         fontUnderline: fontUnderline,
         fontStrikethrough: fontStrikethrough,
-        ...(extraColors.borderCloudy ? { borderEffect: 'cloudy' } : {})
+        ...(extraColors.borderCloudy ? {
+          borderEffect: 'cloudy',
+          ...(extraColors.cloudIntensity !== undefined ? { cloudIntensity: extraColors.cloudIntensity } : {})
+        } : {})
       });
       // Stash raw PDF Rect so loader can resolve IRT-linked leader PolyLines.
       // Cleared by loader after leader-attach pass.
