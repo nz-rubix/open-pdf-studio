@@ -198,13 +198,14 @@ export async function ensureProgressiveBitmapForCurrentView() {
     }
   };
 
-  // Serieel (CONC=1). render_pdf_page_region is een SYNCHROON Tauri-command dat op
-  // het hoofdthread draait; parallelle in-proc PDFium-renders van hetzelfde document
-  // lieten het Rust-proces crashen (de worker-pool gebruikt aparte processen juist
-  // daarom). Serieel is stabiel maar bezet het hoofdthread tijdens de render — reden
-  // waarom dit pad EXPERIMENTEEL + standaard uitgeschakeld is. Robuuste versie:
-  // regio-rendering via de multi-proces worker-pool, zoals hele pagina's.
-  const CONC = 1;
+  // Parallel over de worker-pool. render_pdf_page_region is nu een ASYNC command
+  // dat via de multi-proces pool rendert (elke worker een eigen proces + PDFium +
+  // doc-cache; per-worker request-lock; tegel-gesalte routing spreidt de tegels).
+  // 4 gelijktijdige tegels = 4 processen parallel aan het rasterwerk — veilig,
+  // off-main-thread, en de eerste render van een zware pagina wordt er echt
+  // sneller door. (In-proc CONC>1 crashte; dat pad is nu alleen nog fallback,
+  // geserialiseerd in Rust.)
+  const CONC = 4;
   let idx = 0;
   const workers = Array.from({ length: CONC }, async () => {
     while (idx < tiles.length && myGen === _progGen && !failed) {
