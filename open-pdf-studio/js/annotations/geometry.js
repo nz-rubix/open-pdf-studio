@@ -401,6 +401,14 @@ export function findAnnotationAt(x, y) {
           const ld2 = distanceToLine(x, y, ann.endX, ann.endY, ann.leaderEndX, ann.leaderEndY);
           if (ld2 < tol) return ann;
         }
+        // Also check the measurement text anchor (midpoint + user textOffset)
+        // so a label dragged away from the line still selects the dimension.
+        if (ann.measureText && (ann.textOffsetX || ann.textOffsetY)) {
+          const mdLblX = (ann.startX + ann.endX) / 2 + (ann.textOffsetX || 0);
+          const mdLblY = (ann.startY + ann.endY) / 2 + (ann.textOffsetY || 0);
+          const lblDist = Math.sqrt((x - mdLblX) ** 2 + (y - mdLblY) ** 2);
+          if (lblDist < tol + 10) return ann;
+        }
         break;
       }
       case 'measureArea':

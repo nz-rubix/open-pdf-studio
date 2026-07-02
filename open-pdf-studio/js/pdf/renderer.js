@@ -1474,6 +1474,17 @@ function rotateAnnotation(ann, normDelta, oldW, oldH) {
     const le = rotatePoint(ann.leaderEndX, ann.leaderEndY, normDelta, oldW, oldH);
     ann.leaderEndX = le.x; ann.leaderEndY = le.y;
   }
+  // MeasureDistance text offset is a VECTOR (relative to the line midpoint):
+  // rotate it with the linear part of the page rotation only (no translation).
+  if (ann.textOffsetX != null || ann.textOffsetY != null) {
+    const tox = ann.textOffsetX || 0;
+    const toy = ann.textOffsetY || 0;
+    switch (normDelta) {
+      case 90:  ann.textOffsetX = -toy; ann.textOffsetY = tox; break;
+      case 270: ann.textOffsetX = toy;  ann.textOffsetY = -tox; break;
+      case 180: ann.textOffsetX = -tox; ann.textOffsetY = -toy; break;
+    }
+  }
 
   // Callout arrow/knee/armOrigin points
   if (ann.arrowX != null && ann.arrowY != null) {

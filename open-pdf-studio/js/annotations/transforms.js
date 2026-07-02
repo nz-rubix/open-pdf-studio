@@ -560,6 +560,12 @@ export function applyResize(annotation, handleType, deltaX, deltaY, originalAnn,
         annotation.startY = originalAnn.startY + pDot * pY;
         annotation.endX = originalAnn.endX + pDot * pX;
         annotation.endY = originalAnn.endY + pDot * pY;
+      } else if (handleType === HANDLE_TYPES.LABEL_MOVE) {
+        // Text handle: drag the measurement text independent of the line.
+        // Stored as an OFFSET from the dimension-line midpoint so the text
+        // follows the line on move/endpoint edits. Default (0,0) = on the line.
+        annotation.textOffsetX = (originalAnn.textOffsetX || 0) + deltaX;
+        annotation.textOffsetY = (originalAnn.textOffsetY || 0) + deltaY;
       }
       break;
     }

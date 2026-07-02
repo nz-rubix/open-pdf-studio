@@ -437,6 +437,10 @@ export async function convertPdfAnnotation(annot, pageNum, viewport, stampImageM
           }
           mdProps.headSize = extraColors.opsHeadSize || 12;
           if (extraColors.opsPrecision != null) mdProps.measurePrecision = extraColors.opsPrecision;
+          // User-dragged text offset (relative to dimension-line midpoint) —
+          // written verbatim by the saver, read back verbatim here.
+          if (extraColors.opsTextOffsetX != null) mdProps.textOffsetX = extraColors.opsTextOffsetX;
+          if (extraColors.opsTextOffsetY != null) mdProps.textOffsetY = extraColors.opsTextOffsetY;
           // Compute dimension line position from PDF LL (leader length)
           // Per PDF spec: /L = base points on measured object, /LL = perpendicular
           // offset to the dimension line. Positive LL = counter-clockwise from /L direction.

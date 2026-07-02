@@ -1414,6 +1414,13 @@ export async function savePDF(saveAsPath = null) {
             // Save custom properties for exact round-trip
             if (ann.headSize && ann.headSize !== 12) mdDict.OPS_HeadSize = ann.headSize;
             if (ann.measurePrecision != null && ann.measurePrecision !== 2) mdDict.OPS_Precision = ann.measurePrecision;
+            // User-dragged text position: offset from the dimension-line
+            // midpoint, stored in the same visual frame as the annotation
+            // (loader reads it back verbatim — no coordinate conversion).
+            if (ann.textOffsetX || ann.textOffsetY) {
+              mdDict.OPS_TextOffsetX = ann.textOffsetX || 0;
+              mdDict.OPS_TextOffsetY = ann.textOffsetY || 0;
+            }
 
             // Save leader line properties if extension lines exist
             if (ann.leaderStartX !== undefined) {

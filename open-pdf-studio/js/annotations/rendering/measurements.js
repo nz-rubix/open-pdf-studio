@@ -41,7 +41,8 @@ export function drawDimension(ctx, opts) {
     startX, startY, endX, endY,
     leaderStartX, leaderStartY, leaderEndX, leaderEndY,
     startHead = 'openCircle', endHead = 'openCircle', headSize = 12,
-    color, measureText, fontSize, extension
+    color, measureText, fontSize, extension,
+    textOffsetX = 0, textOffsetY = 0
   } = opts;
 
   const mdAngle = Math.atan2(endY - startY, endX - startX);
@@ -87,16 +88,18 @@ export function drawDimension(ctx, opts) {
 
   // Measurement label
   if (measureText) {
-    drawDimensionLabel(ctx, startX, startY, endX, endY, measureText, color, fontSize);
+    drawDimensionLabel(ctx, startX, startY, endX, endY, measureText, color, fontSize, textOffsetX, textOffsetY);
   }
 }
 
 // Draw a measurement label along a dimension line direction.
 // `fontSize` is the text height in page units (PDF points); defaults to the
 // legacy 11px when the annotation predates dimension types.
-export function drawDimensionLabel(ctx, startX, startY, endX, endY, text, color, fontSize) {
-  const midX = (startX + endX) / 2;
-  const midY = (startY + endY) / 2;
+// `offsetX`/`offsetY` displace the text anchor from the dimension-line
+// midpoint (user-dragged label position); default 0,0 keeps it on the line.
+export function drawDimensionLabel(ctx, startX, startY, endX, endY, text, color, fontSize, offsetX = 0, offsetY = 0) {
+  const midX = (startX + endX) / 2 + offsetX;
+  const midY = (startY + endY) / 2 + offsetY;
   let textAngle = Math.atan2(endY - startY, endX - startX);
   // Keep text readable (not upside-down)
   if (textAngle > Math.PI / 2) textAngle -= Math.PI;
