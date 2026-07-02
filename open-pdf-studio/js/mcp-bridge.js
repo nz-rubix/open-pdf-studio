@@ -43,7 +43,7 @@ try { window.__consoleRing = CONSOLE_RING; } catch { /* noop */ }
 // Patterns the render pipeline uses: [render], [tile], [wheel-zoom],
 // [PERF], [pre-render], STALE markers. Adjust if more subsystems need
 // capture later.
-const CONSOLE_CAPTURE_RE = /\[render\]|\[tile\]|\[wheel-zoom\]|\[PERF\]|\[pre-render\]|\[thumb\]|\[bitmap-orch\]|\[tile-orch\]|STALE|JANK/;
+const CONSOLE_CAPTURE_RE = /\[render\]|\[tile\]|\[wheel-zoom\]|\[PERF\]|\[pre-render\]|\[thumb\]|\[bitmap-orch\]|\[tile-orch\]|\[prog\]|\[prog-guard\]|\[pbc\]|\[bo\]|STALE|JANK/;
 
 function _captureConsole(level, args) {
   try {

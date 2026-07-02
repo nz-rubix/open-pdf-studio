@@ -11,7 +11,9 @@ pub struct RenderResult {
 // Eén Pdfium-instantie voor de levensduur van de worker. Nodig om geladen
 // documenten te kunnen CACHEN: PdfDocument leent van Pdfium, en via een
 // 'static Pdfium krijgt de handle een 'static levensduur (zelfde patroon als
-// pdfium_renderer.rs in de app).
+// pdfium_renderer.rs in de app). NB: pdfium-render staat maar ÉÉN binding per
+// proces toe (PdfiumLibraryBindingsAlreadyInitialized) — alles loopt dus via
+// deze ene instantie.
 static PDFIUM: OnceLock<Pdfium> = OnceLock::new();
 
 fn pdfium() -> Result<&'static Pdfium> {
@@ -138,8 +140,13 @@ impl Renderer {
     }
 
     /// Render a sub-region of a page at `scale` into an output bitmap of
-    /// (region_w_pt*scale × region_h_pt*scale) px. Same technique as the app's
-    /// render_page_region_to_rgba. `rotation` must be 0.
+    /// (region_w_pt*scale × region_h_pt*scale) px. `rotation` (extra
+    /// gebruikersrotatie) must be 0.
+    ///
+    /// De regio-coördinaten komen uit de viewer in WEERGAVE-ruimte (na de
+    /// intrinsieke /Rotate van de pagina). De matrix-API van PDFium werkt
+    /// in RUWE paginaruimte, dus voor /Rotate-pagina's wordt de rotatie in
+    /// de matrix meegebakken.
     pub fn render_region(
         &mut self,
         path: &str,
@@ -169,14 +176,16 @@ impl Renderer {
             return Err(anyhow!("render_region: invalid bitmap {}x{}", bitmap_w, bitmap_h));
         }
 
-        // Affine matrix: scale the page and translate so the region's top-left
-        // lands at pixel (0,0). set_fixed_size pins the output to the tile size.
-        let tx = -region_x_pt * scale;
-        let ty = -region_y_pt * scale;
+        // De matrix van FPDF_RenderPageBitmapWithMatrix werkt in WEERGAVE-ruimte
+        // (ná de intrinsieke /Rotate van de pagina), y-omlaag vanaf linksboven —
+        // exact de ruimte waarin de viewer regio's aanlevert. Empirisch
+        // vastgesteld met hoek-probes op /Rotate=0- én /Rotate=90-pagina's
+        // (titelblok/logo-ankers): een plain schaal+translatie-matrix levert
+        // voor élke paginarotatie de juiste tegel. Geen rotatie-mapping nodig.
         let config = PdfRenderConfig::new()
             .set_fixed_size(bitmap_w, bitmap_h)
-            .transform(scale, 0.0, 0.0, scale, tx, ty)
-            .map_err(|e| anyhow!("invalid transform: {}", e))?
+            .transform(scale, 0.0, 0.0, scale, -region_x_pt * scale, -region_y_pt * scale)
+            .map_err(|e2| anyhow!("invalid transform: {}", e2))?
             .render_annotations(false)
             .use_lcd_text_rendering(true)
             .set_format(PdfBitmapFormat::BGRA);

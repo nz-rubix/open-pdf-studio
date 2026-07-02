@@ -19,8 +19,10 @@ const HEAVY_CONTENT_BYTES = 1_000_000;
 const MAX_BITMAP_AXIS_PX = 4096;
 // Ondergrens tegelgrootte in output-pixels. De werkelijke tegelgrootte schaalt
 // mee met de bitmap (zie orchestrator) zodat het aantal tegels ~begrensd blijft
-// (~10 per lange as, max ~80) i.p.v. honderden op een grote pagina.
-const TILE_MIN_PX = 384;
+// (~10 per lange as, max ~80) i.p.v. honderden op een grote pagina. Laag genoeg
+// dat óók de fit-zoom-accumulator (~500px) in ~4x3 tegels vult: dat spreidt het
+// zware rasterwerk over alle workers én geeft zichtbare progressie.
+const TILE_MIN_PX = 128;
 
 /** Zwaar zodra de gecomprimeerde content-stream de drempel overschrijdt. */
 export function isHeavyBytes(bytes) {
@@ -77,6 +79,13 @@ export async function isHeavyPage(filePath, pageNum) {
 // schrijven — analoog aan _bitmapGen in bitmap-orchestrator.js.
 let _progGen = 0;
 
+// In-flight-dedupe: renderPage vuurt tijdens één open meerdere keren (open,
+// fit, her-render). Zonder dedupe herstart elke aanroep de progressieve run
+// (verse witte accumulator overschrijft de bijna-volle!). Zelfde doelrun
+// (pad+pagina+schaal+rotatie) → meteen terugkeren (aanroepers zijn
+// fire-and-forget; de lopende run publiceert zelf).
+let _inflightKey = null;
+
 /**
  * Progressieve whole-page render voor de actieve ZWARE raster-pagina. Rendert de
  * pagina tegel-voor-tegel via render_pdf_page_region (worker-pool) en publiceert
@@ -93,7 +102,6 @@ export async function ensureProgressiveBitmapForCurrentView() {
     await import('./page-bitmap-cache.js');
 
   if (!viewport.active || !viewport.filePath || viewport.pageType !== 'raster') return;
-  const myGen = ++_progGen;
 
   // Render-schaal: zoom*dpr, HARD gecapt op 4096 px langste as. Belangrijk: we
   // gebruiken de GECAPTE schaal direct, niet via computeZoomBucket — dat rondt
@@ -113,11 +121,18 @@ export async function ensureProgressiveBitmapForCurrentView() {
   const filePath = viewport.filePath;
   const pageNum = viewport.pageNum;
 
+  // Zelfde doelrun al bezig? Niet herstarten (zie _inflightKey).
+  const runKey = `${filePath}:${pageNum}:${rotation}:${renderScale.toFixed(4)}`;
+  if (_inflightKey === runKey) return;
+  const myGen = ++_progGen;
+  _inflightKey = runKey;
+
   // Al gerenderd op deze bucket? Meteen tonen en klaar.
   const exact = getCachedBitmap(filePath, pageNum, rotation, cacheBucket);
   if (exact && exact.bitmap) {
     viewport.currentBitmap = exact.bitmap;
     viewport.dirty = true;
+    _inflightKey = null;
     return;
   }
   // Anders: toon vast de best beschikbare (lagere bucket) terwijl we renderen.
@@ -138,7 +153,13 @@ export async function ensureProgressiveBitmapForCurrentView() {
     actx = acc.getContext('2d');
     actx.fillStyle = '#ffffff';
     actx.fillRect(0, 0, fullW, fullH);
+    // Seed met de beste beschikbare bitmap: tussenstanden zijn dan altijd
+    // "oude weergave + nieuwe tegels" en kunnen nooit terugvallen naar wit.
+    if (fallback && fallback.bitmap) {
+      try { actx.drawImage(fallback.bitmap, 0, 0, fullW, fullH); } catch {}
+    }
   } catch {
+    _inflightKey = null;
     const e = await ensureBitmap(filePath, pageNum, rotation, cacheBucket);
     if (myGen === _progGen && e && e.bitmap) { viewport.currentBitmap = e.bitmap; viewport.dirty = true; }
     return;
@@ -151,6 +172,9 @@ export async function ensureProgressiveBitmapForCurrentView() {
   let failed = false;
   let lastPublish = 0;         // throttle tussentijdse publicaties
   let lastIntermediate = null; // vorige tussenstand-bitmap (sluiten na swap)
+  const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
+  let tilesDone = 0;
+  console.log(`[prog] start ${fullW}x${fullH}px, ${tiles.length} tegels (tile=${tilePx}px) p${pageNum}`);
 
   // Publiceer de accumulator als viewport-bitmap; sluit de vorige tussenstand
   // meteen na de swap zodat het geheugen begrensd blijft (elke ImageBitmap is
@@ -189,10 +213,16 @@ export async function ensureProgressiveBitmapForCurrentView() {
     if (w * h * 4 !== bytes.length - 8) return;
     const rgba = new Uint8ClampedArray(bytes.buffer, bytes.byteOffset + 8, w * h * 4);
     actx.putImageData(new ImageData(rgba, w, h), t.px, t.py);
-    // Tussenstand publiceren, getthrottled zodat grote pagina's niet te veel
-    // volledige-canvas-bitmaps maken.
+    tilesDone++;
+    // Tussenstand publiceren: de EERSTE tegel direct (snelste eerste content),
+    // daarna getthrottled zodat grote pagina's niet te veel volledige-canvas-
+    // bitmaps maken.
     const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
-    if (now - lastPublish >= 300) {
+    if (tilesDone === 1) {
+      console.log(`[prog] eerste tegel @${Math.round(now - t0)}ms`);
+      lastPublish = now;
+      await publish();
+    } else if (now - lastPublish >= 300) {
       lastPublish = now;
       await publish();
     }
@@ -214,10 +244,12 @@ export async function ensureProgressiveBitmapForCurrentView() {
     }
   });
   await Promise.all(workers);
-  if (myGen !== _progGen) return;
+  if (myGen !== _progGen) { if (_inflightKey === runKey) _inflightKey = null; return; }
 
   if (failed) {
     // Terugval: één gewone whole-page render via de bestaande cache-weg.
+    console.warn('[prog] tegel-fout — terugval naar whole-page render');
+    if (_inflightKey === runKey) _inflightKey = null;
     const e = await ensureBitmap(filePath, pageNum, rotation, cacheBucket);
     if (myGen === _progGen && e && e.bitmap) { viewport.currentBitmap = e.bitmap; viewport.dirty = true; }
     return;
@@ -226,9 +258,12 @@ export async function ensureProgressiveBitmapForCurrentView() {
   // Klaar: cache de volledige bitmap (zoom/pan/re-visit = cache-hit); sluit de
   // laatste tussenstand. De finalBmp blijft leven in de cache/viewport.
   const finalBmp = await createImageBitmap(acc);
-  if (myGen !== _progGen) { try { finalBmp.close && finalBmp.close(); } catch {} return; }
+  if (myGen !== _progGen) { try { finalBmp.close && finalBmp.close(); } catch {} if (_inflightKey === runKey) _inflightKey = null; return; }
   if (lastIntermediate) { try { lastIntermediate.close && lastIntermediate.close(); } catch {} }
   setCachedBitmapEntry(filePath, pageNum, rotation, cacheBucket, finalBmp, fullW, fullH, renderScale);
   viewport.currentBitmap = finalBmp;
   viewport.dirty = true;
+  if (_inflightKey === runKey) _inflightKey = null;
+  const tEnd = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
+  console.log(`[prog] klaar @${Math.round(tEnd - t0)}ms (${tiles.length} tegels)`);
 }
