@@ -907,18 +907,22 @@ export async function convertPdfAnnotation(annot, pageNum, viewport, stampImageM
       }
       if (ftRotation === 0 && extraColors.matrixAngle !== undefined) {
         const ma = extraColors.matrixAngle;
-        // Combined formula: visual rotation = -(annot.rotation + matrixAngle).
+        // Combined formula: visual rotation = -(annot.rotation + matrixAngle - pageRotate).
         // - annot.rotation comes from PDF.js (parses /Rotate / /Rotation key).
         // - matrixAngle comes from the AP/N Matrix (or auto-generated AP).
-        // Together they encode the full transform; their sum mod 360 (negated for
-        // canvas Y-down) gives the actual visual rotation.
-        // Verified against PDF X-Change output:
+        // - pageRotate (viewport.rotation) = the page's own /Rotate: annotations
+        //   rotate along with the page display, so an annot whose /Rotate equals
+        //   the page /Rotate reads UPRIGHT for the viewer (visual 0).
+        // Verified against PDF X-Change output (unrotated pages):
         //   /Rotate 90  + matrix -90 → visual 0 (horizontal)
         //   /Rotate 270 + matrix +90 → visual 0 (horizontal)
         //   /Rotate 270 + matrix 180 → visual -90 (vertical)
         //   /Rotate 270 + matrix 120 → visual -30 (diagonal)
+        // And on a page with /Rotate 90 (grote CAD-bladen):
+        //   annot /Rotate 90 + matrix 0 → visual 0 (horizontal)
         const annotRot = (typeof annot.rotation === 'number') ? annot.rotation : 0;
-        ftRotation = -(annotRot + ma);
+        const pageRot = (((viewport.rotation || 0) % 360) + 360) % 360;
+        ftRotation = -(annotRot + ma - pageRot);
         while (ftRotation > 180) ftRotation -= 360;
         while (ftRotation < -180) ftRotation += 360;
         ftRotation = Math.round(ftRotation);
