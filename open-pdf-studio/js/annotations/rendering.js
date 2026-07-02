@@ -917,8 +917,25 @@ export function drawAnnotation(ctx, annotation) {
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
 
-        // Draw the image centered at origin
-        ctx.drawImage(img, -annotation.width / 2, -annotation.height / 2, annotation.width, annotation.height);
+        // Draw the image centered at origin. Crop (bijsnijden, issue #212):
+        // cropLeft/Top/Right/Bottom are fractions 0-1 of the SOURCE bitmap
+        // trimmed per side (non-destructive — imageData stays intact). Draw
+        // the remaining source window into the full annotation rect.
+        const cropL = Math.max(0, Math.min(0.95, annotation.cropLeft || 0));
+        const cropT = Math.max(0, Math.min(0.95, annotation.cropTop || 0));
+        const cropR = Math.max(0, Math.min(0.95, annotation.cropRight || 0));
+        const cropB = Math.max(0, Math.min(0.95, annotation.cropBottom || 0));
+        const cropW = 1 - cropL - cropR;
+        const cropH = 1 - cropT - cropB;
+        if ((cropL || cropT || cropR || cropB) && cropW > 0 && cropH > 0 &&
+            img.naturalWidth > 0 && img.naturalHeight > 0) {
+          ctx.drawImage(img,
+            img.naturalWidth * cropL, img.naturalHeight * cropT,
+            img.naturalWidth * cropW, img.naturalHeight * cropH,
+            -annotation.width / 2, -annotation.height / 2, annotation.width, annotation.height);
+        } else {
+          ctx.drawImage(img, -annotation.width / 2, -annotation.height / 2, annotation.width, annotation.height);
+        }
 
         ctx.imageSmoothingEnabled = prevSmooth;
         ctx.imageSmoothingQuality = prevQuality;

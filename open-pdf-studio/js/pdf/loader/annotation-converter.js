@@ -1130,6 +1130,12 @@ export async function convertPdfAnnotation(annot, pageNum, viewport, stampImageM
         stampProps.originalWidth = w;
         stampProps.originalHeight = h;
         stampProps.lockAspectRatio = true;
+        // Non-destructive crop round-trip (issue #212). Always present (0 =
+        // no crop) so property-change undo snapshots contain the keys.
+        stampProps.cropLeft = extraColors.cropLeft || 0;
+        stampProps.cropTop = extraColors.cropTop || 0;
+        stampProps.cropRight = extraColors.cropRight || 0;
+        stampProps.cropBottom = extraColors.cropBottom || 0;
       }
 
       // LINKED image: remember the source path and refresh the bitmap from

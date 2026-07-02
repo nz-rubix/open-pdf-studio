@@ -110,6 +110,9 @@ export async function addImageFromFile(filePath, opts = {}) {
       originalWidth: img.naturalWidth,
       originalHeight: img.naturalHeight,
       lockAspectRatio: true,
+      // Crop (bijsnijden) fractions per side, 0 = no crop. Present from the
+      // start so property-change undo snapshots always contain the keys.
+      cropLeft: 0, cropTop: 0, cropRight: 0, cropBottom: 0,
       opacity: 1,
       locked: false,
       printable: true,

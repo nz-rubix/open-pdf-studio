@@ -94,6 +94,54 @@ export default function ImageSection() {
           </button>
         </div>
 
+        {/* Bijsnijden (crop, issue #212): per zijde een percentage 0-90 van
+            de bron dat wordt weggesneden — niet-destructief, zoals in
+            gangbare kantoorsoftware. */}
+        <div class="property-group">
+          <label>{t('image.cropLeft')}</label>
+          <input type="number" min="0" max="90" step="1"
+            value={annotProps.cropLeft} disabled={isLocked()}
+            onInput={(e) => updateAnnotProp('cropLeft', e.target.value)} />
+        </div>
+
+        <div class="property-group">
+          <label>{t('image.cropRight')}</label>
+          <input type="number" min="0" max="90" step="1"
+            value={annotProps.cropRight} disabled={isLocked()}
+            onInput={(e) => updateAnnotProp('cropRight', e.target.value)} />
+        </div>
+
+        <div class="property-group">
+          <label>{t('image.cropTop')}</label>
+          <input type="number" min="0" max="90" step="1"
+            value={annotProps.cropTop} disabled={isLocked()}
+            onInput={(e) => updateAnnotProp('cropTop', e.target.value)} />
+        </div>
+
+        <div class="property-group">
+          <label>{t('image.cropBottom')}</label>
+          <input type="number" min="0" max="90" step="1"
+            value={annotProps.cropBottom} disabled={isLocked()}
+            onInput={(e) => updateAnnotProp('cropBottom', e.target.value)} />
+        </div>
+
+        <Show when={(parseFloat(annotProps.cropLeft) || 0) > 0 || (parseFloat(annotProps.cropRight) || 0) > 0 ||
+                    (parseFloat(annotProps.cropTop) || 0) > 0 || (parseFloat(annotProps.cropBottom) || 0) > 0}>
+          <div class="property-group">
+            <label></label>
+            <button type="button" class="prop-action-btn"
+              disabled={isLocked()}
+              onClick={() => {
+                updateAnnotProp('cropLeft', 0);
+                updateAnnotProp('cropRight', 0);
+                updateAnnotProp('cropTop', 0);
+                updateAnnotProp('cropBottom', 0);
+              }}>
+              {t('image.resetCrop')}
+            </button>
+          </div>
+        </Show>
+
         <div class="property-group">
           <label>{t('image.linkedFile')}</label>
           <span title={annotProps.linkedPath || ''}
