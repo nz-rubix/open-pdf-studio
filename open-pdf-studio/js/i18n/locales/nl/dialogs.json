@@ -72,7 +72,11 @@
     "printJobSent": "Afdruktaak succesvol verzonden.",
     "printFailed": "Afdrukken mislukt:",
     "noPages": "Geen pagina's",
-    "pageOf": "Pagina {{current}} van {{total}}"
+    "pageOf": "Pagina {{current}} van {{total}}",
+    "firstPage": "Eerste pagina",
+    "prevPage": "Vorige pagina",
+    "nextPage": "Volgende pagina",
+    "lastPage": "Laatste pagina"
   },
   "insertPage": {
     "title": "Pagina's invoegen",
@@ -330,5 +334,49 @@
     "successMessage": "Je feedback is succesvol verzonden.",
     "sendAnother": "Nog een versturen",
     "errorGeneric": "Feedback versturen mislukt. Probeer het opnieuw."
+  },
+  "pageProperties": {
+    "title": "Eigenschappen van pagina {{page}}",
+    "dimensions": "Afmetingen",
+    "sizePoints": "Grootte (pt):",
+    "sizeMm": "Grootte (mm):",
+    "sizeInches": "Grootte (in):",
+    "display": "Weergave",
+    "rotation": "Rotatie:",
+    "userUnit": "Gebruikerseenheid:",
+    "loading": "Laden..."
+  },
+  "deletePages": {
+    "title": "Pagina's verwijderen",
+    "pageRange": "Paginabereik:",
+    "placeholder": "bijv. 1-3, 5, 8-10",
+    "documentHas": "Document heeft",
+    "pagesCount": "pagina's.",
+    "cannotDeleteAll": "Kan niet alle pagina's verwijderen. Er moet minstens één pagina overblijven."
+  },
+  "cropMargins": {
+    "title": "Marges bijsnijden",
+    "applyTo": "Toepassen op:",
+    "currentPage": "Huidige pagina",
+    "allPages": "Alle pagina's",
+    "pageRange": "Paginabereik",
+    "pages": "Pagina's:",
+    "pagesPlaceholder": "bijv. 1-3, 5, 8-10",
+    "padding": "Opvulling (mm):",
+    "threshold": "Drempel:",
+    "info": "{{count}} pagina('s) in document. CropBox behoudt de originele inhoud — volledig omkeerbaar met Ongedaan maken.",
+    "noContent": "Geen inhoud gedetecteerd — alle geselecteerde pagina's lijken leeg te zijn.",
+    "resultWithSkipped": "{{cropped}} pagina('s) bijgesneden. {{skipped}} lege pagina('s) overgeslagen."
+  },
+  "scale": {
+    "title": "Schaal instellen",
+    "currentValue": "Huidige waarde",
+    "enterValue": "Voer de werkelijke waarde voor deze lijn in:",
+    "placeholder": "bijv. 12.3m, 5.2 ft, 100 mm",
+    "hint": "Typ een getal gevolgd door een eenheid (mm, cm, m, km, in, ft, yd)",
+    "invalidInput": "Voer een geldig getal in met een optionele eenheid (bijv. 12.3m)",
+    "invalidLine": "Ongeldige meetlijn.",
+    "ok": "OK",
+    "cancel": "Annuleren"
   }
 }

@@ -40,7 +40,13 @@
     "autoDetectTitle": "Schaal detecteren uit tekeningkader",
     "scaleDetected": "Schaal gedetecteerd",
     "noScaleFound": "Geen schaal gevonden",
-    "detecting": "Detecteren..."
+    "detecting": "Detecteren...",
+    "presetScale": "Voorinstelling",
+    "selectScale": "Selecteren...",
+    "viewport": "Viewport",
+    "createViewport": "Teken een viewport-gebied met een eigen schaal",
+    "viewportTitle": "Viewport-schaal instellen",
+    "dynamicScaling": "Markeringen automatisch schalen"
   },
   "home": {
     "document": "Document",
@@ -81,7 +87,9 @@
     "lastPage": "Laatste pagina",
     "last": "Laatste",
     "find": "Zoeken",
-    "findCtrlF": "Zoeken (Ctrl+F)"
+    "findCtrlF": "Zoeken (Ctrl+F)",
+    "basic": "Basis",
+    "select": "Selecteren"
   },
   "comment": {
     "scaleRegion": "Schaalgebied",
@@ -139,7 +147,8 @@
     "snapToDrawingTitle": "Snap naar PDF-tekening",
     "snapActive": "Snap Aan",
     "loading": "Laden...",
-    "northArrow": "North Arrow"
+    "northArrow": "North Arrow",
+    "cloudPolyline": "Wolk-polylijn"
   },
   "view": {
     "pageDisplay": "Paginaweergave",
@@ -156,7 +165,16 @@
     "annotationsLabel": "Annotaties",
     "appearance": "Weergave",
     "compareGroup": "Vergelijken",
-    "window": "Venster"
+    "window": "Venster",
+    "toolPalette": "Gereedschapspalet",
+    "toolPaletteLabel": "Gereedschapspalet",
+    "movePaletteRight": "Naar rechterkant verplaatsen",
+    "movePaletteLeft": "Naar linkerkant verplaatsen",
+    "closePalette": "Gereedschapspalet sluiten",
+    "thinLinesTitle": "Dunne lijnen (Ctrl+5)",
+    "thinLines": "Dunne lijnen",
+    "fullscreen": "Volledig scherm",
+    "display": "Weergave"
   },
   "compare": {
     "title": "PDF's vergelijken",
@@ -211,7 +229,13 @@
     "updatesLabel": "Updates",
     "fileAssociation": "Bestandskoppeling",
     "setDefaultPdf": "Standaard PDF-toepassing instellen",
-    "fileAssociations": "Bestandskoppelingen"
+    "fileAssociations": "Bestandskoppelingen",
+    "settings": "Instellingen",
+    "preferencesTitle": "Voorkeuren",
+    "preferences": "Voorkeuren",
+    "extensionsTitle": "Extensies beheren",
+    "extensions": "Extensies",
+    "help": "Help"
   },
   "format": {
     "styleRed": "Rood",

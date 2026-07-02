@@ -16,7 +16,7 @@
     "title": "Over",
     "appName": "Open PDF Studio",
     "tagline": "IT Without Chains",
-    "description": "Een professionele PDF-editor voor het bekijken, annoteren en bewerken van PDF-documenten. Gebouwd met open source-technologie\u00ebn.",
+    "description": "Een professionele PDF-editor voor het bekijken, annoteren en bewerken van PDF-documenten. Gebouwd met open source-technologieën.",
     "companyName": "OpenAEC Foundation",
     "companyDescription": "Van het Latijnse \"delen en verspreiden\" - wij bevrijden bedrijven van leveranciersafhankelijkheid door professionele open source-oplossingen. Transparante prijzen, transparante code.",
     "featureFree": "Voor altijd gratis, geen abonnementen",
@@ -25,7 +25,7 @@
     "license": "Gelicentieerd onder MIT. Gratis voor persoonlijk en commercieel gebruik.",
     "website": "Website",
     "contact": "Contact",
-    "copyright": "\u00a9 2026 OpenAEC Foundation. Gelicentieerd onder MIT.",
+    "copyright": "© 2026 OpenAEC Foundation. Gelicentieerd onder MIT.",
     "version": "Versie"
   },
   "whatsNew": {
@@ -96,5 +96,24 @@
     "dpi150": "150 DPI",
     "dpi300": "300 DPI (Afdruk)",
     "dpi600": "600 DPI (Hoge kwaliteit)"
+  },
+  "extensions": "Extensies",
+  "extensionsPanel": {
+    "title": "Extensies",
+    "installFromFile": "Installeren vanuit bestand",
+    "installing": "Installeren...",
+    "installHint": "Selecteer een .oppx-extensiepakket om te installeren",
+    "installSuccess": "\"{{name}}\" is succesvol geïnstalleerd",
+    "installError": "Extensie installeren mislukt",
+    "installed": "Geïnstalleerde extensies",
+    "noExtensions": "Geen extensies geïnstalleerd",
+    "uninstall": "Verwijderen",
+    "reload": "Opnieuw laden",
+    "reloadSuccess": "\"{{name}}\" is opnieuw geladen",
+    "reloadError": "Extensie opnieuw laden mislukt",
+    "confirmUninstall": "Weet je zeker dat je \"{{name}}\" wilt verwijderen?",
+    "uninstallSuccess": "\"{{name}}\" is verwijderd",
+    "uninstallError": "Extensie verwijderen mislukt",
+    "by": "door"
   }
 }

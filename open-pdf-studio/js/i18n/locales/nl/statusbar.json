@@ -27,7 +27,8 @@
     "formTextField": "Formulier tekstveld",
     "formCheckbox": "Formulier selectievakje",
     "formRadio": "Formulier keuzerondje",
-    "screenshot": "Schermafbeelding"
+    "screenshot": "Schermafbeelding",
+    "cloudPolyline": "Wolk-polylijn"
   },
   "toolLabel": "Gereedschap:",
   "annotationsLabel": "Annotaties:",
@@ -53,5 +54,6 @@
   "pdfAConformance": "Dit document voldoet aan de PDF/A-norm.",
   "renameError": "Failed to rename file: {{error}}",
   "renameInvalidChars": "File name cannot contain  / : * ? \" < > |",
-  "renameFileExists": "A file with this name already exists."
+  "renameFileExists": "A file with this name already exists.",
+  "page": "Pagina"
 }
