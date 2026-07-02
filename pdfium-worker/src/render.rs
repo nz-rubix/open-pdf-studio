@@ -39,7 +39,9 @@ struct CachedDoc {
     path: String,
     mtime: Option<std::time::SystemTime>,
     len: u64,
-    page: Option<(u32, PdfPage<'static>)>,
+    /// (pagina-index, parse-duur in ms, open handle). De parse-duur bepaalt of
+    /// de handle na de render blijft leven (zie release_page_if_cheap).
+    page: Option<(u32, u32, PdfPage<'static>)>,
     document: PdfDocument<'static>,
     _bytes: Vec<u8>,
 }
@@ -115,7 +117,7 @@ impl Renderer {
     /// alleen de eerste render die parse; daarna is een tegel puur rasterwerk.
     fn get_or_load_page(&mut self, doc_idx: usize, page_index: u32) -> Result<&PdfPage<'static>> {
         let entry = &mut self.cache[doc_idx];
-        let reuse = matches!(&entry.page, Some((idx, _)) if *idx == page_index);
+        let reuse = matches!(&entry.page, Some((idx, _, _)) if *idx == page_index);
         if !reuse {
             entry.page = None; // oude handle expliciet sluiten vóór de nieuwe opent
             // Safety: het document zit in een Box (stabiel heap-adres, ook als de
@@ -123,13 +125,29 @@ impl Renderer {
             // staat vóór `document` in de struct en dropt dus altijd eerder.
             let doc_ref: &'static PdfDocument<'static> =
                 unsafe { &*(&entry.document as *const PdfDocument<'static>) };
+            let t0 = std::time::Instant::now();
             let page = doc_ref
                 .pages()
                 .get(page_index as i32)
                 .map_err(|e| anyhow!("page {}: {}", page_index, e))?;
-            entry.page = Some((page_index, page));
+            let load_ms = t0.elapsed().as_millis() as u32;
+            entry.page = Some((page_index, load_ms, page));
         }
-        Ok(&self.cache[doc_idx].page.as_ref().expect("zojuist gezet").1)
+        Ok(&self.cache[doc_idx].page.as_ref().expect("zojuist gezet").2)
+    }
+
+    /// Sluit de pagina-handle weer als de parse GOEDKOOP was. Alleen zware
+    /// pagina's (parse in de honderden ms tot seconden — grote CAD-bladen)
+    /// verdienen de open handle met zijn forse parse-state (~1 GB op extreme
+    /// bladen); normale pagina's parsen in enkele tientallen ms en hun handle
+    /// vasthouden zou bij veel tabs/documenten onnodig geheugen stapelen.
+    fn release_page_if_cheap(&mut self, doc_idx: usize) {
+        const KEEP_HANDLE_MS: u32 = 250;
+        if let Some((_, load_ms, _)) = &self.cache[doc_idx].page {
+            if *load_ms < KEEP_HANDLE_MS {
+                self.cache[doc_idx].page = None;
+            }
+        }
     }
 
     pub fn render(
@@ -140,38 +158,44 @@ impl Renderer {
         rotation: i32,
     ) -> Result<RenderResult> {
         let idx = self.get_or_load(path)?;
-        let page = self.get_or_load_page(idx, page_index)?;
+        let result = {
+            let page = self.get_or_load_page(idx, page_index)?;
 
-        let w_pt = page.width().value;
-        let h_pt = page.height().value;
-        let target_w = (w_pt * scale).ceil() as i32;
-        let target_h = (h_pt * scale).ceil() as i32;
+            let w_pt = page.width().value;
+            let h_pt = page.height().value;
+            let target_w = (w_pt * scale).ceil() as i32;
+            let target_h = (h_pt * scale).ceil() as i32;
 
-        let rot = match rotation.rem_euclid(360) {
-            0 => PdfPageRenderRotation::None,
-            90 => PdfPageRenderRotation::Degrees90,
-            180 => PdfPageRenderRotation::Degrees180,
-            270 => PdfPageRenderRotation::Degrees270,
-            other => return Err(anyhow!("unsupported rotation {}", other)),
+            let rot = match rotation.rem_euclid(360) {
+                0 => PdfPageRenderRotation::None,
+                90 => PdfPageRenderRotation::Degrees90,
+                180 => PdfPageRenderRotation::Degrees180,
+                270 => PdfPageRenderRotation::Degrees270,
+                other => return Err(anyhow!("unsupported rotation {}", other)),
+            };
+
+            let config = PdfRenderConfig::new()
+                .set_target_width(target_w)
+                .set_maximum_height(target_h)
+                .rotate(rot, true)
+                .render_form_data(true)
+                .render_annotations(false)
+                .use_lcd_text_rendering(true)
+                .set_format(PdfBitmapFormat::BGRA);
+
+            let bitmap = page.render_with_config(&config)
+                .map_err(|e| anyhow!("PDFium render: {}", e))?;
+
+            RenderResult {
+                width: bitmap.width() as u32,
+                height: bitmap.height() as u32,
+                rgba: bitmap.as_rgba_bytes(),
+            }
         };
-
-        let config = PdfRenderConfig::new()
-            .set_target_width(target_w)
-            .set_maximum_height(target_h)
-            .rotate(rot, true)
-            .render_form_data(true)
-            .render_annotations(false)
-            .use_lcd_text_rendering(true)
-            .set_format(PdfBitmapFormat::BGRA);
-
-        let bitmap = page.render_with_config(&config)
-            .map_err(|e| anyhow!("PDFium render: {}", e))?;
-
-        Ok(RenderResult {
-            width: bitmap.width() as u32,
-            height: bitmap.height() as u32,
-            rgba: bitmap.as_rgba_bytes(),
-        })
+        // Goedkope pagina's houden geen open handle vast (geheugen-garantie
+        // voor normale PDF's); zware behouden hem voor snelle vervolg-tegels.
+        self.release_page_if_cheap(idx);
+        Ok(result)
     }
 
     /// Render a sub-region of a page at `scale` into an output bitmap of
@@ -200,36 +224,42 @@ impl Renderer {
             return Err(anyhow!("render_region: region must be positive"));
         }
         let idx = self.get_or_load(path)?;
-        let page = self.get_or_load_page(idx, page_index)?;
+        let result = {
+            let page = self.get_or_load_page(idx, page_index)?;
 
-        let bitmap_w = (region_w_pt * scale).ceil() as i32;
-        let bitmap_h = (region_h_pt * scale).ceil() as i32;
-        if bitmap_w <= 0 || bitmap_h <= 0 {
-            return Err(anyhow!("render_region: invalid bitmap {}x{}", bitmap_w, bitmap_h));
-        }
+            let bitmap_w = (region_w_pt * scale).ceil() as i32;
+            let bitmap_h = (region_h_pt * scale).ceil() as i32;
+            if bitmap_w <= 0 || bitmap_h <= 0 {
+                return Err(anyhow!("render_region: invalid bitmap {}x{}", bitmap_w, bitmap_h));
+            }
 
-        // De matrix van FPDF_RenderPageBitmapWithMatrix werkt in WEERGAVE-ruimte
-        // (ná de intrinsieke /Rotate van de pagina), y-omlaag vanaf linksboven —
-        // exact de ruimte waarin de viewer regio's aanlevert. Empirisch
-        // vastgesteld met hoek-probes op /Rotate=0- én /Rotate=90-pagina's
-        // (titelblok/logo-ankers): een plain schaal+translatie-matrix levert
-        // voor élke paginarotatie de juiste tegel. Geen rotatie-mapping nodig.
-        let config = PdfRenderConfig::new()
-            .set_fixed_size(bitmap_w, bitmap_h)
-            .transform(scale, 0.0, 0.0, scale, -region_x_pt * scale, -region_y_pt * scale)
-            .map_err(|e2| anyhow!("invalid transform: {}", e2))?
-            .render_annotations(false)
-            .use_lcd_text_rendering(true)
-            .set_format(PdfBitmapFormat::BGRA);
+            // De matrix van FPDF_RenderPageBitmapWithMatrix werkt in WEERGAVE-ruimte
+            // (ná de intrinsieke /Rotate van de pagina), y-omlaag vanaf linksboven —
+            // exact de ruimte waarin de viewer regio's aanlevert. Empirisch
+            // vastgesteld met hoek-probes op /Rotate=0- én /Rotate=90-pagina's
+            // (titelblok/logo-ankers): een plain schaal+translatie-matrix levert
+            // voor élke paginarotatie de juiste tegel. Geen rotatie-mapping nodig.
+            let config = PdfRenderConfig::new()
+                .set_fixed_size(bitmap_w, bitmap_h)
+                .transform(scale, 0.0, 0.0, scale, -region_x_pt * scale, -region_y_pt * scale)
+                .map_err(|e2| anyhow!("invalid transform: {}", e2))?
+                .render_annotations(false)
+                .use_lcd_text_rendering(true)
+                .set_format(PdfBitmapFormat::BGRA);
 
-        let bitmap = page.render_with_config(&config)
-            .map_err(|e| anyhow!("PDFium region render: {}", e))?;
+            let bitmap = page.render_with_config(&config)
+                .map_err(|e| anyhow!("PDFium region render: {}", e))?;
 
-        Ok(RenderResult {
-            width: bitmap.width() as u32,
-            height: bitmap.height() as u32,
-            rgba: bitmap.as_rgba_bytes(),
-        })
+            RenderResult {
+                width: bitmap.width() as u32,
+                height: bitmap.height() as u32,
+                rgba: bitmap.as_rgba_bytes(),
+            }
+        };
+        // Goedkope pagina's houden geen open handle vast (geheugen-garantie
+        // voor normale PDF's); zware behouden hem voor snelle vervolg-tegels.
+        self.release_page_if_cheap(idx);
+        Ok(result)
     }
 }
 
