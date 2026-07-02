@@ -92,6 +92,11 @@ export default function WhatsNewDialog() {
         <Show when={!isLoading() && !getError() && parsed().length === 0}>
           <p class="wn-empty">{t('whatsNew.empty')}</p>
         </Show>
+        {/* Geen enkele release heeft NL (tabs verborgen) terwijl de app-taal
+            NL is: één melding bovenaan in plaats van eentje per release. */}
+        <Show when={!isLoading() && !getError() && parsed().length > 0 && !hasAnyDutch() && getActiveLang() === 'nl'}>
+          <p class="wn-lang-fallback">{t('whatsNew.noDutchFallback')}</p>
+        </Show>
         <For each={parsed()}>
           {(rel) => {
             const lang = () => getActiveLang();
@@ -105,8 +110,10 @@ export default function WhatsNewDialog() {
               catch { return ''; }
             };
             // NL-tab actief maar deze release heeft geen Nederlandse
-            // sectie -> Engelse fallback tonen mét melding.
-            const showsEnFallback = () => lang() === 'nl' && !rel.sections.nl && !!rel.sections.en;
+            // sectie -> Engelse fallback tonen mét melding. Alleen in de
+            // gemengde situatie (tabs zichtbaar); anders staat er al één
+            // melding bovenaan de lijst.
+            const showsEnFallback = () => hasAnyDutch() && lang() === 'nl' && !rel.sections.nl && !!rel.sections.en;
             return (
               <article class="wn-release">
                 <header class="wn-release-header">
