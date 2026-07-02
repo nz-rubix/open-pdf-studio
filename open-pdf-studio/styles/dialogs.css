@@ -3738,7 +3738,7 @@
   gap: 12px;
   padding: 32px 24px;
   min-width: 380px;
-  color: #555;
+  color: var(--theme-text-secondary, #555);
 }
 .cmp-dialog-empty-msg { font-size: 13px; text-align: center; max-width: 320px; }
 
@@ -3759,8 +3759,8 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  border: 1px solid #d4d4d4;
-  background: #fafafa;
+  border: 1px solid var(--theme-border, #d4d4d4);
+  background: var(--theme-bg, #fafafa);
   padding: 8px 10px;
 }
 
@@ -3772,7 +3772,7 @@
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.4px;
-  color: #444;
+  color: var(--theme-text, #444);
 }
 
 .cmp-color-dot {
@@ -3787,8 +3787,9 @@
   height: 24px;
   padding: 2px 6px;
   font-size: 12px;
-  border: 1px solid #c4c4c4;
-  background: white;
+  border: 1px solid var(--theme-border, #c4c4c4);
+  background: var(--theme-surface, white);
+  color: var(--theme-text, #333);
 }
 
 .cmp-page-row {
@@ -3796,7 +3797,7 @@
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: #555;
+  color: var(--theme-text-secondary, #555);
 }
 
 .cmp-page-label {
@@ -3808,42 +3809,43 @@
   height: 22px;
   padding: 1px 4px;
   font-size: 11px;
-  border: 1px solid #c4c4c4;
-  background: white;
+  border: 1px solid var(--theme-border, #c4c4c4);
+  background: var(--theme-surface, white);
+  color: var(--theme-text, #333);
 }
 
 .cmp-page-of {
   font-size: 11px;
-  color: #777;
+  color: var(--theme-text-secondary, #777);
 }
 
 .cmp-vs {
   align-self: center;
   padding: 0 4px;
-  color: #999;
+  color: var(--theme-text-secondary, #999);
 }
 
 .cmp-swap-btn {
-  background: #fff;
-  border: 1px solid #c4c4c4;
+  background: var(--theme-surface, #fff);
+  border: 1px solid var(--theme-border, #c4c4c4);
   width: 32px;
   height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: default;
-  color: #555;
+  color: var(--theme-text-secondary, #555);
   transition: background 0.1s, border-color 0.1s, color 0.1s;
 }
 
 .cmp-swap-btn:hover {
-  background: #e6f1fb;
-  border-color: #0078d4;
-  color: #0078d4;
+  background: var(--theme-hover, #e6f1fb);
+  border-color: var(--theme-accent, #0078d4);
+  color: var(--theme-accent, #0078d4);
 }
 
 .cmp-swap-btn:active {
-  background: #d4e6f7;
+  background: var(--theme-hover, #d4e6f7);
 }
 
 .cmp-mode-row {
@@ -3858,22 +3860,22 @@
   align-items: center;
   gap: 4px;
   padding: 10px 8px;
-  border: 1px solid #d4d4d4;
-  background: #fff;
+  border: 1px solid var(--theme-border, #d4d4d4);
+  background: var(--theme-surface, #fff);
   cursor: pointer;
   text-align: center;
   transition: background 0.1s, border-color 0.1s;
 }
 
 .cmp-mode-card:hover {
-  background: #f0f6ff;
-  border-color: #6aa9e9;
+  background: var(--theme-hover, #f0f6ff);
+  border-color: var(--theme-accent, #6aa9e9);
 }
 
 .cmp-mode-card.active {
-  background: #e6f1fb;
-  border-color: #0078d4;
-  box-shadow: inset 0 0 0 1px #0078d4;
+  background: var(--theme-hover, #e6f1fb);
+  border-color: var(--theme-accent, #0078d4);
+  box-shadow: inset 0 0 0 1px var(--theme-accent, #0078d4);
 }
 
 .cmp-mode-card input[type="radio"] {
@@ -3891,12 +3893,12 @@
 .cmp-mode-title {
   font-size: 12px;
   font-weight: 600;
-  color: #333;
+  color: var(--theme-text, #333);
 }
 
 .cmp-mode-desc {
   font-size: 10px;
-  color: #666;
+  color: var(--theme-text-secondary, #666);
   line-height: 1.2;
 }
 
@@ -3904,10 +3906,10 @@
   display: flex;
   gap: 14px;
   padding: 6px 10px;
-  background: #f5f5f5;
-  border: 1px solid #e0e0e0;
+  background: var(--theme-bg, #f5f5f5);
+  border: 1px solid var(--theme-border, #e0e0e0);
   font-size: 11px;
-  color: #555;
+  color: var(--theme-text-secondary, #555);
 }
 
 .cmp-legend-item {
