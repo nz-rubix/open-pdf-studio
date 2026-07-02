@@ -1633,6 +1633,13 @@ async fn render_pdf_page_region(
         }
     }
 
+    // In-proc-fallback SERIALISEREN: dit command draait als async op meerdere
+    // tokio-threads tegelijk, maar gelijktijdige in-proc PDFium-renders van
+    // hetzelfde document crashen het proces (bewezen; de worker-pool bestaat
+    // juist daarom). Erdoorheen: één in-proc regio-render tegelijk.
+    static REGION_INPROC_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    let _inproc = REGION_INPROC_LOCK.lock().await;
+
     let bytes = {
         let mut bm = bytes_cache.0.lock().map_err(|e| format!("Bytes cache lock: {}", e))?;
         if let Some(cached) = bm.get(&path) {

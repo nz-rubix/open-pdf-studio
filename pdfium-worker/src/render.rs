@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use pdfium_render::prelude::*;
+use std::sync::OnceLock;
 
 pub struct RenderResult {
     pub width: u32,
@@ -7,28 +8,99 @@ pub struct RenderResult {
     pub rgba: Vec<u8>,
 }
 
+// Eén Pdfium-instantie voor de levensduur van de worker. Nodig om geladen
+// documenten te kunnen CACHEN: PdfDocument leent van Pdfium, en via een
+// 'static Pdfium krijgt de handle een 'static levensduur (zelfde patroon als
+// pdfium_renderer.rs in de app).
+static PDFIUM: OnceLock<Pdfium> = OnceLock::new();
+
+fn pdfium() -> Result<&'static Pdfium> {
+    if PDFIUM.get().is_none() {
+        let bindings = Pdfium::bind_to_system_library()
+            .or_else(|_| Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path("./")))
+            .context("PDFium DLL not found (system or ./)")?;
+        let _ = PDFIUM.set(Pdfium::new(bindings));
+    }
+    Ok(PDFIUM.get().expect("PDFIUM set above"))
+}
+
+/// Gecachet geladen document. Houdt de bytes levend voor de document-
+/// levensduur; veldvolgorde is belangrijk (document dropt vóór bytes).
+///
+/// Safety: `document` leent uit `_bytes` (heap-buffer verplaatst niet, ook
+/// niet als de struct move't) en uit PDFIUM ('static, nooit gedropt). De
+/// bytes leven per constructie langer dan het document binnen deze struct.
+struct CachedDoc {
+    path: String,
+    mtime: Option<std::time::SystemTime>,
+    len: u64,
+    document: PdfDocument<'static>,
+    _bytes: Vec<u8>,
+}
+
+/// Max gecachete documenten per worker. Zware CAD-documenten kunnen honderden
+/// MB's parse-state dragen; 2 dekt "actief document + vergelijk-/vorig doc"
+/// zonder het werkgeheugen te laten ontsporen.
+const DOC_CACHE_CAP: usize = 2;
+
 pub struct Renderer {
-    pdfium: Pdfium,
+    cache: Vec<CachedDoc>,
 }
 
 impl Renderer {
     pub fn new() -> Result<Self> {
-        let bindings = Pdfium::bind_to_system_library()
-            .or_else(|_| Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path("./")))
-            .context("PDFium DLL not found (system or ./)")?;
-        Ok(Self { pdfium: Pdfium::new(bindings) })
+        // Bind PDFium meteen zodat een ontbrekende DLL bij worker-start faalt
+        // (Ready wordt dan nooit gemeld) i.p.v. pas bij de eerste render.
+        pdfium()?;
+        Ok(Self { cache: Vec::new() })
+    }
+
+    /// Cache-lookup met verversing: hit alleen als pad + mtime + lengte
+    /// overeenkomen (het bestand kan herschreven zijn door opslaan van
+    /// annotaties). Miss → lees + parse en evict de oudste boven de cap.
+    /// De parse van een zwaar CAD-document kost seconden — deze cache is
+    /// wat regio-tegels goedkoop maakt.
+    fn get_or_load(&mut self, path: &str) -> Result<usize> {
+        let meta = std::fs::metadata(path).with_context(|| format!("stat {}", path))?;
+        let mtime = meta.modified().ok();
+        let len = meta.len();
+
+        if let Some(i) = self.cache.iter().position(|c| c.path == path && c.mtime == mtime && c.len == len) {
+            return Ok(i);
+        }
+        // Verouderde versie van hetzelfde pad weggooien.
+        self.cache.retain(|c| c.path != path);
+
+        let bytes = std::fs::read(path).with_context(|| format!("read {}", path))?;
+        // Safety: zie CachedDoc — buffer-adres is stabiel en de bytes blijven
+        // in dezelfde struct levend zolang het document bestaat.
+        let bytes_ref: &'static [u8] = unsafe { std::slice::from_raw_parts(bytes.as_ptr(), bytes.len()) };
+        let document = pdfium()?
+            .load_pdf_from_byte_slice(bytes_ref, None)
+            .map_err(|e| anyhow!("PDFium parse: {}", e))?;
+
+        if self.cache.len() >= DOC_CACHE_CAP {
+            self.cache.remove(0);
+        }
+        self.cache.push(CachedDoc {
+            path: path.to_string(),
+            mtime,
+            len,
+            document,
+            _bytes: bytes,
+        });
+        Ok(self.cache.len() - 1)
     }
 
     pub fn render(
-        &self,
+        &mut self,
         path: &str,
         page_index: u32,
         scale: f32,
         rotation: i32,
     ) -> Result<RenderResult> {
-        let bytes = std::fs::read(path).with_context(|| format!("read {}", path))?;
-        let doc = self.pdfium.load_pdf_from_byte_slice(&bytes, None)
-            .map_err(|e| anyhow!("PDFium parse: {}", e))?;
+        let idx = self.get_or_load(path)?;
+        let doc = &self.cache[idx].document;
         let pages = doc.pages();
         let page = pages.get(page_index as i32)
             .map_err(|e| anyhow!("page {}: {}", page_index, e))?;
@@ -69,7 +141,7 @@ impl Renderer {
     /// (region_w_pt*scale × region_h_pt*scale) px. Same technique as the app's
     /// render_page_region_to_rgba. `rotation` must be 0.
     pub fn render_region(
-        &self,
+        &mut self,
         path: &str,
         page_index: u32,
         scale: f32,
@@ -85,9 +157,8 @@ impl Renderer {
         if region_w_pt <= 0.0 || region_h_pt <= 0.0 {
             return Err(anyhow!("render_region: region must be positive"));
         }
-        let bytes = std::fs::read(path).with_context(|| format!("read {}", path))?;
-        let doc = self.pdfium.load_pdf_from_byte_slice(&bytes, None)
-            .map_err(|e| anyhow!("PDFium parse: {}", e))?;
+        let idx = self.get_or_load(path)?;
+        let doc = &self.cache[idx].document;
         let pages = doc.pages();
         let page = pages.get(page_index as i32)
             .map_err(|e| anyhow!("page {}: {}", page_index, e))?;

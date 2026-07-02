@@ -23,7 +23,7 @@ fn main() -> Result<()> {
         .unwrap_or(0);
     let ns: String = std::env::args().nth(2).unwrap_or_else(|| "0".to_string());
 
-    let renderer = Renderer::new().context("init Renderer")?;
+    let mut renderer = Renderer::new().context("init Renderer")?;
     let mut shm_region = Shm::create(&ns, slot).context("init SHM")?;
 
     // Emit ready message — main process waits for this before

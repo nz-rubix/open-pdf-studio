@@ -92,6 +92,10 @@ impl WorkerPool {
         scale: f32,
         rotation: i32,
     ) -> Result<(u32, u32, Vec<u8>)> {
+        // Eén request tegelijk per worker: het draadprotocol heeft geen id-demux
+        // en de SHM-regio wordt per response overschreven.
+        let request_lock = worker.request_lock.clone();
+        let _exchange = request_lock.lock().await;
         let id = self.next_request_id.fetch_add(1, Ordering::Release);
 
         let req = json!({
@@ -169,7 +173,11 @@ impl WorkerPool {
         region_h_pt: f32,
     ) -> Result<(u32, u32, Vec<u8>)> {
         let depths = self.depths();
-        let slot = routing::pick_worker(path, page_index, &depths);
+        // Salt de affiniteit met de regio-coördinaten: tegels van DEZELFDE pagina
+        // spreiden dan over alle workers (parallelle eerste render van een zware
+        // pagina) i.p.v. allemaal op één affinity-worker te stapelen.
+        let salt = region_x_pt.to_bits() ^ region_y_pt.to_bits().rotate_left(16);
+        let slot = routing::pick_worker(path, page_index ^ salt, &depths);
         let worker = self.workers[slot].clone();
         worker.queue_depth.fetch_add(1, Ordering::Release);
         let result = self.render_region_on_worker(
@@ -193,6 +201,9 @@ impl WorkerPool {
         region_w_pt: f32,
         region_h_pt: f32,
     ) -> Result<(u32, u32, Vec<u8>)> {
+        // Zelfde volledige-round-trip-serialisatie als render_on_worker.
+        let request_lock = worker.request_lock.clone();
+        let _exchange = request_lock.lock().await;
         let id = self.next_request_id.fetch_add(1, Ordering::Release);
 
         let req = json!({

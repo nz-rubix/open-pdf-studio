@@ -25,6 +25,12 @@ pub struct WorkerState {
     pub shm: Arc<Mutex<Option<Mmap>>>,
     pub crashes: AtomicUsize,
     pub last_crash_at: Arc<Mutex<Option<std::time::Instant>>>,
+    /// Serializes the FULL request round-trip (write request → read response →
+    /// read SHM) per worker. The wire protocol has no request-id demux: with two
+    /// in-flight requests on one worker, caller A could read caller B's response
+    /// line and the SHM bitmap gets overwritten between response and read. Held
+    /// across the whole exchange, concurrent callers queue instead of corrupting.
+    pub request_lock: Arc<Mutex<()>>,
 }
 
 impl WorkerState {
@@ -39,6 +45,7 @@ impl WorkerState {
             shm: Arc::new(Mutex::new(None)),
             crashes: AtomicUsize::new(0),
             last_crash_at: Arc::new(Mutex::new(None)),
+            request_lock: Arc::new(Mutex::new(())),
         }
     }
 
