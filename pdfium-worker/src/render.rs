@@ -26,16 +26,20 @@ fn pdfium() -> Result<&'static Pdfium> {
     Ok(PDFIUM.get().expect("PDFIUM set above"))
 }
 
-/// Gecachet geladen document. Houdt de bytes levend voor de document-
-/// levensduur; veldvolgorde is belangrijk (document dropt vóór bytes).
+/// Gecachet geladen document + open pagina-handle. Houdt de bytes levend voor
+/// de document-levensduur; VELDVOLGORDE = DROP-VOLGORDE: `page` leent uit
+/// `document`, `document` leent uit `_bytes`.
 ///
 /// Safety: `document` leent uit `_bytes` (heap-buffer verplaatst niet, ook
-/// niet als de struct move't) en uit PDFIUM ('static, nooit gedropt). De
-/// bytes leven per constructie langer dan het document binnen deze struct.
+/// niet als de struct move't) en uit PDFIUM ('static, nooit gedropt). `page`
+/// leent uit `document`; de entry zit in een Box zodat het document-adres
+/// stabiel is, ook als de cache-Vec verplaatst. De bytes leven per
+/// constructie langer dan document en pagina binnen deze struct.
 struct CachedDoc {
     path: String,
     mtime: Option<std::time::SystemTime>,
     len: u64,
+    page: Option<(u32, PdfPage<'static>)>,
     document: PdfDocument<'static>,
     _bytes: Vec<u8>,
 }
@@ -46,7 +50,7 @@ struct CachedDoc {
 const DOC_CACHE_CAP: usize = 2;
 
 pub struct Renderer {
-    cache: Vec<CachedDoc>,
+    cache: Vec<Box<CachedDoc>>,
 }
 
 impl Renderer {
@@ -84,14 +88,48 @@ impl Renderer {
         if self.cache.len() >= DOC_CACHE_CAP {
             self.cache.remove(0);
         }
-        self.cache.push(CachedDoc {
+        self.cache.push(Box::new(CachedDoc {
             path: path.to_string(),
             mtime,
             len,
+            page: None,
             document,
             _bytes: bytes,
-        });
+        }));
         Ok(self.cache.len() - 1)
+    }
+
+    /// Sluit alle open pagina-handles (de dure parse-state); documenten en
+    /// bytes blijven. De volgende render op die pagina betaalt eenmalig de
+    /// her-parse. Aangeroepen bij pool-inactiviteit om het werkgeheugen van
+    /// zware CAD-pagina's (ruim 1 GB per open handle) terug te geven.
+    pub fn trim(&mut self) {
+        for e in self.cache.iter_mut() {
+            e.page = None;
+        }
+    }
+
+    /// Open (of hergebruik) de pagina-handle. FPDF_LoadPage parset de volledige
+    /// content-stream — op zware CAD-pagina's SECONDEN per keer, en dat gebeurde
+    /// voorheen bij ÉLKE regio-render opnieuw. Met een open handle betaalt
+    /// alleen de eerste render die parse; daarna is een tegel puur rasterwerk.
+    fn get_or_load_page(&mut self, doc_idx: usize, page_index: u32) -> Result<&PdfPage<'static>> {
+        let entry = &mut self.cache[doc_idx];
+        let reuse = matches!(&entry.page, Some((idx, _)) if *idx == page_index);
+        if !reuse {
+            entry.page = None; // oude handle expliciet sluiten vóór de nieuwe opent
+            // Safety: het document zit in een Box (stabiel heap-adres, ook als de
+            // cache-Vec verplaatst) en leeft zolang deze entry bestaat; `page`
+            // staat vóór `document` in de struct en dropt dus altijd eerder.
+            let doc_ref: &'static PdfDocument<'static> =
+                unsafe { &*(&entry.document as *const PdfDocument<'static>) };
+            let page = doc_ref
+                .pages()
+                .get(page_index as i32)
+                .map_err(|e| anyhow!("page {}: {}", page_index, e))?;
+            entry.page = Some((page_index, page));
+        }
+        Ok(&self.cache[doc_idx].page.as_ref().expect("zojuist gezet").1)
     }
 
     pub fn render(
@@ -102,10 +140,7 @@ impl Renderer {
         rotation: i32,
     ) -> Result<RenderResult> {
         let idx = self.get_or_load(path)?;
-        let doc = &self.cache[idx].document;
-        let pages = doc.pages();
-        let page = pages.get(page_index as i32)
-            .map_err(|e| anyhow!("page {}: {}", page_index, e))?;
+        let page = self.get_or_load_page(idx, page_index)?;
 
         let w_pt = page.width().value;
         let h_pt = page.height().value;
@@ -165,10 +200,7 @@ impl Renderer {
             return Err(anyhow!("render_region: region must be positive"));
         }
         let idx = self.get_or_load(path)?;
-        let doc = &self.cache[idx].document;
-        let pages = doc.pages();
-        let page = pages.get(page_index as i32)
-            .map_err(|e| anyhow!("page {}: {}", page_index, e))?;
+        let page = self.get_or_load_page(idx, page_index)?;
 
         let bitmap_w = (region_w_pt * scale).ceil() as i32;
         let bitmap_h = (region_h_pt * scale).ceil() as i32;

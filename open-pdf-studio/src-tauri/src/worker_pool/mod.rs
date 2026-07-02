@@ -20,6 +20,18 @@ pub use state::{Status, WorkerState};
 pub struct WorkerPool {
     pub workers: Vec<Arc<WorkerState>>,
     next_request_id: std::sync::atomic::AtomicU64,
+    /// Laatste render-activiteit (ms sinds epoch) + of er al getrimd is sinds
+    /// die activiteit. Open pagina-handles in de workers kosten op zware
+    /// CAD-pagina's ruim 1 GB per worker; bij inactiviteit sturen we Trim.
+    last_used_ms: std::sync::atomic::AtomicU64,
+    trimmed: std::sync::atomic::AtomicBool,
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 impl WorkerPool {
@@ -27,7 +39,40 @@ impl WorkerPool {
         Self {
             workers,
             next_request_id: std::sync::atomic::AtomicU64::new(1),
+            last_used_ms: std::sync::atomic::AtomicU64::new(now_ms()),
+            trimmed: std::sync::atomic::AtomicBool::new(true),
         }
+    }
+
+    fn touch(&self) {
+        self.last_used_ms.store(now_ms(), Ordering::Release);
+        self.trimmed.store(false, Ordering::Release);
+    }
+
+    /// Stuur Trim naar alle levende workers als de pool langer dan `idle_ms`
+    /// niets gerenderd heeft (eenmalig per inactiviteitsperiode). Onder de
+    /// per-worker request_lock zodat het nooit door een lopende exchange vlecht.
+    pub async fn trim_if_idle(&self, idle_ms: u64) {
+        if self.trimmed.load(Ordering::Acquire) {
+            return;
+        }
+        if now_ms().saturating_sub(self.last_used_ms.load(Ordering::Acquire)) < idle_ms {
+            return;
+        }
+        self.trimmed.store(true, Ordering::Release);
+        for worker in &self.workers {
+            if worker.status() != Status::Ready {
+                continue;
+            }
+            let request_lock = worker.request_lock.clone();
+            let _exchange = request_lock.lock().await;
+            let mut stdin_guard = worker.stdin.lock().await;
+            if let Some(stdin) = stdin_guard.as_mut() {
+                let _ = stdin.write_all(b"{\"op\":\"trim\"}\n").await;
+                let _ = stdin.flush().await;
+            }
+        }
+        eprintln!("[pool] idle — pagina-handles getrimd");
     }
 
     /// Returns true if at least one worker is Ready.
@@ -51,6 +96,7 @@ impl WorkerPool {
         scale: f32,
         rotation: i32,
     ) -> Result<(u32, u32, Vec<u8>)> {
+        self.touch();
         // First attempt
         let depths = self.depths();
         let slot = routing::pick_worker(path, page_index, &depths);
@@ -172,6 +218,7 @@ impl WorkerPool {
         region_w_pt: f32,
         region_h_pt: f32,
     ) -> Result<(u32, u32, Vec<u8>)> {
+        self.touch();
         let depths = self.depths();
         // Salt de affiniteit met de regio-coördinaten: tegels van DEZELFDE pagina
         // spreiden dan over alle workers (parallelle eerste render van een zware

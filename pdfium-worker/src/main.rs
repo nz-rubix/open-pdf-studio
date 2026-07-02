@@ -110,6 +110,9 @@ fn main() -> Result<()> {
                 writeln!(stdout, "{}", serde_json::to_string(&resp)?)?;
                 stdout.flush()?;
             }
+            Request::Trim => {
+                renderer.trim();
+            }
             Request::Shutdown => {
                 eprintln!("[worker {}] shutting down", slot);
                 break;

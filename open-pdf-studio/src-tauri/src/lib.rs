@@ -2033,6 +2033,21 @@ pub fn run(opts: StartupOpts) {
                 if pool.is_ready() {
                     eprintln!("[pool] initialised with {} workers", pool.workers.len());
                     let _ = pool_for_init.set(pool);
+                    // Idle-trim: open pagina-handles in de workers kosten op
+                    // zware CAD-pagina's ruim 1 GB per worker. Na 5 min zonder
+                    // renders geven de workers die parse-state terug; de
+                    // eerstvolgende render betaalt eenmalig de her-parse.
+                    // 5 min (niet korter): tijdens actief werken moet de
+                    // handle heet blijven, anders voelt elke zoom na een
+                    // denkpauze weer traag. Eigen OS-thread (geen
+                    // tokio::time-afhankelijkheid).
+                    let pool_for_trim = pool_for_init.clone();
+                    std::thread::spawn(move || loop {
+                        std::thread::sleep(std::time::Duration::from_secs(60));
+                        if let Some(p) = pool_for_trim.get() {
+                            tauri::async_runtime::block_on(p.trim_if_idle(300_000));
+                        }
+                    });
                 } else {
                     eprintln!("[pool] no workers became ready — pool disabled");
                 }

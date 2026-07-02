@@ -21,6 +21,10 @@ pub enum Request {
         region_w_pt: f32,
         region_h_pt: f32,
     },
+    /// Sluit open pagina-handles (parse-state, honderden MB's op zware
+    /// CAD-pagina's); documenten blijven gecachet. Fire-and-forget: geen
+    /// response. Gestuurd door de pool bij inactiviteit.
+    Trim,
     Shutdown,
 }
 
