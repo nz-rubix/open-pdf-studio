@@ -34,11 +34,12 @@ export default function ViewTab() {
             active={(state.documents[state.activeDocumentIndex]?.viewMode || 'single') === 'continuous'
               && !state.documents[state.activeDocumentIndex]?.bookSpread}
             disabled={true} style={{ opacity: '0.4', cursor: 'default' }} />
+          {/* Boekweergave bouwt op het continuous-pad; zolang dat op
+              "binnenkort beschikbaar" staat, blijft ook deze knop uit. */}
           <RibbonButton id="book-view" title={t('view.bookTitle')} icon={bookViewIcon} label={t('view.book')}
-            disabled={noPdf()}
             active={(state.documents[state.activeDocumentIndex]?.viewMode === 'continuous')
               && !!state.documents[state.activeDocumentIndex]?.bookSpread}
-            onClick={() => setViewMode('book')} />
+            disabled={true} style={{ opacity: '0.4', cursor: 'default' }} />
         </RibbonGroup>
 
         <RibbonGroup label={t('view.display') || 'Display'}>
