@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicUsize, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::io::{BufReader, AsyncBufReadExt};
 use tokio::process::{Child, ChildStdin, ChildStdout};
@@ -31,6 +31,12 @@ pub struct WorkerState {
     /// line and the SHM bitmap gets overwritten between response and read. Held
     /// across the whole exchange, concurrent callers queue instead of corrupting.
     pub request_lock: Arc<Mutex<()>>,
+    /// Laatste dispatch naar déze worker (ms sinds epoch) + of hij sindsdien al
+    /// een Trim kreeg. Open pagina-handles kosten op zware CAD-pagina's ruim
+    /// 1 GB per worker; per-worker trimmen laat de niet-affinity-workers na de
+    /// parallelle eerste render vanzelf afkoelen terwijl de actieve heet blijft.
+    pub last_used_ms: AtomicU64,
+    pub trimmed: AtomicBool,
 }
 
 impl WorkerState {
@@ -46,6 +52,8 @@ impl WorkerState {
             crashes: AtomicUsize::new(0),
             last_crash_at: Arc::new(Mutex::new(None)),
             request_lock: Arc::new(Mutex::new(())),
+            last_used_ms: AtomicU64::new(0),
+            trimmed: AtomicBool::new(true),
         }
     }
 

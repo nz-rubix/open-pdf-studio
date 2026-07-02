@@ -44,35 +44,42 @@ impl WorkerPool {
         }
     }
 
-    fn touch(&self) {
-        self.last_used_ms.store(now_ms(), Ordering::Release);
+    fn touch(&self, worker: &WorkerState) {
+        let now = now_ms();
+        self.last_used_ms.store(now, Ordering::Release);
         self.trimmed.store(false, Ordering::Release);
+        worker.last_used_ms.store(now, Ordering::Release);
+        worker.trimmed.store(false, Ordering::Release);
     }
 
-    /// Stuur Trim naar alle levende workers als de pool langer dan `idle_ms`
-    /// niets gerenderd heeft (eenmalig per inactiviteitsperiode). Onder de
-    /// per-worker request_lock zodat het nooit door een lopende exchange vlecht.
+    /// Stuur Trim naar iedere levende worker die zélf langer dan `idle_ms`
+    /// niets gerenderd heeft (eenmalig per inactiviteitsperiode). Per-worker:
+    /// na de parallelle eerste render koelen de niet-affinity-workers zo
+    /// vanzelf af (~1 GB parse-state per stuk terug), terwijl de worker die de
+    /// interactieve tegels bedient heet blijft. Onder de per-worker
+    /// request_lock zodat het nooit door een lopende exchange vlecht.
     pub async fn trim_if_idle(&self, idle_ms: u64) {
-        if self.trimmed.load(Ordering::Acquire) {
-            return;
-        }
-        if now_ms().saturating_sub(self.last_used_ms.load(Ordering::Acquire)) < idle_ms {
-            return;
-        }
-        self.trimmed.store(true, Ordering::Release);
+        let now = now_ms();
         for worker in &self.workers {
             if worker.status() != Status::Ready {
                 continue;
             }
+            if worker.trimmed.load(Ordering::Acquire) {
+                continue;
+            }
+            if now.saturating_sub(worker.last_used_ms.load(Ordering::Acquire)) < idle_ms {
+                continue;
+            }
+            worker.trimmed.store(true, Ordering::Release);
             let request_lock = worker.request_lock.clone();
             let _exchange = request_lock.lock().await;
             let mut stdin_guard = worker.stdin.lock().await;
             if let Some(stdin) = stdin_guard.as_mut() {
                 let _ = stdin.write_all(b"{\"op\":\"trim\"}\n").await;
                 let _ = stdin.flush().await;
+                eprintln!("[pool] worker {} idle — pagina-handles getrimd", worker.slot);
             }
         }
-        eprintln!("[pool] idle — pagina-handles getrimd");
     }
 
     /// Returns true if at least one worker is Ready.
@@ -96,11 +103,11 @@ impl WorkerPool {
         scale: f32,
         rotation: i32,
     ) -> Result<(u32, u32, Vec<u8>)> {
-        self.touch();
         // First attempt
         let depths = self.depths();
         let slot = routing::pick_worker(path, page_index, &depths);
         let worker = self.workers[slot].clone();
+        self.touch(&worker);
         worker.queue_depth.fetch_add(1, Ordering::Release);
         let result = self.render_on_worker(worker.clone(), path, page_index, scale, rotation).await;
         worker.queue_depth.fetch_sub(1, Ordering::Release);
@@ -124,6 +131,7 @@ impl WorkerPool {
         }
         let slot2 = routing::pick_worker(path, page_index, &depths_retry);
         let worker2 = self.workers[slot2].clone();
+        self.touch(&worker2);
         worker2.queue_depth.fetch_add(1, Ordering::Release);
         let result2 = self.render_on_worker(worker2.clone(), path, page_index, scale, rotation).await;
         worker2.queue_depth.fetch_sub(1, Ordering::Release);
@@ -207,6 +215,11 @@ impl WorkerPool {
     /// easily, so — unlike whole huge pages — these succeed via the pool and
     /// render in a SEPARATE process (safe: no concurrent in-proc PDFium). One
     /// attempt; on error the caller falls back to in-proc.
+    ///
+    /// `spread`: true = tegels over alle workers spreiden (parallelle eerste
+    /// render); false = affinity op (pad,pagina) zodat interactieve tegels
+    /// steeds dezelfde worker (met hete pagina-handle) raken en de overige
+    /// workers hun ~1 GB parse-state niet hoeven te dragen.
     pub async fn render_region(
         &self,
         path: &str,
@@ -217,15 +230,19 @@ impl WorkerPool {
         region_y_pt: f32,
         region_w_pt: f32,
         region_h_pt: f32,
+        spread: bool,
     ) -> Result<(u32, u32, Vec<u8>)> {
-        self.touch();
         let depths = self.depths();
-        // Salt de affiniteit met de regio-coördinaten: tegels van DEZELFDE pagina
-        // spreiden dan over alle workers (parallelle eerste render van een zware
-        // pagina) i.p.v. allemaal op één affinity-worker te stapelen.
-        let salt = region_x_pt.to_bits() ^ region_y_pt.to_bits().rotate_left(16);
+        // Salt de affiniteit met de regio-coördinaten wanneer spreiding gewenst
+        // is: tegels van DEZELFDE pagina landen dan op verschillende workers.
+        let salt = if spread {
+            region_x_pt.to_bits() ^ region_y_pt.to_bits().rotate_left(16)
+        } else {
+            0
+        };
         let slot = routing::pick_worker(path, page_index ^ salt, &depths);
         let worker = self.workers[slot].clone();
+        self.touch(&worker);
         worker.queue_depth.fetch_add(1, Ordering::Release);
         let result = self.render_region_on_worker(
             worker.clone(), path, page_index, scale, rotation,

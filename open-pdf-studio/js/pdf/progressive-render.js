@@ -205,6 +205,10 @@ export async function ensureProgressiveBitmapForCurrentView() {
         path: filePath, pageIndex: pageNum - 1,
         scale: renderScale, rotation,
         regionXPt, regionYPt, regionWPt, regionHPt,
+        // Spreid de eerste-render-tegels over alle workers (parallel); de
+        // interactieve tegel-/prewarm-paden gebruiken juist affinity zodat
+        // maar één worker de zware pagina-parse-state hoeft te dragen.
+        spread: true,
       });
       bytes = res instanceof Uint8Array ? res : new Uint8Array(res);
     } catch { failed = true; return; }

@@ -1606,6 +1606,7 @@ async fn render_pdf_page_region(
     region_y_pt: f32,
     region_w_pt: f32,
     region_h_pt: f32,
+    spread: Option<bool>,
     bytes_cache: tauri::State<'_, PdfBytesCache>,
     pdfium_cache: tauri::State<'_, pdfium_renderer::PdfiumDocCache>,
     pool: tauri::State<'_, std::sync::Arc<tokio::sync::OnceCell<worker_pool::WorkerPool>>>,
@@ -1617,7 +1618,7 @@ async fn render_pdf_page_region(
     // and off the main thread. Falls back to in-proc PDFium on any failure.
     if let Some(p) = pool.get() {
         match p
-            .render_region(&path, page_index, scale, extra_rot, region_x_pt, region_y_pt, region_w_pt, region_h_pt)
+            .render_region(&path, page_index, scale, extra_rot, region_x_pt, region_y_pt, region_w_pt, region_h_pt, spread.unwrap_or(false))
             .await
         {
             Ok((width, height, rgba)) => {
