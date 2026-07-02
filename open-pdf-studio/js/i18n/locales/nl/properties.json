@@ -197,7 +197,9 @@
     "notLinked": "Niet gekoppeld",
     "linkFile": "Koppelen…",
     "refreshLink": "Vernieuwen",
-    "unlink": "Ontkoppelen"
+    "unlink": "Ontkoppelen",
+    "tint": "Kleurtint",
+    "tintNone": "Geen"
   },
   "multiSelect": "{{count}} annotaties geselecteerd",
   "pdfText": "PDF-tekst",

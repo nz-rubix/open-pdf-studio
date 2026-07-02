@@ -86,6 +86,22 @@ export default function ImageSection() {
         </div>
 
         <div class="property-group">
+          <label>{t('image.tint')}</label>
+          <div style={{ display: 'flex', gap: '4px', 'align-items': 'center' }}>
+            <input type="color"
+              value={annotProps.tintColor || '#ff0000'}
+              disabled={isLocked()}
+              style={{ width: '36px', height: '20px', padding: '0' }}
+              onInput={(e) => updateAnnotProp('tintColor', e.target.value)} />
+            <button type="button" class="prop-action-btn"
+              disabled={isLocked() || !annotProps.tintColor}
+              onClick={() => updateAnnotProp('tintColor', '')}>
+              {t('image.tintNone')}
+            </button>
+          </div>
+        </div>
+
+        <div class="property-group">
           <label></label>
           <button type="button" class="prop-action-btn"
             disabled={isLocked()}

@@ -1,10 +1,14 @@
-import { state, getActiveDocument, getPageRotation } from '../core/state.js';
+import { state, getActiveDocument, getPageRotation, imageCache } from '../core/state.js';
 import { updateStatusMessage } from '../ui/chrome/status-bar.js';
 import { isTauri, invoke, saveFileDialog, writeBinaryFile } from '../core/platform.js';
 import { render } from 'solid-js/web';
 import ScreenshotOverlay from '../solid/components/ScreenshotOverlay.jsx';
 import { startScreenshot, endScreenshot } from '../bridge.js';
-import { renderAnnotationsForPage } from '../annotations/rendering.js';
+import { setLastCaptureAvailable } from '../solid/stores/screenshotStore.js';
+import { renderAnnotationsForPage, redrawAnnotations, redrawContinuous } from '../annotations/rendering.js';
+import { generateImageId } from '../utils/helpers.js';
+import { recordAdd } from '../core/undo-manager.js';
+import { showProperties } from '../ui/panels/properties-panel.js';
 
 function mergeCanvases(pdfCanvasEl, annotationCanvasEl) {
   const merged = document.createElement('canvas');
@@ -248,9 +252,9 @@ export async function screenshotFullPage() {
   // which part happens to be visible on screen). Fallback: legacy on-screen
   // canvas merge (in-memory docs, or region render failure).
   let out = null;
+  const doc = getActiveDocument();
+  const pageRect = _fullPageAppRect(canvases.container);
   try {
-    const doc = getActiveDocument();
-    const pageRect = _fullPageAppRect(canvases.container);
     if (doc && pageRect) {
       out = await _renderRegionHighRes(_capturePageNum(doc), pageRect);
     }
@@ -258,6 +262,8 @@ export async function screenshotFullPage() {
     console.warn('[screenshot] high-res page capture failed, using screen crop:', e);
   }
   if (!out) out = mergeCanvases(canvases.pdfCanvas, canvases.annotationCanvas);
+  // A full-page capture can be overlaid on another page too (whole-floor compare).
+  _storeLastCapture(out, pageRect, _capturePageNum(doc));
   await copyAndSave(out);
 }
 
@@ -322,11 +328,12 @@ export function startRegionScreenshot() {
 
       // Preferred path: re-render the selected region at high resolution.
       let cropped = null;
+      const captureDoc = getActiveDocument();
+      const capturePage = _capturePageNum(captureDoc);
+      const appRect = _clampAppRect(_selectionToAppRect(sel, container));
       try {
-        const doc = getActiveDocument();
-        const appRect = _clampAppRect(_selectionToAppRect(sel, container));
-        if (doc && appRect) {
-          cropped = await _renderRegionHighRes(_capturePageNum(doc), appRect);
+        if (captureDoc && appRect) {
+          cropped = await _renderRegionHighRes(capturePage, appRect);
         }
       } catch (e) {
         console.warn('[screenshot] high-res region capture failed, using screen crop:', e);
@@ -351,6 +358,10 @@ export function startRegionScreenshot() {
         ctx.drawImage(merged, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
       }
 
+      // Keep the capture around so it can be placed as an overlay
+      // annotation on another page ("verdiepingen vergelijken").
+      _storeLastCapture(cropped, appRect, capturePage);
+
       cleanupOverlayMount();
       await copyAndSave(cropped);
     },
@@ -360,4 +371,106 @@ export function startRegionScreenshot() {
       cleanupOverlayMount();
     }
   );
+}
+
+// ─── Region capture → overlay annotation ───────────────────────────────────
+// After a region screenshot the capture is kept here (bitmap + page-space
+// position), so the user can navigate to ANOTHER page and stamp the capture
+// there as a semi-transparent image annotation. Placed at the SAME page
+// coordinates as the source selection: identical floor-plan sheets then line
+// up 1:1, which is exactly the compare use-case. Opacity/tint are adjustable
+// afterwards in the properties panel; placement is undoable via recordAdd.
+let _lastCapture = null; // { dataUrl, pxW, pxH, x, y, w, h, pageNum }
+
+function _storeLastCapture(canvas, appRect, pageNum) {
+  try {
+    _lastCapture = {
+      dataUrl: canvas.toDataURL('image/png'),
+      pxW: canvas.width,
+      pxH: canvas.height,
+      x: appRect?.x,
+      y: appRect?.y,
+      w: appRect?.w,
+      h: appRect?.h,
+      pageNum,
+    };
+    setLastCaptureAvailable(true);
+  } catch (e) {
+    console.warn('[screenshot] could not keep capture for overlay placement:', e);
+  }
+}
+
+export function hasLastCapture() {
+  return !!_lastCapture;
+}
+
+export async function placeLastScreenshotAsOverlay() {
+  const doc = getActiveDocument();
+  if (!doc?.pdfDoc) {
+    updateStatusMessage('Open a PDF first to place an overlay');
+    return;
+  }
+  if (!_lastCapture) {
+    updateStatusMessage('Take a region screenshot first');
+    return;
+  }
+
+  try {
+    const img = new Image();
+    img.src = _lastCapture.dataUrl;
+    await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; });
+
+    const imageId = generateImageId();
+    imageCache.set(imageId, img);
+
+    // Same page-space rect as the source selection; fallback for captures
+    // without position info (legacy screen-crop on in-memory docs).
+    let { x, y, w, h } = _lastCapture;
+    if (!(w > 0) || !(h > 0)) {
+      const s = _currentViewScale(doc) * (window.devicePixelRatio || 1);
+      w = _lastCapture.pxW / s;
+      h = _lastCapture.pxH / s;
+      x = 20;
+      y = 20;
+    }
+
+    const annotation = {
+      id: Date.now().toString(36) + Math.random().toString(36).substr(2, 9),
+      type: 'image',
+      page: doc.currentPage || 1,
+      x,
+      y,
+      width: w,
+      height: h,
+      rotation: 0,
+      imageId,
+      imageData: _lastCapture.dataUrl,
+      originalWidth: img.naturalWidth,
+      originalHeight: img.naturalHeight,
+      lockAspectRatio: true,
+      // Semi-transparent by default so differences with the page underneath
+      // are immediately visible; adjustable in the properties panel.
+      opacity: 0.5,
+      locked: false,
+      printable: true,
+      author: state.defaultAuthor,
+      subject: '',
+      createdAt: new Date().toISOString(),
+      modifiedAt: new Date().toISOString(),
+    };
+
+    doc.annotations.push(annotation);
+    recordAdd(annotation);
+    doc.selectedAnnotation = annotation;
+    doc.selectedAnnotations = [annotation];
+    showProperties(annotation);
+
+    if (doc.viewMode === 'continuous') redrawContinuous();
+    else redrawAnnotations();
+
+    updateStatusMessage('Screenshot placed as overlay — adjust opacity and tint in the properties panel');
+  } catch (e) {
+    console.error('[screenshot] overlay placement failed:', e);
+    updateStatusMessage('Failed to place overlay');
+  }
 }

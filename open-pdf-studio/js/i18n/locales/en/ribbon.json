@@ -64,6 +64,8 @@
     "screenshotOptions": "Screenshot options",
     "fullPage": "Full Page",
     "region": "Region",
+    "placeAsOverlay": "Place as Overlay",
+    "placeAsOverlayTitle": "Place the last capture on the current page as a semi-transparent overlay",
     "view": "View",
     "zoomIn": "Zoom In",
     "zoomOut": "Zoom Out",

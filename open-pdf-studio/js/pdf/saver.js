@@ -1173,6 +1173,11 @@ export async function savePDF(saveAsPath = null) {
             // self-contained fallback for other viewers). Hex string: literal
             // PDFString would corrupt Windows backslashes (\r, \n... are escapes).
             if (ann.linkedPath) imgDictObj.OPS_LinkedPath = PDFHexString.fromText(ann.linkedPath);
+            // Colour tint (compare-overlays): private key so the app restores
+            // the editable tint on reopen; the AP stream below additionally
+            // bakes a Multiply fill so other viewers show the tint too.
+            const imgTint = (ann.tintColor && ann.tintColor !== 'none') ? ann.tintColor : null;
+            if (imgTint) imgDictObj.OPS_TintColor = PDFString.of(imgTint);
 
             annotDict = context.obj(imgDictObj);
 
@@ -1198,14 +1203,29 @@ export async function savePDF(saveAsPath = null) {
                 const alpha = ann.opacity !== undefined ? ann.opacity : 1;
                 let apContent;
                 const resources = { XObject: context.obj({ Img: imageRef }) };
+                const extGStates = {};
 
                 if (alpha < 1) {
                   const gsDict = context.obj({ Type: 'ExtGState', ca: alpha, CA: alpha });
-                  const gsRef = context.register(gsDict);
-                  resources.ExtGState = context.obj({ GS0: gsRef });
+                  extGStates.GS0 = context.register(gsDict);
                   apContent = `q\n/GS0 gs\n${w} 0 0 ${h} 0 0 cm\n/Img Do\nQ\n`;
                 } else {
                   apContent = `q\n${w} 0 0 ${h} 0 0 cm\n/Img Do\nQ\n`;
+                }
+
+                // Colour tint: Multiply-blend fill over the image, so other
+                // viewers render the same tint while the embedded bitmap
+                // itself stays unmodified (round-trips untinted).
+                if (imgTint) {
+                  const [tintR, tintG, tintB] = hexToRgb(imgTint);
+                  const tintGs = context.obj({
+                    Type: 'ExtGState', BM: PDFName.of('Multiply'), ca: alpha, CA: alpha,
+                  });
+                  extGStates.GS1 = context.register(tintGs);
+                  apContent += `q\n/GS1 gs\n${tintR} ${tintG} ${tintB} rg\n0 0 ${w} ${h} re f\nQ\n`;
+                }
+                if (Object.keys(extGStates).length > 0) {
+                  resources.ExtGState = context.obj(extGStates);
                 }
 
                 // Create Form XObject that draws the image scaled to annotation size

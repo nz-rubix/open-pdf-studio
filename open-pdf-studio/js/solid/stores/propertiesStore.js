@@ -80,6 +80,7 @@ const [annotProps, setAnnotProps] = createStore({
   imageRotation: 0,
   lockAspectRatio: false,
   linkedPath: '',
+  tintColor: '',
   startHead: 'none',
   endHead: 'open',
   headSize: 12,
@@ -272,6 +273,7 @@ export function storeShowProperties(annotation) {
     imageRotation: annotation.type === 'image' ? Math.round(annotation.rotation || 0) : 0,
     lockAspectRatio: annotation.type === 'image' ? (annotation.lockAspectRatio || false) : false,
     linkedPath: annotation.linkedPath || '',
+    tintColor: annotation.tintColor || '',
     startHead: annotation.startHead || (annotation.type === 'measureDistance' ? 'openCircle' : 'none'),
     endHead: annotation.endHead || (annotation.type === 'measureDistance' ? 'openCircle' : 'open'),
     headSize: annotation.headSize || 12,
@@ -737,6 +739,7 @@ function applyPropToAnnotation(ann, key, value) {
     case 'scaleRegionScale': ann.scaleString = String(value || '1:100'); break;
     case 'scaleRegionUnits': ann.units = String(value || 'mm'); break;
     case 'scaleRegionLabel': ann.label = String(value || ''); break;
+    case 'tintColor': ann.tintColor = value || undefined; break;
     default: ann[key] = value; break;
   }
 }
@@ -932,6 +935,7 @@ export function updateAnnotProp(key, value) {
     }
     case 'imageRotation': currentAnnotation.rotation = parseInt(value) || 0; break;
     case 'linkedPath': currentAnnotation.linkedPath = value || undefined; break;
+    case 'tintColor': currentAnnotation.tintColor = value || undefined; break;
     case 'lockAspectRatio': {
       currentAnnotation.lockAspectRatio = value;
       if (value && currentAnnotation.type === 'image' && currentAnnotation.originalWidth && currentAnnotation.originalHeight) {

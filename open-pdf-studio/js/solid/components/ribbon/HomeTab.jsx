@@ -16,6 +16,7 @@ import {
   firstPageIcon, prevPageIcon, nextPageIcon, lastPageIcon, findIcon
 } from '../../data/ribbonIcons.js';
 import { openDialog } from '../../stores/dialogStore.js';
+import { lastCaptureAvailable } from '../../stores/screenshotStore.js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
 
 // New-document icon (blank sheet with a plus)
@@ -92,6 +93,19 @@ export default function HomeTab() {
                 <rect x="8" y="8" width="8" height="8" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" stroke-dasharray="2 2"/>
               </svg>
               {t('home.region')}
+            </button>
+            <button class="ribbon-split-btn-menu-item" id="screenshot-menu-overlay"
+              title={t('home.placeAsOverlayTitle')}
+              disabled={!lastCaptureAvailable()}
+              onClick={async () => {
+                const { placeLastScreenshotAsOverlay } = await import('../../../tools/screenshot.js');
+                placeLastScreenshotAsOverlay();
+              }}>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="14" height="14">
+                <rect x="4" y="4" width="12" height="12" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+                <rect x="9" y="9" width="11" height="11" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" opacity="0.55"/>
+              </svg>
+              {t('home.placeAsOverlay')}
             </button>
           </SplitButton>
         </RibbonGroup>

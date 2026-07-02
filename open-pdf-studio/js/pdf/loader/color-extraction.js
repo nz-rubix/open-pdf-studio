@@ -282,6 +282,14 @@ export async function extractAnnotationColors(pageNum, pdfDoc) {
         else if (typeof lp.value === 'string') colors.opsLinkedPath = lp.value;
       }
 
+      // Read /OPS_TintColor — colour tint of an image compare-overlay
+      const tcRaw = annotDict.get(PDFName.of('OPS_TintColor'));
+      if (tcRaw) {
+        const tc = context.lookup(tcRaw) || tcRaw;
+        if (typeof tc.decodeText === 'function') colors.opsTintColor = tc.decodeText();
+        else if (typeof tc.value === 'string') colors.opsTintColor = tc.value;
+      }
+
       // Read /OPS_ArcFlags + /OPS_ArcBulges (parallel arrays, one entry per
       // outer vertex). Used to round-trip arc-segment metadata for filledArea.
       const afRaw = annotDict.get(PDFName.of('OPS_ArcFlags'));
