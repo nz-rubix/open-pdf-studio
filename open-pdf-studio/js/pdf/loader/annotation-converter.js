@@ -292,7 +292,8 @@ export async function convertPdfAnnotation(annot, pageNum, viewport, stampImageM
       }
       const sqProps = {
         ...baseProps,
-        type: 'box',
+        // Square met /BE-wolkrand = ons bestaande 'cloud'-type (rechthoekwolk).
+        type: extraColors.borderCloudy ? 'cloud' : 'box',
         x: sqX,
         y: sqY,
         width: sqW,
@@ -1029,7 +1030,8 @@ export async function convertPdfAnnotation(annot, pageNum, viewport, stampImageM
           kneeX: clKneeVx,
           kneeY: clKneeVy,
           armOriginX: clArmVx,
-          armOriginY: clArmVy
+          armOriginY: clArmVy,
+          ...(extraColors.borderCloudy ? { borderEffect: 'cloudy' } : {})
         });
       }
 
@@ -1054,7 +1056,8 @@ export async function convertPdfAnnotation(annot, pageNum, viewport, stampImageM
         fontItalic: fontItalic,
         lineSpacing: extraColors.lineSpacing || undefined,
         fontUnderline: fontUnderline,
-        fontStrikethrough: fontStrikethrough
+        fontStrikethrough: fontStrikethrough,
+        ...(extraColors.borderCloudy ? { borderEffect: 'cloudy' } : {})
       });
       // Stash raw PDF Rect so loader can resolve IRT-linked leader PolyLines.
       // Cleared by loader after leader-attach pass.

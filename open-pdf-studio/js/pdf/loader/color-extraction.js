@@ -39,6 +39,24 @@ export async function extractAnnotationColors(pageNum, pdfDoc) {
         }
       }
 
+      // Read /BE (border effect) — { /S /C } = cloudy border ("wolkjes", zoals
+      // externe editors om FreeText-ballonnen en Squares zetten). PDF.js
+      // exposeert dit niet.
+      const beRaw = annotDict.get(PDFName.of('BE'));
+      if (beRaw) {
+        const be = context.lookup(beRaw) || beRaw;
+        if (be && typeof be.get === 'function') {
+          const beS = be.get(PDFName.of('S'));
+          const beSName = beS ? String(context.lookup(beS) || beS) : '';
+          if (beSName === '/C') {
+            colors.borderCloudy = true;
+            const beI = be.get(PDFName.of('I'));
+            const iv = beI !== undefined ? pdfNum(context.lookup(beI) || beI) : null;
+            if (iv !== null) colors.cloudIntensity = iv;
+          }
+        }
+      }
+
       // Read stamp-specific entries (PDF.js doesn't expose /Name for stamps)
       if (subtypeName === '/Stamp') {
         const nameRaw = annotDict.get(PDFName.of('Name'));

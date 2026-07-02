@@ -777,10 +777,15 @@ export function drawAnnotation(ctx, annotation) {
         ctx.translate(-tbCenterX, -tbCenterY);
       }
 
-      // Draw fill
+      // Draw fill (wolkrand-annotaties vullen het scallop-pad i.p.v. de rect)
       if (hasFill(annotation.fillColor)) {
         ctx.fillStyle = annotation.fillColor;
-        ctx.fillRect(annotation.x, annotation.y, tbWidth, tbHeight);
+        if (annotation.borderEffect === 'cloudy') {
+          buildCloudPath(ctx, annotation.x, annotation.y, tbWidth, tbHeight);
+          ctx.fill();
+        } else {
+          ctx.fillRect(annotation.x, annotation.y, tbWidth, tbHeight);
+        }
       }
 
       // Draw border with style
@@ -788,7 +793,12 @@ export function drawAnnotation(ctx, annotation) {
         ctx.strokeStyle = annotation.strokeColor || strokeColor;
         ctx.lineWidth = tbLineWidth;
         applyBorderStyle(ctx, tbBorderStyle);
-        ctx.strokeRect(annotation.x, annotation.y, tbWidth, tbHeight);
+        if (annotation.borderEffect === 'cloudy') {
+          buildCloudPath(ctx, annotation.x, annotation.y, tbWidth, tbHeight);
+          ctx.stroke();
+        } else {
+          ctx.strokeRect(annotation.x, annotation.y, tbWidth, tbHeight);
+        }
         ctx.setLineDash([]);
       }
 
@@ -868,10 +878,15 @@ export function drawAnnotation(ctx, annotation) {
         ctx.translate(-coCenterX, -coCenterY);
       }
 
-      // Draw fill
+      // Draw fill (wolkrand-callouts vullen het scallop-pad i.p.v. de rect)
       if (hasFill(annotation.fillColor)) {
         ctx.fillStyle = annotation.fillColor;
-        ctx.fillRect(annotation.x, annotation.y, coWidth, coHeight);
+        if (annotation.borderEffect === 'cloudy') {
+          buildCloudPath(ctx, annotation.x, annotation.y, coWidth, coHeight);
+          ctx.fill();
+        } else {
+          ctx.fillRect(annotation.x, annotation.y, coWidth, coHeight);
+        }
       }
 
       // Draw border with style
@@ -879,7 +894,12 @@ export function drawAnnotation(ctx, annotation) {
         ctx.strokeStyle = annotation.strokeColor || strokeColor;
         ctx.lineWidth = coLineWidth;
         applyBorderStyle(ctx, coBorderStyle);
-        ctx.strokeRect(annotation.x, annotation.y, coWidth, coHeight);
+        if (annotation.borderEffect === 'cloudy') {
+          buildCloudPath(ctx, annotation.x, annotation.y, coWidth, coHeight);
+          ctx.stroke();
+        } else {
+          ctx.strokeRect(annotation.x, annotation.y, coWidth, coHeight);
+        }
         ctx.setLineDash([]);
       }
 
