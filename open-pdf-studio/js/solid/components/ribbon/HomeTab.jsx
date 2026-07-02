@@ -4,15 +4,13 @@ import RibbonButton from './RibbonButton.jsx';
 import RibbonButtonStack from './RibbonButtonStack.jsx';
 import SplitButton from './SplitButton.jsx';
 import { setTool } from '../../../tools/manager.js';
-import { state, getPageRotation, noPdf, getActiveDocument } from '../../../core/state.js';
-import { isPdfAReadOnly } from '../../../pdf/loader.js';
-import { zoomIn, zoomOut, fitWidth, fitPage, actualSize, goToPage, rotatePage } from '../../../pdf/renderer.js';
-import { recordPageRotation } from '../../../core/undo-manager.js';
+import { state, noPdf, getActiveDocument } from '../../../core/state.js';
+import { zoomIn, zoomOut, fitWidth, fitPage, actualSize, goToPage } from '../../../pdf/renderer.js';
 import { openFindBar } from '../../../search/find-bar.js';
 import {
   handIcon, selectTextIcon, screenshotIcon,
   zoomInIcon, zoomOutIcon, fitWidthIcon, actualSizeIcon, fitPageIcon,
-  rotateLeftIcon, rotateRightIcon, editTextIcon, addTextIcon, cropMarginsIcon,
+  editTextIcon, addTextIcon, cropMarginsIcon,
   firstPageIcon, prevPageIcon, nextPageIcon, lastPageIcon, findIcon
 } from '../../data/ribbonIcons.js';
 import { openDialog } from '../../stores/dialogStore.js';
@@ -111,24 +109,8 @@ export default function HomeTab() {
             <RibbonButton size="small" id="fit-page-ribbon" title={t('home.fitPage')} icon={fitPageIcon} label={t('home.fitPageLabel')}
               disabled={noPdf()} onClick={() => fitPage()} />
           </RibbonButtonStack>
-          <RibbonButtonStack>
-            <RibbonButton size="small" id="rotate-left" title={t('home.rotateLeft')} icon={rotateLeftIcon} label={t('home.rotateLeft')}
-              disabled={noPdf() || isPdfAReadOnly()} onClick={() => {
-                const doc = getActiveDocument();
-                const pg = doc ? doc.currentPage : 1;
-                const oldRot = getPageRotation(pg);
-                rotatePage(-90);
-                recordPageRotation(pg, oldRot, getPageRotation(pg));
-              }} />
-            <RibbonButton size="small" id="rotate-right" title={t('home.rotateRight')} icon={rotateRightIcon} label={t('home.rotateRight')}
-              disabled={noPdf() || isPdfAReadOnly()} onClick={() => {
-                const doc = getActiveDocument();
-                const pg = doc ? doc.currentPage : 1;
-                const oldRot = getPageRotation(pg);
-                rotatePage(90);
-                recordPageRotation(pg, oldRot, getPageRotation(pg));
-              }} />
-          </RibbonButtonStack>
+          {/* Pagina-rotatie (bewerkt het document) staat bij de pagina-
+              bewerkingen op de tab "PDF bewerken & samenvoegen" (#200). */}
         </RibbonGroup>
 
         {/* Edit group moved to the "PDF bewerken & samenvoegen" tab. */}
