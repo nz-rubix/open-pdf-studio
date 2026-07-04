@@ -86,6 +86,15 @@ let _progGen = 0;
 // fire-and-forget; de lopende run publiceert zelf).
 let _inflightKey = null;
 
+// Herstart-demper: tijdens openen/fit wisselt de zoom een paar keer kort
+// achter elkaar en zou elke wissel een verse run starten, terwijl de al
+// ingediende tegels van de vorige run nog op de (gepinde) worker in de rij
+// staan — die stale tegels kosten seconden per stuk. Een vervangende run
+// wacht daarom kort; komt er binnen die tijd wéér een nieuwe schaal, dan
+// wint die en vervalt deze stilletjes.
+let _restartToken = 0;
+const RESTART_DEBOUNCE_MS = 300;
+
 /**
  * Progressieve whole-page render voor de actieve ZWARE raster-pagina. Rendert de
  * pagina tegel-voor-tegel via render_pdf_page_region (worker-pool) en publiceert
@@ -109,12 +118,10 @@ export async function ensureProgressiveBitmapForCurrentView() {
   // wat bij herhaald createImageBitmap tot een geheugen-crash leidde. cacheBucket
   // is enkel de cache-sleutel.
   const dpr = window.devicePixelRatio || 1;
-  const targetScale = viewport.zoom * dpr;
   const maxAxisPt = Math.max(viewport.pageW, viewport.pageH);
   if (maxAxisPt <= 0) return;
   const capScale = MAX_BITMAP_AXIS_PX / maxAxisPt;
-  const renderScale = Math.min(targetScale, capScale);
-  const cacheBucket = computeZoomBucket(renderScale);
+  let renderScale = Math.min(viewport.zoom * dpr, capScale);
   const rotation = viewport.rotation || 0;
   // Leg pagina-identiteit vast: de render gebruikt deze locals, niet live
   // viewport-velden, zodat een tab-/paginawissel nooit de verkeerde pagina rendert.
@@ -122,8 +129,22 @@ export async function ensureProgressiveBitmapForCurrentView() {
   const pageNum = viewport.pageNum;
 
   // Zelfde doelrun al bezig? Niet herstarten (zie _inflightKey).
-  const runKey = `${filePath}:${pageNum}:${rotation}:${renderScale.toFixed(4)}`;
+  let runKey = `${filePath}:${pageNum}:${rotation}:${renderScale.toFixed(4)}`;
   if (_inflightKey === runKey) return;
+  // Vervangt deze aanroep een LOPENDE run op een andere schaal? Even dempen
+  // (zie _restartToken) zodat een fit-/zoomcascade één echte run oplevert.
+  // Ná de demping gaan we door met de dán actuele schaal — de laatste
+  // aanroep rendert dus altijd de eindstand.
+  if (_inflightKey !== null) {
+    const tok = ++_restartToken;
+    await new Promise((r) => setTimeout(r, RESTART_DEBOUNCE_MS));
+    if (tok !== _restartToken) return; // alweer vervangen door een nieuwere
+    if (!viewport.active || viewport.filePath !== filePath || viewport.pageNum !== pageNum) return;
+    renderScale = Math.min(viewport.zoom * dpr, capScale);
+    runKey = `${filePath}:${pageNum}:${rotation}:${renderScale.toFixed(4)}`;
+    if (_inflightKey === runKey) return; // lopende run is al de juiste
+  }
+  const cacheBucket = computeZoomBucket(renderScale);
   const myGen = ++_progGen;
   _inflightKey = runKey;
 
@@ -205,10 +226,12 @@ export async function ensureProgressiveBitmapForCurrentView() {
         path: filePath, pageIndex: pageNum - 1,
         scale: renderScale, rotation,
         regionXPt, regionYPt, regionWPt, regionHPt,
-        // Spreid de eerste-render-tegels over alle workers (parallel); de
-        // interactieve tegel-/prewarm-paden gebruiken juist affinity zodat
-        // maar één worker de zware pagina-parse-state hoeft te dragen.
-        spread: true,
+        // GEEN spread: alle tegels naar de affinity-worker. Elke meedoende
+        // worker bouwt zijn EIGEN parse-state op (~1,1 GB op een zwaar
+        // CAD-blad; 4 workers = ~5 GB piek) en betaalt eerst de parse van
+        // seconden. Eén warme worker rendert vervolg-tegels in ~0,4 s —
+        // vergelijkbaar snel, en een fractie van het geheugen.
+        spread: false,
       });
       bytes = res instanceof Uint8Array ? res : new Uint8Array(res);
     } catch { failed = true; return; }
@@ -235,14 +258,12 @@ export async function ensureProgressiveBitmapForCurrentView() {
     }
   };
 
-  // Parallel over de worker-pool. render_pdf_page_region is nu een ASYNC command
-  // dat via de multi-proces pool rendert (elke worker een eigen proces + PDFium +
-  // doc-cache; per-worker request-lock; tegel-gesalte routing spreidt de tegels).
-  // 4 gelijktijdige tegels = 4 processen parallel aan het rasterwerk — veilig,
-  // off-main-thread, en de eerste render van een zware pagina wordt er echt
-  // sneller door. (In-proc CONC>1 crashte; dat pad is nu alleen nog fallback,
-  // geserialiseerd in Rust.)
-  const CONC = 4;
+  // De tegels gaan GEPIND naar één worker (die draagt als enige de dure
+  // parse-state; zie routing.rs) en worden daar geserialiseerd door de
+  // per-worker request-lock. CONC=2 houdt de pijplijn gevuld (er staat
+  // altijd een volgende tegel klaar) zonder dat een gen-wissel veel al
+  // ingediende — en dus niet meer te annuleren — stale tegels achterlaat.
+  const CONC = 2; // zie routing: gepind → serieel op de warme worker
   let idx = 0;
   const workers = Array.from({ length: CONC }, async () => {
     while (idx < tiles.length && myGen === _progGen && !failed) {
@@ -273,6 +294,14 @@ export async function ensureProgressiveBitmapForCurrentView() {
   if (_inflightKey === runKey) _inflightKey = null;
   const tEnd = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
   console.log(`[prog] klaar @${Math.round(tEnd - t0)}ms (${tiles.length} tegels)`);
+
+  // Thumbnail alsnog laten maken: die is voor zware pagina's uitgesteld
+  // (zie left-panel renderThumbnailToDataURL) en knipt nu gratis uit de
+  // zojuist gecachete whole-page-bitmap.
+  try {
+    const lp = await import('../ui/panels/left-panel.js');
+    lp.invalidateThumbnail(pageNum);
+  } catch { /* thumbnail is best-effort */ }
 
   // 300%-pre-cache: warm de zoom-tegels voor de huidige view alvast op zodat
   // gecentreerd inzoomen direct scherp is. Fire-and-forget; de pre-warm stopt

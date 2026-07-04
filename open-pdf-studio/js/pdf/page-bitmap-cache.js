@@ -160,12 +160,15 @@ function _ensureBitmapAtScale(filePath, pageNum, rotation, cacheBucket, renderSc
       // render path (here, loader cold-open preview, renderer.js direct
       // calls) honors the same state.renderEngineOverride consistently.
       const { renderPdfPage } = await import('./engine-router.js');
+      const _t0 = performance.now();
+      console.log(`[pbc] whole-page START p${pageNum} scale=${renderScale.toFixed(3)}`);
       const result = await renderPdfPage({
         path: filePath,
         pageIndex: pageNum - 1,
         scale: renderScale,
         rotation: rotation || 0,
       });
+      console.log(`[pbc] whole-page KLAAR p${pageNum} scale=${renderScale.toFixed(3)} @${Math.round(performance.now() - _t0)}ms`);
       const fileBytes = result instanceof Uint8Array ? result : new Uint8Array(result);
       if (!fileBytes || fileBytes.length <= 8) return null;
       const header = new DataView(fileBytes.buffer, fileBytes.byteOffset, 8);
