@@ -103,9 +103,13 @@ impl WorkerPool {
         scale: f32,
         rotation: i32,
     ) -> Result<(u32, u32, Vec<u8>)> {
-        // First attempt
+        // First attempt. Pinned: al het werk voor dezelfde (path, page) —
+        // volledige render, thumbnail, tegels — blijft op één worker, ook
+        // onder druk. Uitwijken naar een koude worker zou die eerst de hele
+        // content-stream laten parsen (seconden + ~1 GB parse-state op zware
+        // CAD-bladen), terwijl de warme worker in ~0,4 s klaar is.
         let depths = self.depths();
-        let slot = routing::pick_worker(path, page_index, &depths);
+        let slot = routing::pick_worker(path, page_index, &depths, true);
         let worker = self.workers[slot].clone();
         self.touch(&worker);
         worker.queue_depth.fetch_add(1, Ordering::Release);
@@ -129,7 +133,7 @@ impl WorkerPool {
         if depths_retry.iter().all(|&d| d == usize::MAX) {
             return result; // no other workers — bubble up the error
         }
-        let slot2 = routing::pick_worker(path, page_index, &depths_retry);
+        let slot2 = routing::pick_worker(path, page_index, &depths_retry, true);
         let worker2 = self.workers[slot2].clone();
         self.touch(&worker2);
         worker2.queue_depth.fetch_add(1, Ordering::Release);
@@ -149,7 +153,10 @@ impl WorkerPool {
         // Eén request tegelijk per worker: het draadprotocol heeft geen id-demux
         // en de SHM-regio wordt per response overschreven.
         let request_lock = worker.request_lock.clone();
+        let _t_queue = std::time::Instant::now();
         let _exchange = request_lock.lock().await;
+        let _t_run = std::time::Instant::now();
+        let _plog = PoolTrace::new(worker.slot, "render", path, page_index, scale, _t_queue, _t_run);
         let id = self.next_request_id.fetch_add(1, Ordering::Release);
 
         let req = json!({
@@ -240,7 +247,10 @@ impl WorkerPool {
         } else {
             0
         };
-        let slot = routing::pick_worker(path, page_index ^ salt, &depths);
+        // Zonder spread pinnen we op de affinity-worker (geen overflow-
+        // uitwijk): één worker draagt de dure parse-state en serialiseert de
+        // tegels à ~0,4 s. Met spread is uitwijken juist gewenst.
+        let slot = routing::pick_worker(path, page_index ^ salt, &depths, !spread);
         let worker = self.workers[slot].clone();
         self.touch(&worker);
         worker.queue_depth.fetch_add(1, Ordering::Release);
@@ -267,7 +277,10 @@ impl WorkerPool {
     ) -> Result<(u32, u32, Vec<u8>)> {
         // Zelfde volledige-round-trip-serialisatie als render_on_worker.
         let request_lock = worker.request_lock.clone();
+        let _t_queue = std::time::Instant::now();
         let _exchange = request_lock.lock().await;
+        let _t_run = std::time::Instant::now();
+        let _plog = PoolTrace::new(worker.slot, "region", path, page_index, scale, _t_queue, _t_run);
         let id = self.next_request_id.fetch_add(1, Ordering::Release);
 
         let req = json!({
@@ -328,5 +341,43 @@ impl WorkerPool {
         let rgba = mmap[HEADER..HEADER + shm_bytes].to_vec();
 
         Ok((w, h, rgba))
+    }
+}
+
+/// Tijdelijke meet-tracer (aan met env `OPDS_POOL_TRACE=1`): schrijft per
+/// pool-request de rij-wachttijd en uitvoerduur naar
+/// %TEMP%/opds-pool-trace.log. RAII: logt bij drop, dus ook bij fouten.
+struct PoolTrace {
+    line: Option<String>,
+    t_run: std::time::Instant,
+}
+
+impl PoolTrace {
+    fn new(slot: u32, op: &'static str, path: &str, page: u32, scale: f32,
+           t_queue: std::time::Instant, t_run: std::time::Instant) -> Self {
+        if std::env::var("OPDS_POOL_TRACE").ok().as_deref() != Some("1") {
+            return Self { line: None, t_run };
+        }
+        let name = std::path::Path::new(path)
+            .file_name()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let wait_ms = t_run.duration_since(t_queue).as_millis();
+        Self {
+            line: Some(format!("w{} {} p{} s{:.3} wait={}ms {}", slot, op, page, scale, wait_ms, name)),
+            t_run,
+        }
+    }
+}
+
+impl Drop for PoolTrace {
+    fn drop(&mut self) {
+        if let Some(l) = self.line.take() {
+            use std::io::Write;
+            let p = std::env::temp_dir().join("opds-pool-trace.log");
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
+                let _ = writeln!(f, "{} run={}ms", l, self.t_run.elapsed().as_millis());
+            }
+        }
     }
 }
