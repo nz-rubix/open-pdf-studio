@@ -26,9 +26,28 @@ Lezing: het display-list-FORMAAT (138 MB, 8× kleiner dan PDFium-parse-state) va
 3. Disk-cache van de display-list per (path, page, mtime) — tweede keer openen = mmap/lees 138 MB i.p.v. opnieuw 25 s.
 
 ### Fase 2 — parallelle tile-raster (go/no-go: volledige render ≤3 s op 8+ cores, pixel-diff ≤2% vs PDFium)
-1. Ruimtelijke index over de display-list (bbox per op → grid/R-boom) zodat een tegel alleen zijn ops replayt.
-2. rayon-tegelrunner: N threads × eigen tiny-skia-Pixmap over de gedeelde read-only lijst (rayon is al dependency).
-3. Pixel-diff-verificatie tegen PDFium-referentie over de bestaande regressie-corpus + alle 15 voorbeeld-PDF's.
+STAND NA FASE 1: extractie 0,92 s / render single-thread 3,9 s / RSS 278 MB — de
+lexer-winst maakte ook de render 5,4× sneller; PDFium (11,6 s / 1,3 GB) is al
+verslagen vóór parallelisatie. Buffer-formaat geverifieerd replayer-geschikt
+(compacte opcode-stream: pad-ops, set_stroke/fill, save/restore/transform/clip,
+text_at met inline UTF-8, draw_image met inline bytes — stateful).
+
+Ontwerp (chunk-index, MuPDF-achtig maar over onze eigen buffer):
+1. Rust-replayer voor DrawCommandBuffer → tiny-skia (nieuw `tile_render.rs`);
+   dezelfde semantiek als de JS-canvas-replay.
+2. Pre-pass (eenmalig, sequentieel): loop de buffer, houd de graphics-state
+   bij, en groepeer opeenvolgende ops in CHUNKS van ~64 paint-ops. Per chunk:
+   device-space-bbox (unie) + state-snapshot bij chunk-start (transform,
+   stroke/fill-kleur, width, caps/join/dash, clip-stack-referentie) + byte-
+   range in de buffer. Index ≈ 5-10 MB op 5M ops (i.p.v. ~200 MB per-op).
+3. rayon-tegelrunner: per tegel de intersecterende chunks replayen op een
+   eigen Pixmap (state uit het snapshot, clip = tegel ∩ chunk-clips);
+   assemblage in het volledige beeld. Worst case ~64 ops overshoot per
+   chunk-hit — verwaarloosbaar.
+4. Verificatie in twee trappen: (a) tegel-assemblage pixel-identiek aan de
+   bestaande volledige render (zelfde engine — harde eis), (b) pixel-diff
+   ≤2% tegen PDFium-referentie over de regressie-corpus + 15 voorbeeld-PDF's.
+   Bekende verschillen: inline images (BI/ID/EI) tekent de engine niet.
 
 ### Fase 3 — integratie als zwaar-blad-pad
 1. Router in de bestaande progressieve flow: zwaar blad → display-list-pad; tegel met niet-ondersteunde features (exotische shadings/transparantiegroepen/fonts) → bestaand PDFium-worker-pad. Kan dus nooit slechter worden dan nu.
