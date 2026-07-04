@@ -1070,6 +1070,9 @@ mod tests {
             cid_to_gid_identity: false,
             to_unicode: HashMap::new(),
             cid_to_unicode: HashMap::new(),
+            widths: HashMap::new(),
+            default_width: 500.0,
+            force_bold: false,
         };
         assert_eq!(FontRegistry::char_to_glyph_id(&entry, b'A'), None);
     }

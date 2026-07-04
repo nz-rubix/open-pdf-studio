@@ -1,4 +1,5 @@
 mod parser;
+pub mod content_stream;
 mod graphics_state;
 mod interpreter;
 mod renderer;
