@@ -46,7 +46,11 @@ fn email_impl(path: &str, subject: &str) -> Result<(), String> {
         file_count: u32,
         files: *const MapiFileDesc,
     }
-    #[link(name = "mapi32")]
+    // raw-dylib: MSVC's mapi32.lib exporteert MAPISendMail niet (mingw's
+    // libmapi32.a wel — daarom linkte de GNU-build lokaal en faalde CI/MSVC
+    // met LNK2019 __imp_MAPISendMail). raw-dylib genereert de import
+    // rechtstreeks, zonder import-library, op beide toolchains.
+    #[link(name = "mapi32", kind = "raw-dylib")]
     extern "system" {
         fn MAPISendMail(
             session: usize,
