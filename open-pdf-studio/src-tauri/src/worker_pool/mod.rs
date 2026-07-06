@@ -34,6 +34,26 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
+/// Bovengrens op één worker-response-lees. Ruim boven elke legitieme render
+/// (zwaarste blad in het corpus ~28 s whole-page); vangt alleen een écht
+/// vastgelopen of protocol-incompatibele worker (bv. een verouderde sidecar
+/// die een nieuwe `op` niet kent en niets terugstuurt). Zonder deze grens
+/// blokkeert `read_line` eeuwig met de request-lock vast, waardoor die worker
+/// voor ALLE volgende requests wedged raakt en de pagina blanco blijft. Bij
+/// timeout -> Err -> in-proc-PDFium-fallback + respawn van de worker.
+const WORKER_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Pad naar de pdfium-worker-sidecar naast de hoofdbinary. Platform-correct
+/// (`.exe` alleen op Windows) zodat respawn ook op Linux/macOS de juiste naam
+/// zoekt.
+fn worker_exe_path() -> std::path::PathBuf {
+    let name = if cfg!(windows) { "pdfium-worker.exe" } else { "pdfium-worker" };
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.join(name)))
+        .unwrap_or_else(|| std::path::PathBuf::from(name))
+}
+
 impl WorkerPool {
     pub fn new(workers: Vec<Arc<WorkerState>>) -> Self {
         Self {
@@ -121,11 +141,7 @@ impl WorkerPool {
         }
 
         // First attempt failed → mark crash, retry on a DIFFERENT live slot
-        let exe = std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|d| d.join("pdfium-worker.exe")))
-            .unwrap_or_else(|| std::path::PathBuf::from("pdfium-worker.exe"));
-        let recover_task = recovery::handle_worker_crash(worker.clone(), exe);
+        let recover_task = recovery::handle_worker_crash(worker.clone(), worker_exe_path());
         tokio::spawn(recover_task);
 
         let mut depths_retry = self.depths();
@@ -179,14 +195,17 @@ impl WorkerPool {
             stdin.flush().await?;
         }
 
-        // Read response
+        // Read response (met timeout: een vastgelopen/verouderde worker die
+        // niets terugstuurt mag de request-lock niet eeuwig vasthouden).
         let mut resp_line = String::new();
         {
             let mut stdout_guard = worker.stdout.lock().await;
             let stdout = stdout_guard.as_mut()
                 .ok_or_else(|| anyhow!("worker {} has no stdout", worker.slot))?;
-            stdout.read_line(&mut resp_line).await
-                .with_context(|| format!("read from worker {}", worker.slot))?;
+            match tokio::time::timeout(WORKER_READ_TIMEOUT, stdout.read_line(&mut resp_line)).await {
+                Ok(r) => { r.with_context(|| format!("read from worker {}", worker.slot))?; }
+                Err(_) => return Err(anyhow!("worker {} read timeout ({}s)", worker.slot, WORKER_READ_TIMEOUT.as_secs())),
+            }
         }
 
         if resp_line.is_empty() {
@@ -259,6 +278,12 @@ impl WorkerPool {
             region_x_pt, region_y_pt, region_w_pt, region_h_pt,
         ).await;
         worker.queue_depth.fetch_sub(1, Ordering::Release);
+        // Geen retry (de aanroeper valt terug op in-proc PDFium), maar een
+        // gefaalde/getimede worker is mogelijk gedesynchroniseerd — respawn
+        // hem zodat de volgende tegel niet weer op een wedged worker landt.
+        if result.is_err() {
+            tokio::spawn(recovery::handle_worker_crash(worker.clone(), worker_exe_path()));
+        }
         result
     }
 
@@ -311,8 +336,10 @@ impl WorkerPool {
             let mut stdout_guard = worker.stdout.lock().await;
             let stdout = stdout_guard.as_mut()
                 .ok_or_else(|| anyhow!("worker {} has no stdout", worker.slot))?;
-            stdout.read_line(&mut resp_line).await
-                .with_context(|| format!("read from worker {}", worker.slot))?;
+            match tokio::time::timeout(WORKER_READ_TIMEOUT, stdout.read_line(&mut resp_line)).await {
+                Ok(r) => { r.with_context(|| format!("read from worker {}", worker.slot))?; }
+                Err(_) => return Err(anyhow!("worker {} region read timeout ({}s)", worker.slot, WORKER_READ_TIMEOUT.as_secs())),
+            }
         }
 
         if resp_line.is_empty() {

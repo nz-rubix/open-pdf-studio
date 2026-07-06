@@ -3,7 +3,9 @@
   "version": "1.70.0",
   "description": "A free, open-source PDF annotation editor built with Tauri",
   "scripts": {
+    "predev": "cargo build -p pdfium-worker",
     "dev": "vite",
+    "prebuild": "cargo build --release -p pdfium-worker",
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
