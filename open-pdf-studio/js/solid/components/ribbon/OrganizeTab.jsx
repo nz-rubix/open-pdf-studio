@@ -1,10 +1,13 @@
 import RibbonGroup from './RibbonGroup.jsx';
 import AdaptiveGroups from './AdaptiveGroups.jsx';
 import RibbonButton from './RibbonButton.jsx';
-import { insertPageIcon, deletePageIcon, extractPagesIcon, mergePdfsIcon, watermarkIcon, headerFooterIcon, manageWatermarksIcon, editTextIcon, addTextIcon, cropMarginsIcon } from '../../data/ribbonIcons.js';
-import { state, noPdf, getActiveDocument } from '../../../core/state.js';
+import RibbonButtonStack from './RibbonButtonStack.jsx';
+import { insertPageIcon, deletePageIcon, extractPagesIcon, mergePdfsIcon, watermarkIcon, headerFooterIcon, manageWatermarksIcon, editTextIcon, addTextIcon, cropMarginsIcon, rotateLeftIcon, rotateRightIcon } from '../../data/ribbonIcons.js';
+import { state, noPdf, getActiveDocument, getPageRotation } from '../../../core/state.js';
 import { isPdfAReadOnly } from '../../../pdf/loader.js';
 import { showInsertPageDialog, showExtractPagesDialog, showMergePdfsDialog } from '../../../ui/chrome/dialogs.js';
+import { rotatePage } from '../../../pdf/renderer.js';
+import { recordPageRotation } from '../../../core/undo-manager.js';
 import { setTool } from '../../../tools/manager.js';
 import { setLeftPanelActiveTab, setLeftPanelCollapsed } from '../../../bridge.js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
@@ -15,6 +18,17 @@ const reorderIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
 export default function OrganizeTab() {
   const { t } = useTranslation('ribbon');
   const ro = () => noPdf() || isPdfAReadOnly();
+
+  // Pagina-rotatie bewerkt het document (undo-baar, wordt opgeslagen) en
+  // hoort daarom bij de pagina-bewerkingen — verplaatst uit de Beeld-groep
+  // van de Start-tab (#200).
+  function rotateCurrentPage(delta) {
+    const doc = getActiveDocument();
+    const pg = doc ? doc.currentPage : 1;
+    const oldRot = getPageRotation(pg);
+    rotatePage(delta);
+    recordPageRotation(pg, oldRot, getPageRotation(pg));
+  }
 
   function openPageReorder() {
     // Open the left panel and switch to the page-thumbnails tab so the user
@@ -57,6 +71,12 @@ export default function OrganizeTab() {
             icon={reorderIcon}
             label={t('organize.reorderPages') || 'Volgorde'}
             disabled={noPdf()} onClick={openPageReorder} />
+          <RibbonButtonStack>
+            <RibbonButton size="small" id="rotate-left" title={t('home.rotateLeft')} icon={rotateLeftIcon} label={t('home.rotateLeft')}
+              disabled={ro()} onClick={() => rotateCurrentPage(-90)} />
+            <RibbonButton size="small" id="rotate-right" title={t('home.rotateRight')} icon={rotateRightIcon} label={t('home.rotateRight')}
+              disabled={ro()} onClick={() => rotateCurrentPage(90)} />
+          </RibbonButtonStack>
         </RibbonGroup>
 
         <RibbonGroup label={t('organize.combine')}>
