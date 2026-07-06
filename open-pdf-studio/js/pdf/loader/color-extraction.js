@@ -569,7 +569,7 @@ const result = {};
 
       // For FreeText, extract additional FreeText-specific properties
       if (subtypeName === '/FreeText') {
-        // Read standard /Rotate key (PDF X-Change writes this for 90/180/270 rotations)
+        // Read standard /Rotate key (externe referentie-editor writes this for 90/180/270 rotations)
         const stdRotRaw = annotDict.get(PDFName.of('Rotate'));
         if (stdRotRaw) {
           const sr = pdfNum(context.lookup(stdRotRaw) || stdRotRaw);

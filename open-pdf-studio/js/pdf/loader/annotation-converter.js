@@ -914,7 +914,7 @@ export async function convertPdfAnnotation(annot, pageNum, viewport, stampImageM
         // - pageRotate (viewport.rotation) = the page's own /Rotate: annotations
         //   rotate along with the page display, so an annot whose /Rotate equals
         //   the page /Rotate reads UPRIGHT for the viewer (visual 0).
-        // Verified against PDF X-Change output (unrotated pages):
+        // Verified against externe referentie-weergave (unrotated pages):
         //   /Rotate 90  + matrix -90 → visual 0 (horizontal)
         //   /Rotate 270 + matrix +90 → visual 0 (horizontal)
         //   /Rotate 270 + matrix 180 → visual -90 (vertical)
