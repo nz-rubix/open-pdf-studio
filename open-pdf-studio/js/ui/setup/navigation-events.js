@@ -50,6 +50,22 @@ export function setupWheelZoom() {
       // doesn't keep gliding mid-zoom (would tear the cursor anchor away).
       stopPanMomentum();
       if (!viewport.active || !activeDoc.filePath) {
+        // Continuous mode: the vector viewport is deliberately inactive
+        // (renderContinuous() disables it) — route the zoom through the
+        // continuous helper, anchored at the cursor's Y position so the
+        // content under the mouse stays put.
+        if (activeDoc.viewMode === 'continuous' && activeDoc.filePath) {
+          const contDy = e.deltaY || 0;
+          if (contDy !== 0) {
+            const container = document.getElementById('pdf-container');
+            const anchorY = container
+              ? e.clientY - container.getBoundingClientRect().top
+              : null;
+            const m = await import('../../pdf/renderer.js');
+            await m.continuousZoomStep(contDy < 0 ? +1 : -1, anchorY);
+          }
+          return;
+        }
         // No PDF loaded → bail (preventDefault already ran).
         // Blank docs (filePath===null) bypass the vector viewport and use
         // PDF.js + doc.scale instead. zoomStepAtPoint() below would mutate

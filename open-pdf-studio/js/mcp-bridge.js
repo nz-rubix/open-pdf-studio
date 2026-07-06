@@ -570,6 +570,7 @@ async function handleGetViewportState() {
   let activeDocPath = null;
   let activePageNum = null;
   let viewMode = null;
+  let bookSpread = null;
   try {
     const stateMod = await import('/js/core/state.ts');
     renderEngine = stateMod.state?.renderEngine ?? null;
@@ -579,6 +580,7 @@ async function handleGetViewportState() {
     activeDocPath = doc?.filePath ?? null;
     activePageNum = doc?.currentPage ?? null;
     viewMode = doc?.viewMode ?? null;
+    bookSpread = !!doc?.bookSpread;
   } catch {
     // Module may not be loaded yet; leave fields null.
   }
@@ -594,6 +596,7 @@ async function handleGetViewportState() {
       scale: docScale,
       currentPage: activePageNum,
       viewMode,
+      bookSpread,
     },
     // viewport singleton (pdf-viewport.js): the transform that maps world→screen
     viewport: vp ? {
@@ -1721,8 +1724,10 @@ async function handleSavePdf(params) {
 
 async function handleSetViewMode(params) {
   const mode = params?.mode;
-  if (mode !== 'single' && mode !== 'continuous') {
-    return { ok: false, error: "params.mode must be 'single' or 'continuous'" };
+  // 'book' = boekweergave (2-op-1 spread) — intern een continuous-variant met
+  // bookSpread=true; zie renderer.setViewMode.
+  if (mode !== 'single' && mode !== 'continuous' && mode !== 'book') {
+    return { ok: false, error: "params.mode must be 'single', 'continuous' or 'book'" };
   }
   const stateMod = await import('./core/state.js');
   const doc = stateMod.getActiveDocument();
@@ -1733,7 +1738,8 @@ async function handleSetViewMode(params) {
   } catch (e) {
     return { ok: false, error: `setViewMode: ${e?.message ?? e}` };
   }
-  return { ok: true, viewMode: doc.viewMode };
+  // bookSpread meegeven zodat een client 'book' van 'continuous' kan onderscheiden.
+  return { ok: true, viewMode: doc.viewMode, bookSpread: !!doc.bookSpread };
 }
 
 async function handleFitPage() {

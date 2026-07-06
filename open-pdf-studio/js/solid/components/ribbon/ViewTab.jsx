@@ -33,13 +33,13 @@ export default function ViewTab() {
           <RibbonButton id="continuous" title={t('view.continuousTitle')} icon={continuousIcon} label={t('view.continuous')}
             active={(state.documents[state.activeDocumentIndex]?.viewMode || 'single') === 'continuous'
               && !state.documents[state.activeDocumentIndex]?.bookSpread}
-            disabled={true} style={{ opacity: '0.4', cursor: 'default' }} />
-          {/* Boekweergave bouwt op het continuous-pad; zolang dat op
-              "binnenkort beschikbaar" staat, blijft ook deze knop uit. */}
+            disabled={noPdf()} onClick={() => setViewMode('continuous')} />
+          {/* Boekweergave bouwt op het doorlopende pad (grid-layout via
+              bookSpread); nu dat pad weer werkt, is ook deze knop actief. */}
           <RibbonButton id="book-view" title={t('view.bookTitle')} icon={bookViewIcon} label={t('view.book')}
             active={(state.documents[state.activeDocumentIndex]?.viewMode === 'continuous')
               && !!state.documents[state.activeDocumentIndex]?.bookSpread}
-            disabled={true} style={{ opacity: '0.4', cursor: 'default' }} />
+            disabled={noPdf()} onClick={() => setViewMode('book')} />
         </RibbonGroup>
 
         <RibbonGroup label={t('view.display') || 'Display'}>
