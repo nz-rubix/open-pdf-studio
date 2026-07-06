@@ -107,11 +107,12 @@ fn uniform_scale(t: &Transform) -> f32 {
 
 #[inline(always)]
 fn rgba_to_color(rgba: u32) -> tiny_skia::Color {
-    // Buffer-encoding volgt de JS-replayer (_rgbaToCSS): 0xAARRGGBB.
-    let a = ((rgba >> 24) & 0xFF) as u8;
-    let r = ((rgba >> 16) & 0xFF) as u8;
-    let g = ((rgba >> 8) & 0xFF) as u8;
-    let b = (rgba & 0xFF) as u8;
+    // Buffer-encoding volgt interpreter::color_to_u32 en de JS-replayer
+    // (_rgbaToCSS): 0xRRGGBBAA — r in de hoogste byte, alpha in de laagste.
+    let r = ((rgba >> 24) & 0xFF) as u8;
+    let g = ((rgba >> 16) & 0xFF) as u8;
+    let b = ((rgba >> 8) & 0xFF) as u8;
+    let a = (rgba & 0xFF) as u8;
     tiny_skia::Color::from_rgba8(r, g, b, a)
 }
 
@@ -545,6 +546,37 @@ impl TileScene {
         None
     }
 
+    /// Render een pagina-REGIO (PDF-punten, weergave-ruimte zoals de viewer
+    /// aanlevert) op `scale` naar UNpremultiplied RGBA — het wire-formaat dat
+    /// de tegel-consumenten in de app verwachten ([w][h][rgba], zie de
+    /// render_pdf_page_region-flow). Regio wordt op hele device-pixels gelegd.
+    pub fn render_region_rgba(
+        &self,
+        scale: f32,
+        x_pt: f32,
+        y_pt: f32,
+        w_pt: f32,
+        h_pt: f32,
+    ) -> (u32, u32, Vec<u8>) {
+        let tx = (x_pt * scale).round().max(0.0) as u32;
+        let ty = (y_pt * scale).round().max(0.0) as u32;
+        let tw = (w_pt * scale).ceil().max(1.0) as u32;
+        let th = (h_pt * scale).ceil().max(1.0) as u32;
+        let pm = self.render_tile_impl(scale, tx, ty, tw, th, true);
+        let mut rgba = pm.take();
+        // premultiplied → straight alpha voor putImageData aan de JS-kant.
+        for p in rgba.chunks_exact_mut(4) {
+            let a = p[3] as u32;
+            if a == 0 || a == 255 {
+                continue;
+            }
+            p[0] = ((p[0] as u32 * 255) / a).min(255) as u8;
+            p[1] = ((p[1] as u32 * 255) / a).min(255) as u8;
+            p[2] = ((p[2] as u32 * 255) / a).min(255) as u8;
+        }
+        (tw, th, rgba)
+    }
+
     /// Volledige pagina parallel in tegels renderen en assembleren.
     pub fn render_full_parallel(&self, scale: f32, tile_px: u32) -> crate::RenderedPage {
         let out_w = (self.page_w * scale).ceil().max(1.0) as u32;
@@ -642,12 +674,12 @@ mod tests {
         let mut b = DrawCommandBuffer::new();
         // gevuld rood vlak linksboven (PDF-coördinaten: y omhoog)
         b.begin_path();
-        b.set_fill(0xFFDC2626);
+        b.set_fill(0xDC2626FF);
         b.rect(10.0, 140.0, 60.0, 40.0);
         b.fill();
         // blauwe diagonale lijn over het hele blad
         b.begin_path();
-        b.set_stroke(0xFF2563EB, 3.0);
+        b.set_stroke(0x2563EBFF, 3.0);
         b.move_to(0.0, 0.0);
         b.line_to(200.0, 200.0);
         b.stroke();
@@ -655,7 +687,7 @@ mod tests {
         b.save_state();
         b.transform(1.0, 0.0, 0.0, 1.0, 120.0, 10.0);
         b.begin_path();
-        b.set_fill(0xFF16A34A);
+        b.set_fill(0x16A34AFF);
         b.rect(0.0, 0.0, 50.0, 30.0);
         b.fill();
         b.restore_state();
@@ -692,7 +724,7 @@ mod tests {
         // veel paints zodat er zeker >1 chunk is, en de stijl vóór chunk 2
         // gezet in chunk 1 moet doorwerken.
         let mut b = DrawCommandBuffer::new();
-        b.set_fill(0xFFDC2626);
+        b.set_fill(0xDC2626FF);
         for i in 0..(CHUNK_PAINTS as i32 + 8) {
             b.begin_path();
             b.rect(0.0, i as f32, 4.0, 0.8);
