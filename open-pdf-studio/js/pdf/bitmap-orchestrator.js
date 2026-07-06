@@ -136,8 +136,8 @@ export async function prewarmZoomTiles(filePath, pageNum) {
         if (tileCacheGet(filePath, pageNum, zoomBucket, viewport.rotation, regionBucket)) continue;
 
         try {
-            const { invoke } = window.__TAURI__.core;
-            const raw = await invoke('render_pdf_page_region', {
+            const { invokeTileRegion } = await import('./progressive-render.js');
+            const raw = await invokeTileRegion({
                 path: filePath,
                 pageIndex: pageNum - 1,
                 scale: zoom,
@@ -242,8 +242,8 @@ export async function ensureTileForCurrentView(canvas) {
 
     // Cache miss: async Rust render of the region at the requested zoom.
     try {
-        const { invoke } = window.__TAURI__.core;
-        const rgbaData = await invoke('render_pdf_page_region', {
+        const { invokeTileRegion } = await import('./progressive-render.js');
+        const rgbaData = await invokeTileRegion({
             path: viewport.filePath,
             pageIndex: viewport.pageNum - 1,
             scale: viewport.zoom,

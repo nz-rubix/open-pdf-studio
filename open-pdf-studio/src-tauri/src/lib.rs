@@ -48,6 +48,13 @@ struct PdfBytesCache(Mutex<HashMap<String, Vec<u8>>>);
 // fresh DocumentHandle and re-extract every glyph from scratch.
 struct DocHandleCache(Mutex<HashMap<String, Arc<open_pdf_render::DocumentHandle>>>);
 
+/// Gebouwde TileScenes voor het zware-blad-tegelpad (route A): één scene is
+/// de complete display-list + chunk-index (~140-300 MB op extreme CAD-bladen)
+/// en vervangt de ~1,1 GB PDFium-parse-state per worker. Cap 2: actief blad +
+/// vergelijk-/vorig blad. Key: pad|mtime|len|pagina|rotatie.
+struct TileSceneCache(Mutex<Vec<(String, Arc<open_pdf_render::tile_render::TileScene>)>>);
+const TILE_SCENE_CACHE_CAP: usize = 2;
+
 /// Cache for already-rendered thumbnails. Keyed by (path, page, max_width, rotation).
 /// Hits return instantly without touching the renderer or JPEG encoder, which
 /// makes scrolling back to previously-rendered pages essentially free.
@@ -1676,6 +1683,92 @@ async fn render_pdf_page_region(
     Ok(tauri::ipc::Response::new(data))
 }
 
+/// Route A: render een tegel-regio via de eigen display-list-engine i.p.v. de
+/// PDFium-workers. De eerste aanroep per (pad, pagina, rotatie) bouwt de scene
+/// (extract + chunk-index — seconden op een 5M-ops blad, daarna gecachet);
+/// elke volgende tegel is puur parallel rasterwerk. Wire-format identiek aan
+/// render_pdf_page_region: [w u32 LE][h u32 LE][rgba]. Faalt expliciet (geen
+/// stille degradatie) zodat de JS-kant per pagina kan terugvallen op PDFium.
+#[tauri::command]
+async fn render_tile_scene_region(
+    path: String,
+    page_index: u32,
+    rotation: Option<i32>,
+    scale: f32,
+    region_x_pt: f32,
+    region_y_pt: f32,
+    region_w_pt: f32,
+    region_h_pt: f32,
+    bytes_cache: tauri::State<'_, PdfBytesCache>,
+    handle_cache: tauri::State<'_, DocHandleCache>,
+    scene_cache: tauri::State<'_, TileSceneCache>,
+) -> Result<tauri::ipc::Response, String> {
+    let extra_rot = rotation.unwrap_or(0);
+    let meta = std::fs::metadata(&path).map_err(|e| format!("stat: {}", e))?;
+    let mtime = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let key = format!("{}|{}|{}|p{}|r{}", path, mtime, meta.len(), page_index, extra_rot);
+
+    let lookup = |sc: &TileSceneCache| -> Result<Option<Arc<open_pdf_render::tile_render::TileScene>>, String> {
+        let cache = sc.0.lock().map_err(|e| format!("scene-cache lock: {}", e))?;
+        Ok(cache.iter().find(|(k, _)| *k == key).map(|(_, s)| s.clone()))
+    };
+
+    let scene = match lookup(&scene_cache)? {
+        Some(s) => s,
+        None => {
+            // Build serialiseren: gelijktijdige tegel-requests voor een verse
+            // pagina zouden anders elk de dure extract+index doen.
+            static BUILD_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+            let _b = BUILD_LOCK.lock().await;
+            if let Some(s) = lookup(&scene_cache)? {
+                s
+            } else {
+                let doc = get_or_load_doc(&path, &bytes_cache, &handle_cache)?;
+                let built = tauri::async_runtime::spawn_blocking(move || -> Result<open_pdf_render::tile_render::TileScene, String> {
+                    let buf = doc
+                        .extract_draw_commands(page_index as usize, extra_rot)
+                        .map_err(|e| format!("extract: {}", e))?;
+                    let bytes = buf.into_bytes();
+                    // Image-zware bladen horen op het PDFium-pad: een scene vol
+                    // ge-embedde beelddata is traag én zwaar — expliciet weigeren.
+                    if bytes.len() > 400 * 1024 * 1024 {
+                        return Err(format!("scene te groot ({} MB)", bytes.len() / 1_048_576));
+                    }
+                    open_pdf_render::tile_render::TileScene::build(bytes)
+                        .map_err(|e| format!("scene-build: {}", e))
+                })
+                .await
+                .map_err(|e| format!("join: {}", e))??;
+                let arc = Arc::new(built);
+                let mut cache = scene_cache.0.lock().map_err(|e| format!("scene-cache lock: {}", e))?;
+                if cache.len() >= TILE_SCENE_CACHE_CAP {
+                    cache.remove(0);
+                }
+                cache.push((key.clone(), arc.clone()));
+                eprintln!("[tile-scene] gebouwd: {} chunks, cache {}/{}", arc.chunk_count(), cache.len(), TILE_SCENE_CACHE_CAP);
+                arc
+            }
+        }
+    };
+
+    let (w, h, rgba) = tauri::async_runtime::spawn_blocking(move || {
+        scene.render_region_rgba(scale, region_x_pt, region_y_pt, region_w_pt, region_h_pt)
+    })
+    .await
+    .map_err(|e| format!("join: {}", e))?;
+
+    let mut data = Vec::with_capacity(8 + rgba.len());
+    data.extend_from_slice(&w.to_le_bytes());
+    data.extend_from_slice(&h.to_le_bytes());
+    data.extend_from_slice(&rgba);
+    Ok(tauri::ipc::Response::new(data))
+}
+
 /// Goedkope zwaarte-probe: som van de GECOMPRIMEERDE content-stream-lengtes van
 /// een pagina (raw stream-bytes, geen decompressie). Groot => zware vector-pagina.
 /// Gebruikt door het progressieve render-pad om alleen echt-zware pagina's tegel-
@@ -2064,6 +2157,7 @@ pub fn run(opts: StartupOpts) {
         .manage(LockedFiles(Mutex::new(HashMap::new())))
         .manage(PdfBytesCache(Mutex::new(HashMap::new())))
         .manage(DocHandleCache(Mutex::new(HashMap::new())))
+        .manage(TileSceneCache(Mutex::new(Vec::new())))
         .manage(ThumbnailCache(Mutex::new(HashMap::new())))
         .manage(PageTypeCache(Mutex::new(HashMap::new())))
         .manage(pdfium_renderer::PdfiumDocCache::default())
@@ -2278,6 +2372,7 @@ pub fn run(opts: StartupOpts) {
             read_plugin_file,
             render_pdf_page,
             render_pdf_page_region,
+            render_tile_scene_region,
             page_content_size,
             get_page_dimensions,
             invalidate_pdf_cache,

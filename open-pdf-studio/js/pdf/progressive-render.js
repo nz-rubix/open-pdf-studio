@@ -29,6 +29,31 @@ export function isHeavyBytes(bytes) {
   return typeof bytes === 'number' && bytes > HEAVY_CONTENT_BYTES;
 }
 
+// Route A: pagina's waarvoor de display-list-scene niet werkt (image-zwaar,
+// exotische features) vallen blijvend terug op het PDFium-pool-pad.
+const _sceneBroken = new Set();
+
+/**
+ * Tegel-invoke met scene-first en per-pagina PDFium-fallback. De eigen
+ * display-list-engine rastert tegels parallel uit één gecachete scene
+ * (~140 MB op een 5M-ops blad) i.p.v. PDFium-parse-state van ~1,1 GB per
+ * worker; zelfde wire-format ([w u32][h u32][rgba]) en dezelfde argumenten
+ * als render_pdf_page_region.
+ */
+export async function invokeTileRegion(args) {
+  const { invoke } = await import('../core/platform.js');
+  const key = `${args.path}|${args.pageIndex}|${args.rotation || 0}`;
+  if (!_sceneBroken.has(key)) {
+    try {
+      return await invoke('render_tile_scene_region', args);
+    } catch (e) {
+      _sceneBroken.add(key);
+      console.log(`[prog] scene-fallback p${args.pageIndex + 1}: ${String(e).slice(0, 140)}`);
+    }
+  }
+  return await invoke('render_pdf_page_region', { ...args, spread: false });
+}
+
 /**
  * Verdeel een w×h pixel-vlak in tegels van ~tilePx (laatste kolom/rij = rest).
  * Retour: [{ px, py, pw, ph }] in output-pixels (boven→onder, links→rechts).
@@ -222,16 +247,10 @@ export async function ensureProgressiveBitmapForCurrentView() {
     const regionHPt = t.ph / renderScale;
     let bytes;
     try {
-      const res = await invoke('render_pdf_page_region', {
+      const res = await invokeTileRegion({
         path: filePath, pageIndex: pageNum - 1,
         scale: renderScale, rotation,
         regionXPt, regionYPt, regionWPt, regionHPt,
-        // GEEN spread: alle tegels naar de affinity-worker. Elke meedoende
-        // worker bouwt zijn EIGEN parse-state op (~1,1 GB op een zwaar
-        // CAD-blad; 4 workers = ~5 GB piek) en betaalt eerst de parse van
-        // seconden. Eén warme worker rendert vervolg-tegels in ~0,4 s —
-        // vergelijkbaar snel, en een fractie van het geheugen.
-        spread: false,
       });
       bytes = res instanceof Uint8Array ? res : new Uint8Array(res);
     } catch { failed = true; return; }
