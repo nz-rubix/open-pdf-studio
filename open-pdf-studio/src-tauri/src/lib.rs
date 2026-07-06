@@ -1739,8 +1739,24 @@ async fn render_tile_scene_region(
                     if bytes.len() > 400 * 1024 * 1024 {
                         return Err(format!("scene te groot ({} MB)", bytes.len() / 1_048_576));
                     }
-                    open_pdf_render::tile_render::TileScene::build(bytes)
-                        .map_err(|e| format!("scene-build: {}", e))
+                    let buffer_mb = ((bytes.len() / 1_048_576) as u64).max(1);
+                    let scene = open_pdf_render::tile_render::TileScene::build(bytes)
+                        .map_err(|e| format!("scene-build: {}", e))?;
+                    // Datagedreven engine-gate (corpus-benchmark 2026-07-05,
+                    // 136 pagina's): de scene is alleen sneller ÉN accuraat op
+                    // puur-lijnwerk-bladen. Ge-embedde images (BARN-klasse:
+                    // PDFium wint daar in tijd en beeld) en hoge clip-dichtheid
+                    // (arceringen/maskers — replayer negeert clips nog: 30-45%
+                    // downsampled diff op NKD1a/NKE2D2) => expliciet weigeren,
+                    // de JS-kant valt dan per pagina terug op het PDFium-pad.
+                    let mb = buffer_mb;
+                    if scene.image_bytes > 1_000_000 {
+                        return Err(format!("scene geweigerd: {} MB embedded images", scene.image_bytes / 1_048_576));
+                    }
+                    if scene.clip_ops / mb > 25 {
+                        return Err(format!("scene geweigerd: {} clips/MB", scene.clip_ops / mb));
+                    }
+                    Ok(scene)
                 })
                 .await
                 .map_err(|e| format!("join: {}", e))??;

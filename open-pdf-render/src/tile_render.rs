@@ -140,6 +140,11 @@ pub struct TileScene {
     pub page_h: f32,
     base: Transform, // flip + MediaBox-origin (schaal 1)
     chunks: Vec<Chunk>,
+    /// Aantal clip-ops (20/21) in de buffer — de replayer negeert clips nog;
+    /// hoge dichtheid = gemeten weergave-afwijking (arceringen/maskers).
+    pub clip_ops: u64,
+    /// Totaal aan ge-embedde image-bytes (DrawImage-payloads) in de buffer.
+    pub image_bytes: u64,
     /// Minimale stroke-breedte in device-pixels. Default 1.0 = PDFium-match:
     /// de PDF-spec (8.4.3.2) definieert `0 w` als "dunste renderbare lijn =
     /// 1 device-pixel" en PDFium rastert álle subpixel-lijnen zo — de
@@ -202,6 +207,8 @@ impl TileScene {
             page_h: h,
             base,
             chunks: Vec::new(),
+            clip_ops: 0,
+            image_bytes: 0,
             hairline_floor_px: 1.0,
         };
         scene.index()?;
@@ -298,6 +305,7 @@ impl TileScene {
                 19 => { // DrawImage in 1×1 unit-square onder de CTM
                     let _w = r.u16(); let _h = r.u16();
                     let dlen = r.u32() as usize;
+                    self.image_bytes += dlen as u64;
                     r.pos += dlen;
                     let mut acc = BboxAcc::new();
                     acc.add(&state.ctm, 0.0, 0.0);
@@ -308,6 +316,7 @@ impl TileScene {
                     paints += 1;
                 }
                 20 | 21 => { // Clip / ClipEvenOdd: pad-range als clip-referentie
+                    self.clip_ops += 1;
                     // De clip hoort bij het pad dat sinds de laatste BeginPath
                     // is opgebouwd; we bewaren (chunk-lokaal onbekende) exacte
                     // range niet per pad — daarom herbouwt replay clips vanaf

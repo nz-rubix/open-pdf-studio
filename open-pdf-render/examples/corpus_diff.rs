@@ -152,6 +152,8 @@ fn main() {
     println!("{:<44} {:>5} {:>9} {:>9} {:>8} {:>8} {:>8}", "bestand", "pag", "ref ms", "tile ms", ">16 %", "gem d", "status");
 
     let mut worst: Vec<(f64, String)> = Vec::new();
+    let mut csv = String::from("bestand	pagina	content_bytes	buffer_bytes	ref_ms	extract_ms	index_ms	render_ms	diff_pct	ds_diff_pct
+");
     for pdf in &pdfs {
         let name = pdf.file_name().unwrap().to_string_lossy().to_string();
         let short: String = name.chars().take(42).collect();
@@ -166,8 +168,7 @@ fn main() {
             Err(e) => { println!("{:<44} {:>5} onze load-fout: {:?}", short, "-", e); continue; }
         };
         let pages_total = doc.page_count();
-        let mut test_pages = vec![0usize];
-        if pages_total > 2 { test_pages.push(pages_total / 2); }
+        let test_pages: Vec<usize> = (0..pages_total.min(8)).collect();
 
         for &pg in &test_pages {
             let (w_pt, h_pt) = match doc.page_dimensions(pg) {
@@ -183,17 +184,25 @@ fn main() {
             };
             let ref_ms = tr.elapsed().as_millis();
 
-            let tt = Instant::now();
-            let ours = (|| -> Result<open_pdf_render::RenderedPage, String> {
-                let buf = doc.extract_draw_commands(pg, 0).map_err(|e| format!("{:?}", e))?;
-                let scene = TileScene::build(buf.into_bytes()).map_err(|e| format!("{:?}", e))?;
-                Ok(scene.render_full_parallel(scale, 512))
-            })();
-            let tile_ms = tt.elapsed().as_millis();
-            let ours = match ours {
-                Ok(o) => o,
-                Err(e) => { println!("{:<44} {:>5} {:>9} {:>9} onze fout: {}", short, pg + 1, ref_ms, tile_ms, e); continue; }
+            let te = Instant::now();
+            let extracted = doc.extract_draw_commands(pg, 0).map(|b| b.into_bytes());
+            let extract_ms = te.elapsed().as_millis();
+            let (scene, buf_len, index_ms) = match extracted {
+                Ok(bytes) => {
+                    let n = bytes.len();
+                    let ti = Instant::now();
+                    match TileScene::build(bytes) {
+                        Ok(sc) => (Some(sc), n, ti.elapsed().as_millis()),
+                        Err(e) => { println!("{:<44} {:>5} scene-fout: {}", short, pg + 1, e); continue; }
+                    }
+                }
+                Err(e) => { println!("{:<44} {:>5} extract-fout: {:?}", short, pg + 1, e); continue; }
             };
+            let scene = scene.unwrap();
+            let tr2 = Instant::now();
+            let ours = scene.render_full_parallel(scale, 512);
+            let render_ms = tr2.elapsed().as_millis();
+            let tile_ms = extract_ms + index_ms + render_ms;
 
             if ours.width != refr.0 || ours.height != refr.1 {
                 println!("{:<44} {:>5} maten verschillen: {}x{} vs {}x{}", short, pg + 1, ours.width, ours.height, refr.0, refr.1);
@@ -210,11 +219,42 @@ fn main() {
             }
             let pct = 100.0 * over as f64 / total as f64;
             let mean = sum as f64 / total as f64;
-            let status = if pct <= 2.0 { "OK" } else { "AFWIJKEND" };
-            println!("{:<44} {:>5} {:>9} {:>9} {:>7.2}% {:>8.2} {:>8}", short, pg + 1, ref_ms, tile_ms, pct, mean, status);
-            worst.push((pct, format!("{} p{}", name, pg + 1)));
+            // Downsampled metriek (4x4-box): meet 'inkt per gebied' en negeert
+            // AA-verdelingsverschillen tussen rasterizers.
+            let dw = (refr.0 / 4).max(1) as usize;
+            let dh = (refr.1 / 4).max(1) as usize;
+            let mut ds_over = 0usize;
+            for by in 0..dh {
+                for bx in 0..dw {
+                    let (mut ra, mut ga, mut ba, mut rb, mut gb, mut bb, mut n) = (0u32, 0u32, 0u32, 0u32, 0u32, 0u32, 0u32);
+                    for y in by * 4..((by * 4 + 4).min(refr.1 as usize)) {
+                        for x in bx * 4..((bx * 4 + 4).min(refr.0 as usize)) {
+                            let i = (y * refr.0 as usize + x) * 3;
+                            ra += refr.2[i] as u32; ga += refr.2[i + 1] as u32; ba += refr.2[i + 2] as u32;
+                            rb += ours_rgb[i] as u32; gb += ours_rgb[i + 1] as u32; bb += ours_rgb[i + 2] as u32;
+                            n += 1;
+                        }
+                    }
+                    if n == 0 { continue; }
+                    let d = ((ra / n) as i32 - (rb / n) as i32).abs()
+                        .max(((ga / n) as i32 - (gb / n) as i32).abs())
+                        .max(((ba / n) as i32 - (bb / n) as i32).abs());
+                    if d > 12 { ds_over += 1; }
+                }
+            }
+            let ds_pct = 100.0 * ds_over as f64 / (dw * dh) as f64;
+            let content = 0u64; // content-bytes meet de app-router al; buffer_bytes is hier de feature
+            let status = if ds_pct <= 2.0 { "OK" } else { "AFWIJKEND" };
+            println!("{:<44} {:>5} {:>9} {:>9} {:>7.2}% {:>7.2}% {:>8}", short, pg + 1, ref_ms, tile_ms, pct, ds_pct, status);
+            csv.push_str(&format!("{}	{}	{}	{}	{}	{}	{}	{}	{:.3}	{:.3}
+",
+                name, pg + 1, content, buf_len, ref_ms, extract_ms, index_ms, render_ms, pct, ds_pct));
+            worst.push((ds_pct, format!("{} p{}", name, pg + 1)));
         }
     }
+    let _ = std::fs::write("C:/Users/rickd/AppData/Local/Temp/corpus_bench.tsv", &csv);
+    println!("
+csv: C:/Users/rickd/AppData/Local/Temp/corpus_bench.tsv");
     worst.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
     println!("\nslechtste 5:");
     for (pct, label) in worst.iter().take(5) {
