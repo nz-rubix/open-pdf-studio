@@ -1,4 +1,13 @@
-# Route A — Parse-once + parallelle tile-rasterizer (zware vectorbladen)
+# AEC-PDF v1 — parse-once + parallelle tile-rasterizer
+
+**Naam & beleid (2026-07-06):** de eigen tegel-engine heet **AEC-PDF v1**.
+PDFium blijft de basis-engine voor álle bestanden; AEC-PDF v1 wordt alleen
+ingezet waar performance het afdwingt (extreme bladen, MV-03-klasse,
+content > 6 MB + Rust-gate). Parallel wordt AEC-PDF v1 doorontwikkeld tot
+een volwaardige open-source PDF-engine — volgorde van het gat-dichten:
+clips/arceringen → images (DrawImage in extract) → tekst-randgevallen →
+shadings/transparantie. De corpus-benchmark is bij elke stap de meetlat om
+de inzet-drempel verantwoord te verlagen.
 
 **Doel:** megagrote vectorbladen (MV-03-klasse: ~5M path-ops) volledig renderen in ≤3 s met ≤600 MB piek, door PDFium alleen als (fallback-)parser te gebruiken en tegels parallel te rasteren over een onveranderlijke display-list — het MuPDF/Ghostscript-patroon.
 

@@ -59,7 +59,7 @@
   "engineTitle": "Rendering engine used for the current view",
   "engine": {
     "pdfium": "PDFium",
-    "scene": "Tile engine",
-    "vector": "Vector engine"
+    "scene": "AEC-PDF v1",
+    "vector": "AEC-PDF v1 (vector)"
   }
 }

@@ -114,13 +114,15 @@ export async function isHeavyPage(filePath, pageNum) {
   return isHeavyBytes(await pageContentBytes(filePath, pageNum));
 }
 
-// Engine-keuze BINNEN het zware pad: de scene-route (extract + chunk-index)
-// loont pas wanneer de PDFium-parse zelf seconden kost. Gemeten: bladen van
-// 1-2 MB content (NKD1a-klasse) parsen in PDFium in honderden ms en bladeren
-// sneller via de warme worker-doc-cache dan via een verse extract per pagina;
-// vanaf ~4 MB (MV-03: 8,5 MB → parse 3-7 s, ~1,1 GB parse-state) wint de
-// scene ruim op tijd én geheugen.
-const SCENE_CONTENT_BYTES = 4_000_000;
+// Engine-BELEID: PDFium is de basis-engine voor alles. De eigen engine
+// (AEC-PDF v1, de parallelle tegel-scene) wordt uitsluitend ingezet waar
+// performance dat afdwingt: extreme CAD-bladen in de MV-03-klasse (8,5 MB
+// content → PDFium-parse 3-7 s en ~1,1 GB per worker; AEC-PDF v1 doet het
+// volle blad in ~3 s met ~290 MB). Bewust hoog gelegd — AEC-PDF v1 wordt
+// ondertussen doorontwikkeld tot volwaardige engine (clips, images, tekst-
+// randgevallen) en de drempel zakt pas wanneer de corpus-benchmark
+// (examples/corpus_diff.rs) dat per bladklasse aantoont.
+const SCENE_CONTENT_BYTES = 6_000_000;
 
 // Generatie-teller voor stale-guards: elke start bumpt hem; na elke await checken
 // we of onze generatie nog actueel is voor we viewport-state muteren. Zo kan een

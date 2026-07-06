@@ -59,7 +59,7 @@
   "engineTitle": "Weergave-engine van de huidige weergave",
   "engine": {
     "pdfium": "PDFium",
-    "scene": "Tegel-engine",
-    "vector": "Vector-engine"
+    "scene": "AEC-PDF v1",
+    "vector": "AEC-PDF v1 (vector)"
   }
 }
