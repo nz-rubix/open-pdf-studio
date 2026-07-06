@@ -126,6 +126,12 @@ struct Chunk {
     /// leeg gelaten (max<min) voor chunks zonder geometrie.
     bbox: (f32, f32, f32, f32),
     snap: GState,
+    /// Save-stack op het snapshot-moment. Chunk-grenzen kunnen midden in een
+    /// save/restore-paar vallen (glyph-runs!): zonder deze stack herstelde
+    /// een Restore in de chunk naar het snapshot zelf i.p.v. de pre-save-
+    /// staat, waardoor alle volgende tekst in de chunk de blijven-hangen
+    /// glyph-transform erfde en buiten beeld belandde.
+    snap_stack: Vec<GState>,
 }
 
 pub struct TileScene {
@@ -211,6 +217,7 @@ impl TileScene {
 
         let mut chunk_start = r.pos;
         let mut chunk_snap = state.clone();
+        let mut chunk_snap_stack: Vec<GState> = Vec::new();
         let mut chunk_bbox = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
         let mut paints = 0usize;
         let mut path_acc = BboxAcc::new();
@@ -327,15 +334,17 @@ impl TileScene {
                     end: op_pos,
                     bbox: chunk_bbox,
                     snap: chunk_snap.clone(),
+                    snap_stack: chunk_snap_stack.clone(),
                 });
                 chunk_start = op_pos;
                 chunk_snap = state.clone();
+                chunk_snap_stack = stack.clone();
                 chunk_bbox = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
                 paints = 0;
             }
         }
         if chunk_start < r.pos {
-            chunks.push(Chunk { start: chunk_start, end: r.pos, bbox: chunk_bbox, snap: chunk_snap });
+            chunks.push(Chunk { start: chunk_start, end: r.pos, bbox: chunk_bbox, snap: chunk_snap, snap_stack: chunk_snap_stack });
         }
         self.chunks = chunks;
         Ok(())
@@ -412,8 +421,17 @@ impl TileScene {
 
         let mut state = chunk.snap.clone();
         state.ctm = rehome(state.ctm);
-        let mut stack: Vec<GState> = Vec::new();
-        let base_state = state.clone();
+        // Stack uit het snapshot, met elke CTM omgehangen naar de tegel-basis.
+        let mut stack: Vec<GState> = chunk
+            .snap_stack
+            .iter()
+            .map(|g| {
+                let mut g2 = g.clone();
+                g2.ctm = rehome(g2.ctm);
+                g2
+            })
+            .collect();
+        let base_state = if let Some(bottom) = stack.first() { bottom.clone() } else { state.clone() };
 
         let clip_mask = self.build_clip_mask(&chunk.snap, ctm_base, pixmap.width(), pixmap.height());
 
