@@ -242,7 +242,12 @@ async function _renderPageImpl(pageNum) {
       // affected the raster engine (PDFium vs Rust-Skia at the worker-pool
       // level) but vector-classified pages still went through the Vector
       // engine, making "Engine: PDFium" appear to do nothing for those pages.
-      const _vectorAllowed = state.renderEngineOverride == null;
+      // BELEID (2026-07-06): PDFium is de basis-engine; het vector-pad
+      // (AEC-PDF v1) draait alléén nog met de expliciete diagnose-vlag
+      // window.__aecVectorPath. Een null-override uit oude persisted
+      // voorkeuren (dropdown-tijdperk) mag het pad niet meer aanzetten —
+      // dat gaf o.a. een witte pagina op geroteerde vector-bladen.
+      const _vectorAllowed = window.__aecVectorPath === true && state.renderEngineOverride == null;
       if (_vectorAllowed && !vr.hasCachedCommands(doc.filePath, pageNum, userRotation)) {
         console.log(`[PERF] renderPage(${pageNum}) analyze_page_type START: ${(performance.now() - _rp0).toFixed(0)}ms`);
         // JS-side cache check FIRST — populated by analyze_page_type_batch
@@ -259,6 +264,15 @@ async function _renderPageImpl(pageNum) {
           if (_isStaleDoc(doc)) { resumeThumbnails(); return; }
           ptcMod.cachePageType(doc.filePath, pageNum - 1, pageType);
           console.log(`[PERF] renderPage(${pageNum}) analyze_page_type=${pageType}: ${(performance.now() - _rp0).toFixed(0)}ms`);
+        }
+        // BELEID (2026-07-06): PDFium is de basis-engine voor álle weergaven.
+        // Het eigen vector-replay-pad (AEC-PDF v1) staat uit tot het per
+        // bladklasse bewezen is via de corpus-benchmark — het veroorzaakte
+        // o.a. een witte pagina en gedraaide weergave op geroteerde bladen
+        // (Originele bestanden/Technische tekening.pdf p1, /Rotate-blad).
+        // Diagnose/ontwikkeling: window.__aecVectorPath = true heractiveert.
+        if (pageType === 'vector' && !window.__aecVectorPath) {
+          pageType = 'raster';
         }
         if (pageType === 'vector') {
           console.log(`[PERF] renderPage(${pageNum}) extract_draw_commands START: ${(performance.now() - _rp0).toFixed(0)}ms`);
