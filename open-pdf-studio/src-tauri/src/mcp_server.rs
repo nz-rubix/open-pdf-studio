@@ -638,11 +638,11 @@ fn handle_tools_list() -> Value {
             },
             {
                 "name": "app_set_view_mode",
-                "description": "Switch the active document between 'single' page view and 'continuous' scroll view.",
+                "description": "Switch the active document view: 'single' page, 'continuous' vertical scroll, or 'book' (two-page spread, page 1 on the right). 'book' is a continuous variant.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "mode": { "type": "string", "enum": ["single", "continuous"] }
+                        "mode": { "type": "string", "enum": ["single", "continuous", "book"] }
                     },
                     "required": ["mode"],
                     "additionalProperties": false

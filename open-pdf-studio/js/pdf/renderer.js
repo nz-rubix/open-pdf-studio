@@ -675,12 +675,19 @@ let _continuousObserver = null;
 const _continuousRenderTasks = new Map(); // pageNum -> RenderTask
 
 // Low-res preview cache for fast initial display
-const _lowResCache = new Map(); // pageNum -> { canvas, scale }
+const _lowResCache = new Map(); // `${filePath}|${pageNum}` -> { canvas, scale }
 const LOW_RES_SCALE = 0.5; // Render at 50% for fast preview
+
+// Cache-key MUST include the document — a bare pageNum key served page N of
+// whichever document happened to fill the cache first (wrong preview after a
+// tab switch).
+function _lowResKey(pageNum) {
+  return `${getActiveDocument()?.filePath || 'blank'}|${pageNum}`;
+}
 
 // Render a quick low-res preview of a page (fast, <50ms per page)
 async function renderLowResPreview(pdfDoc, pageNum, targetWidth, targetHeight) {
-  const cacheKey = pageNum;
+  const cacheKey = _lowResKey(pageNum);
   if (_lowResCache.has(cacheKey)) return _lowResCache.get(cacheKey).canvas;
 
   const page = await pdfDoc.getPage(pageNum);
@@ -761,7 +768,7 @@ async function renderContinuousPage(pageNum) {
 
     // Show low-res preview immediately while full render runs in background
     setupCanvasHiDPI(pdfCanvasEl, viewport.width, viewport.height);
-    const lowRes = _lowResCache.get(pageNum);
+    const lowRes = _lowResCache.get(_lowResKey(pageNum));
     if (lowRes) {
       const previewCtx = pdfCanvasEl.getContext('2d');
       previewCtx.drawImage(lowRes.canvas, 0, 0, pdfCanvasEl.width, pdfCanvasEl.height);
@@ -778,9 +785,18 @@ async function renderContinuousPage(pageNum) {
     canvasContainer.appendChild(annotationCanvasEl);
   }
 
-  // Update canvas dimensions for new scale
-  setupCanvasHiDPI(pdfCanvasEl, viewport.width, viewport.height);
+  // Update canvas dimensions for new scale. The annotation canvas may resize
+  // immediately (it is redrawn below anyway), but a REUSED pdf-canvas keeps
+  // its old bitmap as a CSS-stretched placeholder until the new render lands:
+  // resizing a canvas wipes it, and that wipe was exactly the white flash
+  // that made zooming in continuous mode unusable.
   setupCanvasHiDPI(annotationCanvasEl, viewport.width, viewport.height);
+  if (isNewPage) {
+    setupCanvasHiDPI(pdfCanvasEl, viewport.width, viewport.height);
+  } else {
+    pdfCanvasEl.style.width = Math.floor(viewport.width) + 'px';
+    pdfCanvasEl.style.height = Math.floor(viewport.height) + 'px';
+  }
   // Cursor is handled centrally by js/ui/cursor.js — no need to set it here.
 
   // Only editText forces pe:none statically; select uses dynamic fallthrough.
@@ -822,9 +838,21 @@ async function renderContinuousPage(pageNum) {
   // call so DevTools shows you cache-lookup / invoke-render / canvas
   // putImageData / cache-store sub-timings per page. Compare totals
   // before vs after on the BARN Relocation PDF.
-  const label = `[render p${pageNum} scale ${doc.scale.toFixed(2)}]`;
+  // Bitmap-axis cap: a full-page render at high zoom on a large sheet would
+  // blow past canvas limits and memory (A0 at 400% ≈ 19k px wide, 1.5 GB of
+  // RGBA). Render at the largest scale that fits the cap and let CSS stretch
+  // the bitmap to the logical size — same philosophy as MAX_BITMAP_AXIS_PX in
+  // the single-page path. Sharp detail work at high zoom belongs to
+  // single-page mode (tiles); continuous trades that for full-document flow.
+  const CONT_MAX_AXIS_PX = 4096;
+  const _maxViewAxis = Math.max(viewport.width, viewport.height);
+  const renderScale = _maxViewAxis > CONT_MAX_AXIS_PX
+    ? doc.scale * (CONT_MAX_AXIS_PX / _maxViewAxis)
+    : doc.scale;
+
+  const label = `[render p${pageNum} scale ${renderScale.toFixed(2)}]`;
   console.time(label);
-  const _jsCacheKey = `${doc.filePath}|${pageNum}|${Math.round(doc.scale * 10000)}|${extraRotation || 0}`;
+  const _jsCacheKey = `${doc.filePath}|${pageNum}|${Math.round(renderScale * 10000)}|${extraRotation || 0}`;
   console.time(label + ' cache-lookup');
   const _cached = _bitmapJSCacheGet(_jsCacheKey);
   console.timeEnd(label + ' cache-lookup');
@@ -832,8 +860,10 @@ async function renderContinuousPage(pageNum) {
     console.time(label + ' canvas-draw-cached');
     pdfCanvasEl.width = _cached.w;
     pdfCanvasEl.height = _cached.h;
-    pdfCanvasEl.style.width = _cached.w + 'px';
-    pdfCanvasEl.style.height = _cached.h + 'px';
+    // CSS size = logical page size; differs from the backing store when the
+    // axis cap reduced renderScale (CSS upscales the capped bitmap).
+    pdfCanvasEl.style.width = Math.floor(viewport.width) + 'px';
+    pdfCanvasEl.style.height = Math.floor(viewport.height) + 'px';
     pdfCtxEl.drawImage(_cached.bitmap, 0, 0);
     console.timeEnd(label + ' canvas-draw-cached');
     state.renderEngine = 'Raster (PDFium · cached)';
@@ -845,7 +875,7 @@ async function renderContinuousPage(pageNum) {
       const rgbaData = await renderPdfPage({
         path: doc.filePath,
         pageIndex: pageNum - 1,
-        scale: doc.scale,
+        scale: renderScale,
       });
       console.timeEnd(label + ' invoke-render');
       if (_isStaleDoc(doc)) { console.timeEnd(label); return; }
@@ -863,8 +893,9 @@ async function renderContinuousPage(pageNum) {
       console.time(label + ' canvas-putImageData');
       pdfCanvasEl.width = rustW;
       pdfCanvasEl.height = rustH;
-      pdfCanvasEl.style.width = rustW + 'px';
-      pdfCanvasEl.style.height = rustH + 'px';
+      // CSS size = logical page size (see the cached branch above).
+      pdfCanvasEl.style.width = Math.floor(viewport.width) + 'px';
+      pdfCanvasEl.style.height = Math.floor(viewport.height) + 'px';
       const imageData = new ImageData(rgba, rustW, rustH);
       pdfCtxEl.putImageData(imageData, 0, 0);
       console.timeEnd(label + ' canvas-putImageData');
@@ -969,6 +1000,89 @@ export async function reRenderVisibleContinuousPages() {
   }
 }
 
+// ─── Continuous mode: zoom + scroll/page sync ───────────────────────────────
+
+// Zoom WITHOUT the full DOM rebuild: wrappers get their new size
+// (reRenderVisibleContinuousPages), existing canvases stay up as CSS-stretched
+// placeholders, and the scroll position is recomputed so the anchor point
+// (cursor or viewport center) keeps pointing at the same content. The old
+// renderContinuous()-per-zoom-step approach flashed white AND reset the
+// scroll position — the two reasons zooming in continuous mode was unusable.
+async function _continuousRezoom(oldScale, anchorY = null) {
+  const doc = getActiveDocument();
+  const container = document.getElementById('pdf-container');
+  if (!doc || !container || !oldScale) return;
+  const factor = doc.scale / oldScale;
+  const anchor = anchorY != null ? anchorY : container.clientHeight / 2;
+  const target = (container.scrollTop + anchor) * factor - anchor;
+  await reRenderVisibleContinuousPages();
+  container.scrollTop = Math.max(0, target);
+}
+
+// One zoom step (same step curve as zoomIn/zoomOut) anchored at anchorY
+// (px within #pdf-container). Used by the zoom buttons and ctrl+wheel.
+export async function continuousZoomStep(direction, anchorY = null) {
+  const doc = getActiveDocument();
+  if (!doc || doc.viewMode !== 'continuous') return;
+  const old = doc.scale;
+  let next;
+  if (direction > 0) {
+    next = Math.min(24, old + 0.25);
+  } else if (old <= 0.2) {
+    next = Math.max(0.05, old - 0.025);
+  } else if (old <= 0.5) {
+    next = Math.max(0.05, old - 0.1);
+  } else {
+    next = old - 0.25;
+  }
+  if (next === old) return;
+  doc.scale = next;
+  await _continuousRezoom(old, anchorY);
+}
+
+// While the user scrolls freely, the page whose center sits closest to the
+// viewport center becomes doc.currentPage — status bar and thumbnail
+// highlight track the scroll just like explicit navigation does.
+let _contScrollSyncBound = false;
+function _bindContinuousScrollSync() {
+  if (_contScrollSyncBound) return;
+  const container = document.getElementById('pdf-container');
+  if (!container) return;
+  _contScrollSyncBound = true;
+  let pending = null;
+  container.addEventListener('scroll', () => {
+    const doc = getActiveDocument();
+    if (!doc || doc.viewMode !== 'continuous') return;
+    if (pending) return;
+    pending = setTimeout(() => {
+      pending = null;
+      _syncCurrentPageFromScroll(container);
+    }, 120);
+  }, { passive: true });
+}
+
+function _syncCurrentPageFromScroll(container) {
+  const doc = getActiveDocument();
+  if (!doc || doc.viewMode !== 'continuous') return;
+  const box = container.getBoundingClientRect();
+  const mid = box.top + box.height / 2;
+  let bestPage = null;
+  let bestDist = Infinity;
+  document.querySelectorAll('#continuous-container .page-wrapper').forEach(w => {
+    const r = w.getBoundingClientRect();
+    const d = Math.abs((r.top + r.bottom) / 2 - mid);
+    if (d < bestDist) {
+      bestDist = d;
+      bestPage = parseInt(w.dataset.page, 10);
+    }
+  });
+  if (bestPage && doc.currentPage !== bestPage) {
+    doc.currentPage = bestPage;
+    updateActiveThumbnail();
+    updateAllStatus();
+  }
+}
+
 // Render all pages (continuous mode) — creates placeholders, lazily renders visible pages
 export async function renderContinuous(forceRebuild) {
   // Clear search highlights immediately to prevent stale positions during re-render
@@ -1065,12 +1179,15 @@ export async function renderContinuous(forceRebuild) {
     _continuousObserver.observe(wrapper);
   });
 
+  // Keep doc.currentPage in sync with free scrolling (status bar, thumbnails).
+  _bindContinuousScrollSync();
+
   // Fire-and-forget: pre-render low-res previews in background for fast scroll
   // This runs without blocking — pages that scroll into view get full render via observer
   if (pdfDoc.numPages > 1) {
     (async () => {
       for (let p = 1; p <= Math.min(pdfDoc.numPages, 200); p++) {
-        if (_lowResCache.has(p)) continue;
+        if (_lowResCache.has(_lowResKey(p))) continue;
         try {
           await renderLowResPreview(pdfDoc, p, 0, 0);
         } catch {}
@@ -1123,6 +1240,9 @@ export async function setViewMode(mode) {
     singleContainer.style.display = 'none';
     continuousContainer.style.display = doc.bookSpread ? 'grid' : 'flex';
     await renderContinuous();
+    // Stay on the page the user was reading — the rebuild starts at page 1.
+    const wrapper = continuousContainer.querySelector(`.page-wrapper[data-page="${doc.currentPage}"]`);
+    if (wrapper) wrapper.scrollIntoView({ block: 'start' });
   }
 }
 
@@ -1266,12 +1386,12 @@ export async function zoomIn() {
     m.zoomStepAtCenter(+1);
     return;
   }
-  doc.scale += 0.25;
   if (doc.viewMode === 'continuous') {
-    await renderContinuous();
-  } else {
-    await renderPage(doc.currentPage);
+    await continuousZoomStep(+1);
+    return;
   }
+  doc.scale += 0.25;
+  await renderPage(doc.currentPage);
 }
 
 export async function zoomOut() {
@@ -1284,6 +1404,10 @@ export async function zoomOut() {
     m.zoomStepAtCenter(-1);
     return;
   }
+  if (doc.viewMode === 'continuous') {
+    await continuousZoomStep(-1);
+    return;
+  }
   // Allow zooming out to 0.05 (5 %) for huge blank pages — A0 (2384×3370 pt)
   // at 0.05 = 119×169 px which fits any reasonable viewport with margin.
   // Floor of 0.1 was visible to the user as "kan niet zo ver uitzoomen om
@@ -1293,11 +1417,7 @@ export async function zoomOut() {
     if (doc.scale <= 0.2) doc.scale = Math.max(0.05, doc.scale - 0.025);
     else if (doc.scale <= 0.5) doc.scale = Math.max(0.05, doc.scale - 0.1);
     else doc.scale -= 0.25;
-    if (doc.viewMode === 'continuous') {
-      await renderContinuous();
-    } else {
-      await renderPage(doc.currentPage);
-    }
+    await renderPage(doc.currentPage);
   }
 }
 
@@ -1317,12 +1437,14 @@ export async function setZoom(newScale) {
     }
     return;
   }
-  doc.scale = newScale;
   if (doc.viewMode === 'continuous') {
-    await renderContinuous();
-  } else {
-    await renderPage(doc.currentPage);
+    const _old = doc.scale;
+    doc.scale = newScale;
+    await _continuousRezoom(_old);
+    return;
   }
+  doc.scale = newScale;
+  await renderPage(doc.currentPage);
 }
 
 // Helper: pick the right (pageW, pageH, canvasW, canvasH) tuple for the
@@ -1384,12 +1506,14 @@ async function _applyZoom(fitInputs, newZoom) {
   }
   // Legacy
   const doc = fitInputs.doc;
-  doc.scale = newZoom;
   if (doc.viewMode === 'continuous') {
-    await renderContinuous();
-  } else {
-    await renderPage(doc.currentPage);
+    const _old = doc.scale;
+    doc.scale = newZoom;
+    await _continuousRezoom(_old);
+    return;
   }
+  doc.scale = newZoom;
+  await renderPage(doc.currentPage);
 }
 
 export async function fitWidth() {
@@ -1428,13 +1552,15 @@ export async function actualSize() {
     return;
   }
 
+  if (doc.viewMode === 'continuous' && doc.pdfDoc) {
+    const _old = doc.scale;
+    doc.scale = 1;
+    await _continuousRezoom(_old);
+    return;
+  }
   doc.scale = 1;
   if (doc.pdfDoc) {
-    if (doc.viewMode === 'continuous') {
-      await renderContinuous();
-    } else {
-      await renderPage(doc.currentPage);
-    }
+    await renderPage(doc.currentPage);
   }
 }
 
