@@ -1151,6 +1151,13 @@ fn open_pdf_in_default_viewer(path: String) -> Result<bool, String> {
     if !std::path::Path::new(&path).exists() {
         return Err(format!("File not found: {}", path));
     }
+    // Niet-desktop-platforms (mobile): geen externe-viewer-concept — nette
+    // fout i.p.v. een cfg-if zonder else (compileerfout E0317 op Android).
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        let _ = &path;
+        return Err("Openen in externe viewer wordt op dit platform niet ondersteund".into());
+    }
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
@@ -2072,7 +2079,14 @@ fn get_page_dimensions(
         .collect()
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// Mobile entry point: tauri vereist een argumentloze functie; de desktop-
+/// varianten geven StartupOpts (mcp-server/poort) door via main.rs.
+#[cfg(mobile)]
+#[tauri::mobile_entry_point]
+fn run_mobile() {
+    run(StartupOpts::default());
+}
+
 pub fn run(opts: StartupOpts) {
     eprintln!(
         "[startup] mcp_server={}, mcp_port={}",
