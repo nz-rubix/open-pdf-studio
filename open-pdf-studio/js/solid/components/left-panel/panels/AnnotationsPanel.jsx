@@ -1,6 +1,6 @@
 import { For, Show, createSignal, onCleanup } from 'solid-js';
 import { activeTab } from '../../../stores/leftPanelStore.js';
-import { items, countText, emptyMessage, sortMode, setSortMode, filterMode, setFilterMode, collapsedGroups, toggleGroup, expandAllGroups, collapseAllGroups } from '../../../stores/panels/annotationsStore.js';
+import { items, countText, emptyMessage, sortMode, setSortMode, filterMode, setFilterMode, hiddenStatuses, toggleHiddenStatus, collapsedGroups, toggleGroup, expandAllGroups, collapseAllGroups } from '../../../stores/panels/annotationsStore.js';
 import { useTranslation } from '../../../../i18n/useTranslation.js';
 import { state, clearSelection, getActiveDocument } from '../../../../core/state.js';
 import {
@@ -29,9 +29,21 @@ const groupOptions = [
   { key: 'lastStatusAuthor', label: 'groupByLastStatusAuthor' },
 ];
 
+// Review-statussen voor het Tonen > Status-filter (#236). Sleutels in
+// kleine letters — de filtering in annotations-list.js vergelijkt
+// hoofdletter-ongevoelig. Labels komen uit de bestaande context-namespace.
+const statusFilterOptions = [
+  { key: 'none', label: 'annotation.statusNone' },
+  { key: 'accepted', label: 'annotation.statusAccepted' },
+  { key: 'cancelled', label: 'annotation.statusCancelled' },
+  { key: 'completed', label: 'annotation.statusCompleted' },
+  { key: 'rejected', label: 'annotation.statusRejected' },
+];
+
 export default function AnnotationsPanel() {
   const { t } = useTranslation('properties');
   const { t: tCommon } = useTranslation('common');
+  const { t: tContext } = useTranslation('context');
 
   const [menuOpen, setMenuOpen] = createSignal(false);
   const [menuPos, setMenuPos] = createSignal({ top: 0, left: 0 });
@@ -56,6 +68,13 @@ export default function AnnotationsPanel() {
     setFilterMode(value);
     import('../../../../ui/panels/annotations-list.js').then(m => m.updateAnnotationsList(value));
     setMenuOpen(false);
+  };
+
+  // Status aan/uit zetten sluit het menu bewust NIET, zodat meerdere
+  // statussen achter elkaar (de)geselecteerd kunnen worden (#236).
+  const toggleStatusFilter = (statusKey) => {
+    toggleHiddenStatus(statusKey);
+    import('../../../../ui/panels/annotations-list.js').then(m => m.updateAnnotationsList());
   };
 
   const applySort = (value) => {
@@ -292,6 +311,19 @@ export default function AnnotationsPanel() {
                     <span class="annotations-menu-check">{filterMode() === 'current' ? '\u2713' : ''}</span>
                     <span class="annotations-menu-label">{t('leftPanel.currentPage')}</span>
                   </div>
+
+                  {/* Filter op review-status (#236) \u2014 vinkje = zichtbaar */}
+                  <div class="annotations-menu-separator"></div>
+                  <div class="annotations-menu-section">{tContext('annotation.status')}</div>
+                  {statusFilterOptions.map(opt => (
+                    <div
+                      class={`annotations-menu-item${!hiddenStatuses().has(opt.key) ? ' checked' : ''}`}
+                      onClick={() => toggleStatusFilter(opt.key)}
+                    >
+                      <span class="annotations-menu-check">{!hiddenStatuses().has(opt.key) ? '\u2713' : ''}</span>
+                      <span class="annotations-menu-label">{tContext(opt.label)}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
 
