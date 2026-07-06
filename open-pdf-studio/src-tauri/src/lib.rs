@@ -1750,14 +1750,28 @@ async fn render_tile_scene_region(
                     let scene = open_pdf_render::tile_render::TileScene::build(bytes)
                         .map_err(|e| format!("scene-build: {}", e))?;
                     // Datagedreven engine-gate (corpus-benchmark 2026-07-05,
-                    // 136 pagina's): de scene is alleen sneller ÉN accuraat op
-                    // puur-lijnwerk-bladen. Ge-embedde images (BARN-klasse:
-                    // PDFium wint daar in tijd en beeld) en hoge clip-dichtheid
-                    // (arceringen/maskers — replayer negeert clips nog: 30-45%
-                    // downsampled diff op NKD1a/NKE2D2) => expliciet weigeren,
-                    // de JS-kant valt dan per pagina terug op het PDFium-pad.
+                    // 136 pagina's; herijkt 2026-07-06 na image- en clip-
+                    // ondersteuning in de tegel-rasterizer): de scene is
+                    // alleen sneller ÉN accuraat op lijnwerk-bladen.
+                    //
+                    // Image-drempel 1 MB -> 2 MB (overleg-notitie): de
+                    // rasterizer tekent DrawImage-payloads nu daadwerkelijk
+                    // (RGBA-raw + JPEG), en de inline-strip-emissie geeft het
+                    // maatgevende strip-blad (MV-03: 4.925 strips, 1,44 MB
+                    // payload, downsampled diff 7,3% -> 7,1%) net méér dan
+                    // 1 MB aan correct renderende beelddata. In het corpus
+                    // haalt verder geen enkel blad het JS-voorfilter
+                    // (content >= 6 MB), dus deze verruiming raakt alleen de
+                    // strip-klasse; de BARN-klasse (tientallen MB's JPEG,
+                    // PDFium wint daar in tijd en beeld) blijft er ruim boven
+                    // en wordt nog steeds geweigerd.
+                    //
+                    // Clip-dichtheid blijft 25/MB: clips worden nu wél
+                    // gerepliceerd (tegel-maskers), maar boven deze dichtheid
+                    // is het maskerpad nog niet op snelheid gemeten —
+                    // versoepelen pas na een corpus-meting die dat draagt.
                     let mb = buffer_mb;
-                    if scene.image_bytes > 1_000_000 {
+                    if scene.image_bytes > 2_000_000 {
                         return Err(format!("scene geweigerd: {} MB embedded images", scene.image_bytes / 1_048_576));
                     }
                     if scene.clip_ops / mb > 25 {
