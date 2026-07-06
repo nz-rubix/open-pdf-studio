@@ -133,6 +133,13 @@ pub struct TileScene {
     pub page_h: f32,
     base: Transform, // flip + MediaBox-origin (schaal 1)
     chunks: Vec<Chunk>,
+    /// Minimale stroke-breedte in device-pixels. Default 1.0 = PDFium-match:
+    /// de PDF-spec (8.4.3.2) definieert `0 w` als "dunste renderbare lijn =
+    /// 1 device-pixel" en PDFium rastert álle subpixel-lijnen zo — de
+    /// vector-engine-kalibratie (0,2 px-coverage, zie renderer.rs) oogt op
+    /// zware CAD-bladen 2-3x lichter dan de PDFium-weergave die gebruikers
+    /// daar gewend zijn. Zet op 0.0 voor de fijne vector-look.
+    pub hairline_floor_px: f32,
 }
 
 struct BboxAcc {
@@ -188,6 +195,7 @@ impl TileScene {
             page_h: h,
             base,
             chunks: Vec::new(),
+            hairline_floor_px: 1.0,
         };
         scene.index()?;
         Ok(scene)
@@ -446,8 +454,14 @@ impl TileScene {
                         paint.set_color(rgba_to_color(state.stroke_rgba));
                         paint.anti_alias = true;
                         let s = uniform_scale(&state.ctm);
+                        let dev_w = state.stroke_width * s;
+                        let floored = if dev_w < self.hairline_floor_px {
+                            self.hairline_floor_px.max(0.05)
+                        } else {
+                            dev_w
+                        };
                         let mut stroke = Stroke {
-                            width: (state.stroke_width * s).max(0.1),
+                            width: floored.max(0.05),
                             miter_limit: state.miter_limit,
                             line_cap: match state.line_cap { 1 => LineCap::Round, 2 => LineCap::Square, _ => LineCap::Butt },
                             line_join: match state.line_join { 1 => LineJoin::Round, 2 => LineJoin::Bevel, _ => LineJoin::Miter },
