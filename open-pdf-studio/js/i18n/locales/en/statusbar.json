@@ -55,5 +55,11 @@
   "pdfAConformance": "This document claims PDF/A conformance.",
   "renameError": "Failed to rename file: {{error}}",
   "renameInvalidChars": "File name cannot contain  / : * ? \" < > |",
-  "renameFileExists": "A file with this name already exists."
+  "renameFileExists": "A file with this name already exists.",
+  "engineTitle": "Rendering engine used for the current view",
+  "engine": {
+    "pdfium": "PDFium",
+    "scene": "Tile engine",
+    "vector": "Vector engine"
+  }
 }

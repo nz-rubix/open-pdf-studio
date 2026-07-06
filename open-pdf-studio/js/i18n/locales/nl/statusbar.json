@@ -55,5 +55,11 @@
   "renameError": "Failed to rename file: {{error}}",
   "renameInvalidChars": "File name cannot contain  / : * ? \" < > |",
   "renameFileExists": "A file with this name already exists.",
-  "page": "Pagina"
+  "page": "Pagina",
+  "engineTitle": "Weergave-engine van de huidige weergave",
+  "engine": {
+    "pdfium": "PDFium",
+    "scene": "Tegel-engine",
+    "vector": "Vector-engine"
+  }
 }

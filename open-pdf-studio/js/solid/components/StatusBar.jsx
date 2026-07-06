@@ -101,6 +101,8 @@ async function handleZoomBlur(e) {
   }
 }
 
+import { activeEngine } from '../stores/engineStatusStore.js';
+
 export default function StatusBar() {
   const { t } = useTranslation('statusbar');
 
@@ -202,6 +204,20 @@ export default function StatusBar() {
             {state.statusMessage}
           </Show>
         </div>
+        {/* Passieve weergave-engine-indicator: de render-paden melden welke
+            engine de huidige weergave levert (PDFium / eigen tegel-engine /
+            vector-replay). Alleen zichtbaarheid, geen keuze. */}
+        <Show when={activeEngine()}>
+          <div
+            class="status-item"
+            title={t('engineTitle')}
+            style={`padding:1px 8px; border:1px solid #b5b5b5; font-size:11px; background:${
+              activeEngine() === 'scene' ? '#dcfce7' : activeEngine() === 'vector' ? '#dbeafe' : '#f0f0f0'
+            }; color:#222;`}
+          >
+            {t(`engine.${activeEngine()}`)}
+          </div>
+        </Show>
         {/* Zoom % chip removed — duplicated info with the editable zoom
             input in the center status bar (status-zoom-input). That input
             is the source of truth (also lets the user type a value).

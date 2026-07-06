@@ -46,13 +46,23 @@ export async function invokeTileRegion(args) {
   const sceneWorthIt = (await pageContentBytes(args.path, args.pageIndex + 1)) > SCENE_CONTENT_BYTES;
   if (sceneWorthIt && !_sceneBroken.has(key)) {
     try {
-      return await invoke('render_tile_scene_region', args);
+      const res = await invoke('render_tile_scene_region', args);
+      try {
+        const { reportActiveEngine } = await import('../solid/stores/engineStatusStore.js');
+        reportActiveEngine('scene');
+      } catch {}
+      return res;
     } catch (e) {
       _sceneBroken.add(key);
       console.log(`[prog] scene-fallback p${args.pageIndex + 1}: ${String(e).slice(0, 140)}`);
     }
   }
-  return await invoke('render_pdf_page_region', { ...args, spread: false });
+  const res = await invoke('render_pdf_page_region', { ...args, spread: false });
+  try {
+    const { reportActiveEngine } = await import('../solid/stores/engineStatusStore.js');
+    reportActiveEngine('pdfium');
+  } catch {}
+  return res;
 }
 
 /**

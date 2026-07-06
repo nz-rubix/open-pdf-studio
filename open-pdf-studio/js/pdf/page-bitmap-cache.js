@@ -182,6 +182,9 @@ function _ensureBitmapAtScale(filePath, pageNum, rotation, cacheBucket, renderSc
       const rgba = new Uint8ClampedArray(fileBytes.buffer, fileBytes.byteOffset + 8, expected);
       const imageData = new ImageData(rgba, w, h);
       const bitmap = await createImageBitmap(imageData);
+      import('../solid/stores/engineStatusStore.js')
+        .then((m) => m.reportActiveEngine('pdfium'))
+        .catch(() => {});
       const entry = { bitmap, w, h, scale: renderScale };
       _cache.set(key, entry);
       _evictIfNeeded();
