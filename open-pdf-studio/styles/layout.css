@@ -434,6 +434,32 @@
   display: flex !important;
 }
 
+/* Boekweergave (issue #201): 2-koloms spread als layout-variant van de
+   continuous-weergave. display:grid wordt inline gezet door renderer.js
+   (setViewMode/renderContinuous); hier alleen de grid-inrichting.
+   Pagina 1 staat alleen rechts, zoals bij een echt boek; daarna vullen de
+   wrappers automatisch links-rechts per rij (2-3, 4-5, ...). Oneven
+   wrappers (pagina 1, 3, 5, ...) vormen de rechterhelft en schuiven tegen
+   de rug aan; even wrappers de linkerhelft. */
+.continuous-container.book-spread {
+  grid-template-columns: repeat(2, max-content);
+  grid-auto-flow: row;
+  justify-content: center;
+  align-items: start;
+}
+
+.continuous-container.book-spread .page-wrapper:first-child {
+  grid-column: 2;
+}
+
+.continuous-container.book-spread .page-wrapper:nth-child(odd) {
+  justify-self: start;
+}
+
+.continuous-container.book-spread .page-wrapper:nth-child(even) {
+  justify-self: end;
+}
+
 .page-wrapper {
   position: relative;
   display: inline-block;

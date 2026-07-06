@@ -122,6 +122,9 @@ export async function pasteImageFromBlob(blob) {
     originalWidth: img.naturalWidth,
     originalHeight: img.naturalHeight,
     lockAspectRatio: true, // images keep their original w:h on resize by default
+    // Crop (bijsnijden) fractions per side, 0 = no crop. Present from the
+    // start so property-change undo snapshots always contain the keys.
+    cropLeft: 0, cropTop: 0, cropRight: 0, cropBottom: 0,
     opacity: 1,
     locked: false,
     printable: true,

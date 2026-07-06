@@ -1186,6 +1186,23 @@ export async function savePDF(saveAsPath = null) {
             const imgTint = (ann.tintColor && ann.tintColor !== 'none') ? ann.tintColor : null;
             if (imgTint) imgDictObj.OPS_TintColor = PDFString.of(imgTint);
 
+            // Non-destructive crop (issue #212): fractions 0-1 trimmed per
+            // side. Round-trip via OPS_Crop* keys; the AP below draws the
+            // FULL image shifted/scaled behind a clip so other viewers show
+            // the cropped result while the embedded bitmap stays complete.
+            const cropL = Math.max(0, Math.min(0.95, ann.cropLeft || 0));
+            const cropT = Math.max(0, Math.min(0.95, ann.cropTop || 0));
+            const cropR = Math.max(0, Math.min(0.95, ann.cropRight || 0));
+            const cropB = Math.max(0, Math.min(0.95, ann.cropBottom || 0));
+            const hasCrop = ann.type === 'image' && (cropL || cropT || cropR || cropB) &&
+              (cropL + cropR) < 1 && (cropT + cropB) < 1;
+            if (hasCrop) {
+              imgDictObj.OPS_CropLeft = cropL;
+              imgDictObj.OPS_CropTop = cropT;
+              imgDictObj.OPS_CropRight = cropR;
+              imgDictObj.OPS_CropBottom = cropB;
+            }
+
             annotDict = context.obj(imgDictObj);
 
             // Embed the actual image data into the appearance stream
@@ -1212,12 +1229,31 @@ export async function savePDF(saveAsPath = null) {
                 const resources = { XObject: context.obj({ Img: imageRef }) };
                 const extGStates = {};
 
+                // Crop-aware image matrix: scale the full image up so the
+                // visible source window maps exactly onto [0,w]x[0,h], then
+                // clip to that rect. Image space: top row sits at v=1, so
+                // cropTop trims from the v=1 side and cropBottom from v=0.
+                let imgOps;
+                if (hasCrop) {
+                  const r4 = (n) => Number(n.toFixed(4));
+                  const sw = w / (1 - cropL - cropR);
+                  const sh = h / (1 - cropT - cropB);
+                  const ox = -cropL * sw;
+                  const oy = -cropB * sh;
+                  imgOps = `0 0 ${r4(w)} ${r4(h)} re W n\n${r4(sw)} 0 0 ${r4(sh)} ${r4(ox)} ${r4(oy)} cm\n/Img Do`;
+                } else {
+                  imgOps = `${w} 0 0 ${h} 0 0 cm\n/Img Do`;
+                }
+
                 if (alpha < 1) {
                   const gsDict = context.obj({ Type: 'ExtGState', ca: alpha, CA: alpha });
+                  // Accumulator-patroon (GS0 hier, GS1 voor tint verderop);
+                  // resources.ExtGState wordt na afloop uit `extGStates` gezet.
+                  // Crop-bewuste `imgOps` i.p.v. de volledige-beeld-cm.
                   extGStates.GS0 = context.register(gsDict);
-                  apContent = `q\n/GS0 gs\n${w} 0 0 ${h} 0 0 cm\n/Img Do\nQ\n`;
+                  apContent = `q\n/GS0 gs\n${imgOps}\nQ\n`;
                 } else {
-                  apContent = `q\n${w} 0 0 ${h} 0 0 cm\n/Img Do\nQ\n`;
+                  apContent = `q\n${imgOps}\nQ\n`;
                 }
 
                 // Colour tint: Multiply-blend fill over the image, so other

@@ -249,8 +249,8 @@ export async function reloadFromBytes(newBytes, annotations, rotations, targetPa
   }
   hideProperties();
 
-  // Re-render
-  await setViewMode(doc?.viewMode || 'single');
+  // Re-render (preserve the book-spread layout variant of continuous)
+  await setViewMode(doc?.bookSpread && doc?.viewMode === 'continuous' ? 'book' : (doc?.viewMode || 'single'));
   clearThumbnailCache(doc.id);
   generateThumbnails();
   updateAllStatus();

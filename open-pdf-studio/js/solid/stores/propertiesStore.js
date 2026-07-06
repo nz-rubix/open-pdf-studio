@@ -81,6 +81,10 @@ const [annotProps, setAnnotProps] = createStore({
   lockAspectRatio: false,
   linkedPath: '',
   tintColor: '',
+  cropLeft: 0,
+  cropTop: 0,
+  cropRight: 0,
+  cropBottom: 0,
   startHead: 'none',
   endHead: 'open',
   headSize: 12,
@@ -274,6 +278,10 @@ export function storeShowProperties(annotation) {
     lockAspectRatio: annotation.type === 'image' ? (annotation.lockAspectRatio || false) : false,
     linkedPath: annotation.linkedPath || '',
     tintColor: annotation.tintColor || '',
+    cropLeft: annotation.type === 'image' ? Math.round((annotation.cropLeft || 0) * 100) : 0,
+    cropTop: annotation.type === 'image' ? Math.round((annotation.cropTop || 0) * 100) : 0,
+    cropRight: annotation.type === 'image' ? Math.round((annotation.cropRight || 0) * 100) : 0,
+    cropBottom: annotation.type === 'image' ? Math.round((annotation.cropBottom || 0) * 100) : 0,
     startHead: annotation.startHead || (annotation.type === 'measureDistance' ? 'openCircle' : 'none'),
     endHead: annotation.endHead || (annotation.type === 'measureDistance' ? 'openCircle' : 'open'),
     headSize: annotation.headSize || 12,
@@ -469,6 +477,10 @@ export function storeShowMultiSelection(selected) {
     imageRotation: 0,
     lockAspectRatio: false,
     linkedPath: '',
+    cropLeft: 0,
+    cropTop: 0,
+    cropRight: 0,
+    cropBottom: 0,
     startHead: sharedValue(selected, a => a.startHead || 'none', 'mixed'),
     endHead: sharedValue(selected, a => a.endHead || 'open', 'mixed'),
     headSize: sharedValue(selected, a => a.headSize || 12, 'mixed'),
@@ -955,6 +967,22 @@ export function updateAnnotProp(key, value) {
         currentAnnotation.height = Math.max(20, newH);
         setAnnotProps('imageHeight', currentAnnotation.height);
       }
+      break;
+    }
+    case 'cropLeft':
+    case 'cropTop':
+    case 'cropRight':
+    case 'cropBottom': {
+      // Non-destructive crop (issue #212): store as fraction 0-1 per side.
+      // Clamp so each side stays within 0-90% AND the pair (left+right /
+      // top+bottom) leaves at least 10% of the source visible.
+      const pct = Math.max(0, Math.min(90, parseFloat(value) || 0));
+      const opposite = key === 'cropLeft' ? 'cropRight'
+        : key === 'cropRight' ? 'cropLeft'
+        : key === 'cropTop' ? 'cropBottom' : 'cropTop';
+      const oppVal = currentAnnotation[opposite] || 0;
+      currentAnnotation[key] = Math.max(0, Math.min(pct / 100, 0.9 - oppVal));
+      setAnnotProps(key, Math.round(currentAnnotation[key] * 100));
       break;
     }
     case 'startHead': currentAnnotation.startHead = value; break;

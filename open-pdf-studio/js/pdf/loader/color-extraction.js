@@ -71,6 +71,19 @@ export async function extractAnnotationColors(pageNum, pdfDoc) {
           if (on && typeof on.value === 'string') colors.stampName = on.value;
           else if (on && typeof on.decodeText === 'function') colors.stampName = on.decodeText();
         }
+        // Read /OPS_CropLeft.. (non-destructive image crop, fractions 0-1
+        // per side — issue #212). The AP embeds the FULL bitmap, so these
+        // fractions re-apply the crop after the image round-trips.
+        for (const [pdfKey, prop] of [
+          ['OPS_CropLeft', 'cropLeft'], ['OPS_CropTop', 'cropTop'],
+          ['OPS_CropRight', 'cropRight'], ['OPS_CropBottom', 'cropBottom'],
+        ]) {
+          const cRaw = annotDict.get(PDFName.of(pdfKey));
+          if (cRaw) {
+            const cv = pdfNum(context.lookup(cRaw) || cRaw);
+            if (cv !== null && cv > 0 && cv < 1) colors[prop] = cv;
+          }
+        }
       }
 
       // Read /OPS_Rotation (our custom rotation key) for ALL annotation types

@@ -973,11 +973,30 @@ export function drawAnnotation(ctx, annotation) {
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
 
-        // Draw the image centered at origin. Compare-overlays can carry a
-        // colour tint (multiply, alpha-preserving — see getTintedImage).
+        // Draw the image centered at origin, combining two independent
+        // features: a compare-overlay colour tint (multiply, alpha-preserving —
+        // see getTintedImage) AND non-destructive crop (#212). cropLeft/Top/
+        // Right/Bottom are fractions 0-1 of the SOURCE trimmed per side; the
+        // remaining source window maps onto the full annotation rect.
         const imgTint = annotation.tintColor;
         const imgSrc = (imgTint && imgTint !== 'none') ? getTintedImage(img, imgTint) : img;
-        ctx.drawImage(imgSrc, -annotation.width / 2, -annotation.height / 2, annotation.width, annotation.height);
+        const cropL = Math.max(0, Math.min(0.95, annotation.cropLeft || 0));
+        const cropT = Math.max(0, Math.min(0.95, annotation.cropTop || 0));
+        const cropR = Math.max(0, Math.min(0.95, annotation.cropRight || 0));
+        const cropB = Math.max(0, Math.min(0.95, annotation.cropBottom || 0));
+        const cropW = 1 - cropL - cropR;
+        const cropH = 1 - cropT - cropB;
+        // getTintedImage returns a canvas (uses .width); a raw image uses
+        // .naturalWidth — support both so crop works with and without tint.
+        const srcW = imgSrc.naturalWidth || imgSrc.width || 0;
+        const srcH = imgSrc.naturalHeight || imgSrc.height || 0;
+        if ((cropL || cropT || cropR || cropB) && cropW > 0 && cropH > 0 && srcW > 0 && srcH > 0) {
+          ctx.drawImage(imgSrc,
+            srcW * cropL, srcH * cropT, srcW * cropW, srcH * cropH,
+            -annotation.width / 2, -annotation.height / 2, annotation.width, annotation.height);
+        } else {
+          ctx.drawImage(imgSrc, -annotation.width / 2, -annotation.height / 2, annotation.width, annotation.height);
+        }
 
         ctx.imageSmoothingEnabled = prevSmooth;
         ctx.imageSmoothingQuality = prevQuality;
