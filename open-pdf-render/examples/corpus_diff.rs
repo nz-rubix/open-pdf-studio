@@ -33,7 +33,10 @@ const THUMB_LONG_PX: u32 = 700;
 //   gate:       src-tauri/src/lib.rs (scene-weigering op buffer-feiten)
 const SCENE_CONTENT_BYTES: u64 = 6_000_000;
 const GATE_BUFFER_MAX: usize = 400 * 1024 * 1024;
-const GATE_IMAGE_BYTES: u64 = 1_000_000;
+// 1 MB -> 2 MB (2026-07-06): rasterizer tekent images nu echt; de inline-
+// strip-emissie tilt MV-03 (1,44 MB payload, correct beeld) over de oude
+// drempel. Spiegel van src-tauri/src/lib.rs — daar staat de onderbouwing.
+const GATE_IMAGE_BYTES: u64 = 2_000_000;
 const GATE_CLIPS_PER_MB: u64 = 25;
 
 struct Fpdf {
