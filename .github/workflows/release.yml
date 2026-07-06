@@ -452,17 +452,19 @@ jobs:
     needs: [create-release, build]
 
     steps:
-      - name: Publish release
+      - name: Finalize release
         id: publish-release
         uses: actions/github-script@v8
         env:
           release_id: ${{ needs.create-release.outputs.release_id }}
         with:
           script: |
+            // Release blijft een concept (draft): publicatie is een bewuste,
+            // handmatige stap — builds zijn intern tot expliciete vrijgave.
             github.rest.repos.updateRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
               release_id: process.env.release_id,
-              draft: false,
+              draft: true,
               prerelease: false
             });
