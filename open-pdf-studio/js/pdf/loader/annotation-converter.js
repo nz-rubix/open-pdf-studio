@@ -1151,6 +1151,12 @@ export async function convertPdfAnnotation(annot, pageNum, viewport, stampImageM
       if (extraColors.opsLinkedPath) {
         stampProps.linkedPath = extraColors.opsLinkedPath;
       }
+      // Colour tint of an image compare-overlay. The extracted bitmap is the
+      // untinted original (the tint lives as a Multiply fill in the AP
+      // stream), so restoring the property re-applies the tint editably.
+      if (extraColors.opsTintColor) {
+        stampProps.tintColor = extraColors.opsTintColor;
+      }
       // Stamps the app saved from an IMAGE annotation (Name 'Image', bitmap
       // embedded) round-trip back to type 'image' so the image properties
       // (size, aspect lock, linked file) stay editable after reopen.

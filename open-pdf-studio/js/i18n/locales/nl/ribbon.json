@@ -62,6 +62,8 @@
     "screenshotOptions": "Schermafbeelding opties",
     "fullPage": "Volledige pagina",
     "region": "Gebied",
+    "placeAsOverlay": "Als overlay plaatsen",
+    "placeAsOverlayTitle": "Plaats de laatste opname als halfdoorzichtige overlay op de huidige pagina",
     "view": "Beeld",
     "zoomIn": "Inzoomen",
     "zoomOut": "Uitzoomen",

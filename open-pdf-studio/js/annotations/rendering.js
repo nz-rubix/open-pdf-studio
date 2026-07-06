@@ -245,6 +245,34 @@ export function renderParametricSymbolToPng(annotation, pxPerUnit = 4) {
   }
 }
 
+// ─── Image tint cache ────────────────────────────────────────────────────
+// Image annotations used as compare-overlays can carry a `tintColor`. The
+// tint is a multiply of the tint colour over the bitmap (alpha preserved),
+// baked once per Image element into an offscreen canvas so redraws stay a
+// single drawImage. WeakMap keyed on the Image: refreshes of linked images
+// swap the Image object, which automatically invalidates the cache entry.
+const _tintedImageCache = new WeakMap(); // Image → { tint, canvas }
+
+function getTintedImage(img, tint) {
+  const hit = _tintedImageCache.get(img);
+  if (hit && hit.tint === tint) return hit.canvas;
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth || 1;
+  c.height = img.naturalHeight || 1;
+  const tctx = c.getContext('2d');
+  tctx.drawImage(img, 0, 0);
+  tctx.globalCompositeOperation = 'multiply';
+  tctx.fillStyle = tint;
+  tctx.fillRect(0, 0, c.width, c.height);
+  // Multiply paints the full rect — clip it back to the source alpha so
+  // transparent bitmap areas stay transparent.
+  tctx.globalCompositeOperation = 'destination-in';
+  tctx.drawImage(img, 0, 0);
+  tctx.globalCompositeOperation = 'source-over';
+  _tintedImageCache.set(img, { tint, canvas: c });
+  return c;
+}
+
 export function drawAnnotation(ctx, annotation) {
   // Skip hidden annotations
   if (annotation.hidden) return;
@@ -945,8 +973,11 @@ export function drawAnnotation(ctx, annotation) {
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
 
-        // Draw the image centered at origin
-        ctx.drawImage(img, -annotation.width / 2, -annotation.height / 2, annotation.width, annotation.height);
+        // Draw the image centered at origin. Compare-overlays can carry a
+        // colour tint (multiply, alpha-preserving — see getTintedImage).
+        const imgTint = annotation.tintColor;
+        const imgSrc = (imgTint && imgTint !== 'none') ? getTintedImage(img, imgTint) : img;
+        ctx.drawImage(imgSrc, -annotation.width / 2, -annotation.height / 2, annotation.width, annotation.height);
 
         ctx.imageSmoothingEnabled = prevSmooth;
         ctx.imageSmoothingQuality = prevQuality;

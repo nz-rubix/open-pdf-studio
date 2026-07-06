@@ -228,7 +228,9 @@
     "notLinked": "Not linked",
     "linkFile": "Link…",
     "refreshLink": "Refresh",
-    "unlink": "Unlink"
+    "unlink": "Unlink",
+    "tint": "Color Tint",
+    "tintNone": "None"
   },
   "multiSelect": "{{count}} annotations selected",
   "pdfText": "PDF Text",
