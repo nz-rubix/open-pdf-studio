@@ -183,7 +183,7 @@ function _ensureBitmapAtScale(filePath, pageNum, rotation, cacheBucket, renderSc
       const imageData = new ImageData(rgba, w, h);
       const bitmap = await createImageBitmap(imageData);
       import('../solid/stores/engineStatusStore.js')
-        .then((m) => m.reportActiveEngine('pdfium'))
+        .then((m) => m.reportActiveEngine('pdfium', filePath, pageNum))
         .catch(() => {});
       const entry = { bitmap, w, h, scale: renderScale };
       _cache.set(key, entry);

@@ -199,7 +199,7 @@ export function renderVectorPage(ctx, filePath, pageNum, transform, rotation) {
   const entry = _cache.get(_key(filePath, pageNum, rotation));
   if (!entry) return;
   import('../solid/stores/engineStatusStore.js')
-    .then((m) => m.reportActiveEngine('vector'))
+    .then((m) => m.reportActiveEngine('vector', filePath, pageNum))
     .catch(() => {});
 
   const { bytes, x0, y0, h: pageH } = entry;

@@ -49,7 +49,7 @@ export async function invokeTileRegion(args) {
       const res = await invoke('render_tile_scene_region', args);
       try {
         const { reportActiveEngine } = await import('../solid/stores/engineStatusStore.js');
-        reportActiveEngine('scene');
+        reportActiveEngine('scene', args.path, args.pageIndex + 1);
       } catch {}
       return res;
     } catch (e) {
@@ -60,7 +60,7 @@ export async function invokeTileRegion(args) {
   const res = await invoke('render_pdf_page_region', { ...args, spread: false });
   try {
     const { reportActiveEngine } = await import('../solid/stores/engineStatusStore.js');
-    reportActiveEngine('pdfium');
+    reportActiveEngine('pdfium', args.path, args.pageIndex + 1);
   } catch {}
   return res;
 }
