@@ -19,6 +19,10 @@ use lopdf::{Dictionary, Object, StringFormat};
 pub struct ContentStreamIter<'a> {
     bytes: &'a [u8],
     pos: usize,
+    /// Byte-span (start, eind) van de rauwe data van de laatst gelexte
+    /// inline image (tussen `ID` en `EI`), zodat de interpreter hem als
+    /// DrawImage kan emitten. Overschreven bij elke volgende `ID`.
+    last_inline: Option<(usize, usize)>,
 }
 
 #[inline(always)]
@@ -33,7 +37,14 @@ fn is_delim(b: u8) -> bool {
 
 impl<'a> ContentStreamIter<'a> {
     pub fn new(bytes: &'a [u8]) -> Self {
-        ContentStreamIter { bytes, pos: 0 }
+        ContentStreamIter { bytes, pos: 0, last_inline: None }
+    }
+
+    /// Byte-span (start, eind — exclusief) in de invoer-slice van de rauwe
+    /// inline-image-data van de laatst geleverde `ID`-operatie. De aanroeper
+    /// slicet zelf: de span verwijst naar dezelfde bytes als `new()` kreeg.
+    pub fn inline_image_span(&self) -> Option<(usize, usize)> {
+        self.last_inline
     }
 
     #[inline(always)]
@@ -342,13 +353,14 @@ impl<'a> ContentStreamIter<'a> {
     }
 
     /// Sla een inline image over: aangeroepen NA het lexen van operator `ID`.
-    /// Scant naar `EI` op een token-grens. De rauwe data wordt genegeerd
-    /// (het vector-pad tekent inline images niet).
+    /// Scant naar `EI` op een token-grens. De rauwe data-span wordt in
+    /// `last_inline` bewaard zodat de interpreter hem kan emitten.
     fn skip_inline_image_data(&mut self) {
         // Eén whitespace-byte na ID hoort bij de syntax.
         if self.peek().map(is_ws) == Some(true) {
             self.pos += 1;
         }
+        let start = self.pos;
         while self.pos + 1 < self.bytes.len() {
             if self.bytes[self.pos] == b'E' && self.bytes[self.pos + 1] == b'I' {
                 let before_ok = self.pos == 0 || is_ws(self.bytes[self.pos - 1]);
@@ -357,12 +369,17 @@ impl<'a> ContentStreamIter<'a> {
                     .get(self.pos + 2)
                     .map_or(true, |&b| is_ws(b) || is_delim(b));
                 if before_ok && after_ok {
+                    // Data eindigt vóór de whitespace die bij de EI-syntax
+                    // hoort (before_ok garandeert die ws, behalve op pos 0).
+                    let end = if self.pos > start { self.pos - 1 } else { start };
+                    self.last_inline = Some((start, end));
                     self.pos += 2; // voorbij EI
                     return;
                 }
             }
             self.pos += 1;
         }
+        self.last_inline = Some((start, self.bytes.len()));
         self.pos = self.bytes.len();
     }
 
@@ -467,6 +484,25 @@ mod tests {
         assert!(names.contains(&"BI"));
         assert!(names.contains(&"ID"));
         assert_eq!(*names.last().unwrap(), "cm");
+    }
+
+    #[test]
+    fn inline_image_span_covers_raw_data() {
+        // De span begint direct na de ene ws-byte achter ID en eindigt vóór
+        // de ws-byte die bij EI hoort — dus precies de rauwe data.
+        let src = b"BI /W 3 /H 1 /BPC 8 /CS/G ID \xAA\xBB\xCC EI 1 0 0 1 5 5 cm";
+        let mut it = ContentStreamIter::new(src);
+        let mut op = Operation { operator: String::new(), operands: Vec::new() };
+        let mut span = None;
+        while it.next_into(&mut op) {
+            if op.operator == "ID" {
+                span = it.inline_image_span();
+                // ID-operanden = de BI-dict-paren
+                assert!(op.operands.iter().any(|o| *o == Object::Name(b"BPC".to_vec())));
+            }
+        }
+        let (s, e) = span.expect("span gezet");
+        assert_eq!(&src[s..e], b"\xAA\xBB\xCC");
     }
 
     #[test]

@@ -1682,6 +1682,9 @@ impl Interpreter {
     ) -> Result<(), RenderError> {
         let mut has_active_path = false;
         let mut text_state = TextState::new();
+        // Inline images (BI/ID/EI) buiten het gedekte formaat: tellen en één
+        // logregel per stream — liever een gemeld gat dan een fout beeld.
+        let mut inline_skipped: u64 = 0;
 
         // Streamende lexer i.p.v. Content::decode — zie execute_internal.
         let mut op_stream = crate::content_stream::ContentStreamIter::new(content_bytes);
@@ -2335,11 +2338,162 @@ impl Interpreter {
                 "Do" => {
                     Self::handle_do_extract_with_text(&op.operands, buf, state, doc, resources, font_registry, text_spans.as_deref_mut());
                 }
+                // Inline image: de BI-dict-paren komen als operanden van de
+                // ID-op binnen; de rauwe data-span levert de lexer.
+                "ID" => {
+                    if let Some((s, e)) = op_stream.inline_image_span() {
+                        let data = &content_bytes[s.min(content_bytes.len())..e.min(content_bytes.len())];
+                        if !Self::handle_inline_image_extract(&op.operands, data, buf) {
+                            inline_skipped += 1;
+                        }
+                    }
+                }
                 "gs" | "ri" | "i" => {}
                 _ => {}
             }
         }
+        if inline_skipped > 0 {
+            println!(
+                "[inline-image] {} inline image(s) overgeslagen (filter/kleurruimte/bpc buiten dekking)",
+                inline_skipped
+            );
+        }
         Ok(())
+    }
+
+    /// Emit een inline image (BI/ID/EI) als DrawImage in de command-buffer.
+    /// Dekking bewust minimaal, gericht op CAD-export-strips: géén filter of
+    /// FlateDecode (incl. PNG-predictor via /DP), 8 bpc, DeviceGray/RGB/CMYK.
+    /// Alles daarbuiten (DCT/CCITT/RL/AHx/A85, ImageMask, Indexed, /Decode-
+    /// arrays) retourneert false zodat de aanroeper het gat kan tellen.
+    /// Formaat-conventie volgt handle_image_xobject: "RGBA"-magic + u16 w/h +
+    /// premultiplied pixels, in het 1×1-unit-square onder de CTM (Y-flip).
+    fn handle_inline_image_extract(
+        operands: &[Object],
+        raw: &[u8],
+        buf: &mut DrawCommandBuffer,
+    ) -> bool {
+        let mut w: i64 = 0;
+        let mut h: i64 = 0;
+        let mut bpc: i64 = 8;
+        let mut comps: i64 = 0; // 0 = /CS ontbreekt (alleen toegestaan bij ImageMask)
+        let mut filter: Option<Vec<u8>> = None;
+        let mut unsupported = false;
+        let mut decode_parms: Option<Dictionary> = None;
+
+        let mut it = operands.iter();
+        while let Some(key) = it.next() {
+            let Object::Name(k) = key else { continue };
+            let Some(val) = it.next() else { break };
+            match k.as_slice() {
+                b"W" | b"Width" => w = Self::i(val) as i64,
+                b"H" | b"Height" => h = Self::i(val) as i64,
+                b"BPC" | b"BitsPerComponent" => bpc = Self::i(val) as i64,
+                b"IM" | b"ImageMask" => {
+                    if matches!(val, Object::Boolean(true)) {
+                        unsupported = true; // stencil-masks: nog niet gedekt
+                    }
+                }
+                b"CS" | b"ColorSpace" => {
+                    comps = match val {
+                        Object::Name(n) => match n.as_slice() {
+                            b"G" | b"DeviceGray" => 1,
+                            b"RGB" | b"DeviceRGB" => 3,
+                            b"CMYK" | b"DeviceCMYK" => 4,
+                            _ => -1, // Indexed (/I) of benoemde resource
+                        },
+                        _ => -1,
+                    };
+                }
+                b"F" | b"Filter" => {
+                    filter = match val {
+                        Object::Name(n) => Some(n.clone()),
+                        Object::Array(arr) if arr.is_empty() => None,
+                        Object::Array(arr) if arr.len() == 1 => match &arr[0] {
+                            Object::Name(n) => Some(n.clone()),
+                            _ => { unsupported = true; None }
+                        },
+                        _ => { unsupported = true; None }
+                    };
+                }
+                b"D" | b"Decode" => unsupported = true, // kleur-inversies: overslaan
+                b"DP" | b"DecodeParms" => {
+                    if let Object::Dictionary(d) = val {
+                        decode_parms = Some(d.clone());
+                    }
+                }
+                _ => {} // L/Length, I/Interpolate e.d.: niet nodig
+            }
+        }
+
+        let flate = match filter.as_deref() {
+            None => false,
+            Some(b"Fl") | Some(b"FlateDecode") => true,
+            Some(_) => { unsupported = true; false }
+        };
+        if unsupported
+            || bpc != 8
+            || !(1..=u16::MAX as i64).contains(&w)
+            || !(1..=u16::MAX as i64).contains(&h)
+            || !matches!(comps, 1 | 3 | 4)
+        {
+            return false;
+        }
+        let (w_us, h_us, n_comp) = (w as usize, h as usize, comps as usize);
+        let expected = w_us * h_us * n_comp;
+
+        let pixels: Vec<u8> = if flate {
+            // Synthetische stream zodat decompress_image_stream (Flate +
+            // PNG-predictor) één-op-één hergebruikt wordt.
+            let mut dict = Dictionary::new();
+            dict.set("Filter", Object::Name(b"FlateDecode".to_vec()));
+            if let Some(dp) = decode_parms {
+                dict.set("DecodeParms", Object::Dictionary(dp));
+            }
+            let stream = lopdf::Stream::new(dict, raw.to_vec());
+            match Self::decompress_image_stream(&stream) {
+                Some(p) => p,
+                None => return false,
+            }
+        } else {
+            raw.to_vec()
+        };
+        if pixels.len() < expected {
+            return false;
+        }
+
+        // RGBA opbouwen — alpha is altijd 255 (inline images kennen geen
+        // /SMask), dus premultiplied == straight en beide replayers lezen
+        // dezelfde bytes correct.
+        let mut rgba = Vec::with_capacity(w_us * h_us * 4);
+        for px in pixels[..expected].chunks_exact(n_comp) {
+            match n_comp {
+                1 => rgba.extend_from_slice(&[px[0], px[0], px[0], 255]),
+                3 => rgba.extend_from_slice(&[px[0], px[1], px[2], 255]),
+                _ => {
+                    let c = px[0] as f32 / 255.0;
+                    let m = px[1] as f32 / 255.0;
+                    let y = px[2] as f32 / 255.0;
+                    let k = px[3] as f32 / 255.0;
+                    let r = (255.0 * (1.0 - c) * (1.0 - k)) as u8;
+                    let g = (255.0 * (1.0 - m) * (1.0 - k)) as u8;
+                    let b = (255.0 * (1.0 - y) * (1.0 - k)) as u8;
+                    rgba.extend_from_slice(&[r, g, b, 255]);
+                }
+            }
+        }
+
+        let mut img_data = Vec::with_capacity(8 + rgba.len());
+        img_data.extend_from_slice(b"RGBA");
+        img_data.extend_from_slice(&(w as u16).to_le_bytes());
+        img_data.extend_from_slice(&(h as u16).to_le_bytes());
+        img_data.extend_from_slice(&rgba);
+
+        buf.save_state();
+        buf.transform(1.0, 0.0, 0.0, -1.0, 0.0, 1.0); // flip Y — images zijn top-down
+        buf.draw_image(w as u16, h as u16, &img_data);
+        buf.restore_state();
+        true
     }
 
     /// Decode single-byte text bytes to Unicode using font ToUnicode map or encoding
@@ -3477,5 +3631,108 @@ impl Interpreter {
             let _ = Self::extract_text_only(&content_bytes, spans, state, doc, res, font_registry);
         }
         state.restore();
+    }
+}
+
+#[cfg(test)]
+mod inline_image_tests {
+    use super::*;
+
+    /// Draai extract_commands over een synthetische content-stream en geef de
+    /// rauwe commandbuffer terug (zonder 16-byte pagina-header).
+    fn extract(content: &[u8]) -> Vec<u8> {
+        let doc = Document::with_version("1.5");
+        let resources = Dictionary::new();
+        let mut state = crate::graphics_state::GraphicsStateStack::new();
+        let mut buf = DrawCommandBuffer::new();
+        let mut reg = crate::fonts::FontRegistry::new();
+        Interpreter::extract_commands(content, &mut buf, &mut state, &doc, &resources, &mut reg)
+            .expect("extract");
+        buf.into_bytes()
+    }
+
+    /// Zoek de eerste DrawImage (op 19) en geef (w, h, payload).
+    fn first_draw_image(d: &[u8]) -> Option<(u16, u16, Vec<u8>)> {
+        let mut pos = 0usize;
+        while pos < d.len() {
+            let op = d[pos];
+            pos += 1;
+            match op {
+                0 | 1 => pos += 8,
+                2 | 12 => pos += 24,
+                3 => pos += 16,
+                5 => pos += 8,
+                6 => pos += 4,
+                13 | 14 => pos += 1,
+                15 => pos += 4,
+                16 => {
+                    let n = d[pos] as usize;
+                    pos += 1 + n * 4 + 4;
+                }
+                18 => {
+                    let len = d[pos + 16] as usize;
+                    pos += 17 + len;
+                }
+                19 => {
+                    let w = u16::from_le_bytes(d[pos..pos + 2].try_into().unwrap());
+                    let h = u16::from_le_bytes(d[pos + 2..pos + 4].try_into().unwrap());
+                    let dlen = u32::from_le_bytes(d[pos + 4..pos + 8].try_into().unwrap()) as usize;
+                    return Some((w, h, d[pos + 8..pos + 8 + dlen].to_vec()));
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn inline_image_raw_rgb_wordt_geemit() {
+        // 2×2 DeviceRGB zonder filter: 12 rauwe bytes na ID.
+        let mut content = b"q 2 0 0 2 10 10 cm BI /W 2 /H 2 /BPC 8 /CS /RGB ID ".to_vec();
+        let pixels: [u8; 12] = [255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0];
+        content.extend_from_slice(&pixels);
+        content.extend_from_slice(b" EI Q");
+        let buf = extract(&content);
+        let (w, h, payload) = first_draw_image(&buf).expect("DrawImage aanwezig");
+        assert_eq!((w, h), (2, 2));
+        assert_eq!(&payload[..4], b"RGBA");
+        assert_eq!(u16::from_le_bytes(payload[4..6].try_into().unwrap()), 2);
+        assert_eq!(u16::from_le_bytes(payload[6..8].try_into().unwrap()), 2);
+        let rgba = &payload[8..];
+        assert_eq!(&rgba[0..4], &[255, 0, 0, 255]);
+        assert_eq!(&rgba[4..8], &[0, 255, 0, 255]);
+        assert_eq!(&rgba[8..12], &[0, 0, 255, 255]);
+        assert_eq!(&rgba[12..16], &[255, 255, 0, 255]);
+    }
+
+    #[test]
+    fn inline_image_flate_met_png_predictor() {
+        // 3×1 DeviceRGB, FlateDecode + PNG-predictor 15 (rijfilter 0 = None),
+        // exact het strip-formaat van CAD-exports.
+        use std::io::Write;
+        let row: [u8; 10] = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]; // filter-tag + 9 bytes
+        let mut enc = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+        enc.write_all(&row).unwrap();
+        let compressed = enc.finish().unwrap();
+        let mut content = b"BI /W 3 /H 1 /BPC 8 /CS /RGB /F /Fl /DP <</Predictor 15 /Columns 3 /Colors 3>> ID ".to_vec();
+        content.extend_from_slice(&compressed);
+        content.extend_from_slice(b" EI");
+        let buf = extract(&content);
+        let (w, h, payload) = first_draw_image(&buf).expect("DrawImage aanwezig");
+        assert_eq!((w, h), (3, 1));
+        let rgba = &payload[8..];
+        assert_eq!(&rgba[0..4], &[10, 20, 30, 255]);
+        assert_eq!(&rgba[4..8], &[40, 50, 60, 255]);
+        assert_eq!(&rgba[8..12], &[70, 80, 90, 255]);
+    }
+
+    #[test]
+    fn inline_image_exotisch_filter_wordt_overgeslagen() {
+        // DCTDecode inline: buiten dekking → géén DrawImage, wel doorlopen.
+        let content = b"BI /W 2 /H 2 /BPC 8 /CS /RGB /F /DCT ID \xde\xad\xbe\xef EI 1 0 0 1 5 5 cm".to_vec();
+        let buf = extract(&content);
+        assert!(first_draw_image(&buf).is_none(), "DCT-inline mag niet geemit worden");
+        // de cm ná EI is nog verwerkt (stream niet ontspoord)
+        assert!(buf.iter().any(|&b| b == 12), "Transform na EI ontbreekt");
     }
 }

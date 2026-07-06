@@ -663,6 +663,22 @@ impl TileScene {
 /// Decodeer de embedded image-bytes (PNG/JPEG-passthrough of raw RGB/RGBA)
 /// naar een premultiplied tiny-skia Pixmap.
 fn decode_image_rgba(bytes: &[u8], w: u32, h: u32) -> Option<Pixmap> {
+    // "RGBA"-magic-formaat van interpreter::handle_image_xobject en de
+    // inline-image-emissie: "RGBA" + u16 w + u16 h + PREMULTIPLIED pixels
+    // (zelfde contract als de JS-replayer _decodeImage). De payload is al
+    // premultiplied — direct kopiëren, dus NIET nogmaals premultiplyen.
+    if bytes.len() >= 8 && &bytes[..4] == b"RGBA" {
+        let hw = u16::from_le_bytes([bytes[4], bytes[5]]) as u32;
+        let hh = u16::from_le_bytes([bytes[6], bytes[7]]) as u32;
+        let need = (hw as usize).checked_mul(hh as usize)?.checked_mul(4)?;
+        let px = &bytes[8..];
+        if hw == 0 || hh == 0 || px.len() < need {
+            return None;
+        }
+        let mut pm = Pixmap::new(hw, hh)?;
+        pm.data_mut().copy_from_slice(&px[..need]);
+        return Some(pm);
+    }
     let rgba: Vec<u8> = if bytes.len() == (w * h * 4) as usize {
         bytes.to_vec()
     } else if bytes.len() == (w * h * 3) as usize {
