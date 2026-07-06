@@ -532,6 +532,30 @@ function _render() {
   const displayPageW = isRotated90 ? viewport.pageH : viewport.pageW;
   const displayPageH = isRotated90 ? viewport.pageW : viewport.pageH;
 
+  // Dekt de (laatst gerenderde) tegel het volledige ZICHTBARE deel van de
+  // pagina? Dan is de opgeschaalde volle-pagina-bitmap eronder onzichtbaar
+  // nut en visueel storend (wazige "rasterversie" achter de scherpe tegel
+  // bij zoomwissels) — we slaan hem dan over. De tegel wordt meta-gebaseerd
+  // gepositioneerd en blijft dus ook bij een NIEUWE zoom correct geschaald
+  // staan tot de verse tegel hem vervangt. Buiten de tegel-dekking blijft de
+  // bitmap het vangnet (beter een wazige rand dan een gat bij pannen).
+  let tileCoversVisible = false;
+  if (viewport.currentTile && viewport.currentTileMeta) {
+    const m = viewport.currentTileMeta;
+    const cssW = _canvas.width / dpr;
+    const cssH = _canvas.height / dpr;
+    const visX0 = Math.max(0, -viewport.offsetX) / viewport.zoom;
+    const visY0 = Math.max(0, -viewport.offsetY) / viewport.zoom;
+    const visX1 = Math.min(displayPageW * viewport.zoom, cssW - viewport.offsetX) / viewport.zoom;
+    const visY1 = Math.min(displayPageH * viewport.zoom, cssH - viewport.offsetY) / viewport.zoom;
+    const eps = 0.5; // pt-tolerantie op de randen
+    tileCoversVisible =
+      visX1 > visX0 && visY1 > visY0 &&
+      m.regionXpt <= visX0 + eps && m.regionYpt <= visY0 + eps &&
+      m.regionXpt + m.regionWpt >= visX1 - eps &&
+      m.regionYpt + m.regionHpt >= visY1 - eps;
+  }
+
   // White page background. For RASTER we fill in screen space at the SAME
   // post-rotation extent as the bitmap (so a 90°/270° page has no uncovered
   // white band — the old user-space rect used the un-swapped pageW/pageH and
@@ -546,7 +570,9 @@ function _render() {
     const destH = displayPageH * viewport.zoom * dpr;
     _ctx.fillStyle = '#ffffff';
     _ctx.fillRect(destX, destY, destW, destH);
-    _ctx.drawImage(viewport.currentBitmap, destX, destY, destW, destH);
+    if (!tileCoversVisible) {
+      _ctx.drawImage(viewport.currentBitmap, destX, destY, destW, destH);
+    }
     _ctx.restore();
   } else {
     _ctx.save();
