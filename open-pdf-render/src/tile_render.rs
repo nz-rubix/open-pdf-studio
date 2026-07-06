@@ -67,6 +67,18 @@ impl<'a> CmdReader<'a> {
 
 // ── state ───────────────────────────────────────────────────────────────────
 
+/// Referentie naar een actief clip-pad: byte-range in de buffer van de
+/// BeginPath (op 17) tot de clip-op (20/21), plus de CTM waaronder het pad
+/// begon en de even-odd-vlag. Replay herbouwt het pad uit deze range —
+/// Transform-ops (12) binnen de range worden daarbij gewoon toegepast.
+#[derive(Clone, Debug, PartialEq)]
+struct ClipRef {
+    start: usize,
+    end: usize,
+    even_odd: bool,
+    ctm: Transform,
+}
+
 #[derive(Clone, Debug)]
 struct GState {
     ctm: Transform,
@@ -77,10 +89,10 @@ struct GState {
     line_join: u8,
     miter_limit: f32,
     dash: Option<(Vec<f32>, f32)>,
-    /// Actieve clip-paden als byte-ranges in de buffer + de CTM waaronder ze
-    /// gebouwd werden + even-odd-vlag. Clips zijn zeldzaam op CAD-bladen;
-    /// replay bouwt ze opnieuw op vanaf deze referenties.
-    clips: Vec<(usize, usize, bool, Transform)>,
+    /// Actieve clips als pad-referenties. Clips zijn zeldzaam op CAD-bladen;
+    /// replay bouwt per chunk-snapshot één tegel-masker uit deze lijst en
+    /// houdt hem in-chunk incrementeel bij (ops 20/21 + save/restore).
+    clips: Vec<ClipRef>,
 }
 
 impl GState {
@@ -103,6 +115,56 @@ impl GState {
 fn uniform_scale(t: &Transform) -> f32 {
     // sqrt(|det|): exact bij uniforme schaal, nette benadering daarbuiten.
     (t.sx * t.sy - t.kx * t.ky).abs().sqrt()
+}
+
+/// Punt (x, y) onder transform `t` naar device-ruimte.
+#[inline(always)]
+fn dev_pt(t: &Transform, x: f32, y: f32) -> (f32, f32) {
+    (t.sx * x + t.kx * y + t.tx, t.ky * x + t.sy * y + t.ty)
+}
+
+/// Is dit pad exact één as-uitgelijnde rechthoek? Zo ja: (x0, y0, x1, y1).
+/// Herkent het M-L-L-L-[L]-Close-patroon van `re`-clips en Form-BBoxen; de
+/// snelle weg om tegel-dekkende viewport-clips als no-op te behandelen.
+fn axis_aligned_rect_of(path: &tiny_skia::Path) -> Option<(f32, f32, f32, f32)> {
+    use tiny_skia::PathSegment;
+    let mut pts: Vec<(f32, f32)> = Vec::with_capacity(5);
+    let mut closed = false;
+    for seg in path.segments() {
+        match seg {
+            PathSegment::MoveTo(p) => {
+                if !pts.is_empty() { return None; } // meerdere subpaden
+                pts.push((p.x, p.y));
+            }
+            PathSegment::LineTo(p) => {
+                if pts.is_empty() || pts.len() > 4 || closed { return None; }
+                pts.push((p.x, p.y));
+            }
+            PathSegment::Close => {
+                if closed { return None; }
+                closed = true;
+            }
+            _ => return None, // curves: geen rechthoek
+        }
+    }
+    // 4 hoekpunten, of 5 waarbij het laatste het eerste herhaalt.
+    if pts.len() == 5 {
+        if pts[4] != pts[0] { return None; }
+        pts.truncate(4);
+    }
+    if pts.len() != 4 { return None; }
+    // Opeenvolgende zijden moeten afwisselend horizontaal/verticaal zijn.
+    for i in 0..4 {
+        let (x0, y0) = pts[i];
+        let (x1, y1) = pts[(i + 1) % 4];
+        if x0 != x1 && y0 != y1 { return None; }
+    }
+    let xs: Vec<f32> = pts.iter().map(|p| p.0).collect();
+    let ys: Vec<f32> = pts.iter().map(|p| p.1).collect();
+    let (x0, x1) = (xs.iter().cloned().fold(f32::MAX, f32::min), xs.iter().cloned().fold(f32::MIN, f32::max));
+    let (y0, y1) = (ys.iter().cloned().fold(f32::MAX, f32::min), ys.iter().cloned().fold(f32::MIN, f32::max));
+    if x0 >= x1 || y0 >= y1 { return None; }
+    Some((x0, y0, x1, y1))
 }
 
 #[inline(always)]
@@ -140,8 +202,9 @@ pub struct TileScene {
     pub page_h: f32,
     base: Transform, // flip + MediaBox-origin (schaal 1)
     chunks: Vec<Chunk>,
-    /// Aantal clip-ops (20/21) in de buffer — de replayer negeert clips nog;
-    /// hoge dichtheid = gemeten weergave-afwijking (arceringen/maskers).
+    /// Aantal clip-ops (20/21) in de buffer. De replayer honoreert clips
+    /// (tegel-maskers); de teller blijft de zwaarte-indicator voor de
+    /// engine-gate in de app.
     pub clip_ops: u64,
     /// Totaal aan ge-embedde image-bytes (DrawImage-payloads) in de buffer.
     pub image_bytes: u64,
@@ -230,6 +293,9 @@ impl TileScene {
         let mut path_acc = BboxAcc::new();
         let mut last_pt = (0.0f32, 0.0f32);
         let mut chunks: Vec<Chunk> = Vec::new();
+        // Start (byte-pos, CTM) van het pad dat sinds de laatste BeginPath
+        // wordt opgebouwd — de clip-referentie bij ops 20/21.
+        let mut path_start: Option<(usize, Transform)> = None;
 
         while !r.done() {
             let op_pos = r.pos;
@@ -290,7 +356,10 @@ impl TileScene {
                     let phase = r.f32();
                     state.dash = if pat.is_empty() { None } else { Some((pat, phase)) };
                 }
-                17 => { path_acc = BboxAcc::new(); } // BeginPath
+                17 => { // BeginPath
+                    path_acc = BboxAcc::new();
+                    path_start = Some((op_pos, state.ctm));
+                }
                 18 => { // TextAt
                     let x = r.f32(); let y = r.f32();
                     let fs = r.f32(); let _rgba = r.u32();
@@ -318,12 +387,14 @@ impl TileScene {
                 20 | 21 => { // Clip / ClipEvenOdd: pad-range als clip-referentie
                     self.clip_ops += 1;
                     // De clip hoort bij het pad dat sinds de laatste BeginPath
-                    // is opgebouwd; we bewaren (chunk-lokaal onbekende) exacte
-                    // range niet per pad — daarom herbouwt replay clips vanaf
-                    // de OPGESLagen range: van de laatste BeginPath tot hier.
-                    // Voor de index volstaat: clip beperkt alleen; bbox van
-                    // volgende paints wordt er niet groter door.
-                    state.clips.push((op_pos, op_pos, op == 21, state.ctm));
+                    // is opgebouwd: range [BeginPath, clip-op). Zonder actief
+                    // pad (degenerate) wordt de range leeg → masker leeg →
+                    // alles weggeclipt, conform PDF-semantiek voor een lege
+                    // clip. Voor de index volstaat verder: clip beperkt
+                    // alleen; bbox van volgende paints wordt er niet groter
+                    // door.
+                    let (ps, pctm) = path_start.unwrap_or((op_pos, state.ctm));
+                    state.clips.push(ClipRef { start: ps, end: op_pos, even_odd: op == 21, ctm: pctm });
                     let _ = last_pt;
                 }
                 other => {
@@ -442,16 +513,20 @@ impl TileScene {
             .collect();
         let base_state = if let Some(bottom) = stack.first() { bottom.clone() } else { state.clone() };
 
-        let clip_mask = self.build_clip_mask(&chunk.snap, ctm_base, pixmap.width(), pixmap.height());
+        // Actief clip-masker (tegel-lokaal). Start = snapshot-clips van de
+        // chunk; in-chunk ops 20/21 versmallen hem incrementeel, save/restore
+        // bewaart/herstelt hem via mask_stack (parallel aan replay-lokale
+        // pushes op `stack`). None = geen beperking.
+        let mut cur_mask: Option<std::rc::Rc<tiny_skia::Mask>> = self.build_clip_mask_refs(
+            &chunk.snap.clips, &rehome, tile_shift, pixmap.width(), pixmap.height(),
+        );
+        let mut mask_stack: Vec<Option<std::rc::Rc<tiny_skia::Mask>>> = Vec::new();
 
         let mut r = CmdReader { data: &self.data, pos: chunk.start };
         let mut pb = PathBuilder::new();
         let mut cur = (0.0f32, 0.0f32);
 
-        #[inline(always)]
-        fn dev(t: &Transform, x: f32, y: f32) -> (f32, f32) {
-            (t.sx * x + t.kx * y + t.tx, t.ky * x + t.sy * y + t.ty)
-        }
+        use dev_pt as dev;
 
         while r.pos < chunk.end {
             let op = r.u8();
@@ -512,7 +587,7 @@ impl TileScene {
                             let scaled: Vec<f32> = pat.iter().map(|v| v * s).collect();
                             stroke.dash = StrokeDash::new(scaled, phase * s);
                         }
-                        pixmap.stroke_path(&path, &paint, &stroke, tile_shift, clip_mask.as_ref());
+                        pixmap.stroke_path(&path, &paint, &stroke, tile_shift, cur_mask.as_deref());
                     }
                 }
                 8 | 9 => { // Fill / FillEvenOdd
@@ -521,11 +596,25 @@ impl TileScene {
                         paint.set_color(rgba_to_color(state.fill_rgba));
                         paint.anti_alias = true;
                         let rule = if op == 9 { FillRule::EvenOdd } else { FillRule::Winding };
-                        pixmap.fill_path(&path, &paint, rule, tile_shift, clip_mask.as_ref());
+                        pixmap.fill_path(&path, &paint, rule, tile_shift, cur_mask.as_deref());
                     }
                 }
-                10 => stack.push(state.clone()),
-                11 => { state = stack.pop().unwrap_or_else(|| base_state.clone()); }
+                10 => {
+                    stack.push(state.clone());
+                    mask_stack.push(cur_mask.clone());
+                }
+                11 => {
+                    state = stack.pop().unwrap_or_else(|| base_state.clone());
+                    // Replay-lokale saves hebben altijd een mask_stack-entry;
+                    // valt de pop daarbuiten (snapshot-stack), dan is de
+                    // clips-lijst van de herstelde staat leidend.
+                    cur_mask = match mask_stack.pop() {
+                        Some(m) => m,
+                        None => self.build_clip_mask_refs(
+                            &state.clips, &rehome, tile_shift, pixmap.width(), pixmap.height(),
+                        ),
+                    };
+                }
                 12 => {
                     let a = r.f32(); let b = r.f32(); let c = r.f32();
                     let d = r.f32(); let e = r.f32(); let f = r.f32();
@@ -561,29 +650,161 @@ impl TileScene {
                             quality: tiny_skia::FilterQuality::Bilinear,
                             ..Default::default()
                         };
-                        pixmap.draw_pixmap(0, 0, src.as_ref(), &paint, t, clip_mask.as_ref());
+                        pixmap.draw_pixmap(0, 0, src.as_ref(), &paint, t, cur_mask.as_deref());
                     }
                 }
-                20 | 21 => { /* clip: via snapshot afgehandeld (build_clip_mask) */ }
+                20 | 21 => { // Clip / ClipEvenOdd: huidig pad versmalt het masker
+                    let path = pb.clone().finish();
+                    cur_mask = Self::intersect_clip(
+                        cur_mask, path.as_ref(), op == 21, tile_shift,
+                        pixmap.width(), pixmap.height(),
+                    );
+                }
                 _ => return, // corrupt: stop deze chunk
             }
         }
     }
 
-    /// Bouw het clip-mask voor een chunk-snapshot (zeldzaam pad; None = geen clip).
-    fn build_clip_mask(
+    /// Bouw het tegel-masker voor een lijst clip-referenties (chunk-snapshot
+    /// of herstelde staat). None = geen beperking binnen deze tegel.
+    fn build_clip_mask_refs(
         &self,
-        _snap: &GState,
-        _ctm_base: Transform,
-        _w: u32,
-        _h: u32,
-    ) -> Option<tiny_skia::Mask> {
-        // v1: clips binnen chunks werken (ops 20/21 in de range vóór paints in
-        // dezelfde chunk zijn zichtbaar in de replay hierboven — nee: replay
-        // negeert 20/21). Snapshot-clips over chunk-grenzen: nog niet
-        // ondersteund; CAD-corpus heeft ze vrijwel niet. Fase-2-restpunt —
-        // gerapporteerd via chunk_count/verificatie-diff.
-        None
+        clips: &[ClipRef],
+        rehome: &impl Fn(Transform) -> Transform,
+        tile_shift: Transform,
+        w: u32,
+        h: u32,
+    ) -> Option<std::rc::Rc<tiny_skia::Mask>> {
+        let mut cur: Option<std::rc::Rc<tiny_skia::Mask>> = None;
+        for c in clips {
+            let path = self.rebuild_clip_path(c, rehome);
+            cur = Self::intersect_clip(cur, path.as_ref(), c.even_odd, tile_shift, w, h);
+        }
+        cur
+    }
+
+    /// Herbouw het clip-pad uit zijn byte-range: pad-ops in device-ruimte
+    /// (zelfde CTM-evolutie als de hoofd-replay, incl. Transform-ops binnen
+    /// de range); alle overige ops worden alleen overgeslagen.
+    fn rebuild_clip_path(
+        &self,
+        c: &ClipRef,
+        rehome: &impl Fn(Transform) -> Transform,
+    ) -> Option<tiny_skia::Path> {
+        if c.start >= c.end || c.end > self.data.len() {
+            return None;
+        }
+        let mut ctm = rehome(c.ctm);
+        let mut ctm_stack: Vec<Transform> = Vec::new();
+        let mut r = CmdReader { data: &self.data, pos: c.start };
+        let mut pb = PathBuilder::new();
+        let mut cur = (0.0f32, 0.0f32);
+        while r.pos < c.end {
+            let op = r.u8();
+            match op {
+                0 => { let x = r.f32(); let y = r.f32(); let p = dev_pt(&ctm, x, y); pb.move_to(p.0, p.1); cur = p; }
+                1 => {
+                    let x = r.f32(); let y = r.f32(); let p = dev_pt(&ctm, x, y);
+                    if pb.is_empty() { pb.move_to(cur.0, cur.1); }
+                    pb.line_to(p.0, p.1); cur = p;
+                }
+                2 => {
+                    let x1 = r.f32(); let y1 = r.f32();
+                    let x2 = r.f32(); let y2 = r.f32();
+                    let x3 = r.f32(); let y3 = r.f32();
+                    let p1 = dev_pt(&ctm, x1, y1);
+                    let p2 = dev_pt(&ctm, x2, y2);
+                    let p3 = dev_pt(&ctm, x3, y3);
+                    if pb.is_empty() { pb.move_to(cur.0, cur.1); }
+                    pb.cubic_to(p1.0, p1.1, p2.0, p2.1, p3.0, p3.1);
+                    cur = p3;
+                }
+                3 => {
+                    let x = r.f32(); let y = r.f32(); let w = r.f32(); let h = r.f32();
+                    let p0 = dev_pt(&ctm, x, y);
+                    let p1 = dev_pt(&ctm, x + w, y);
+                    let p2 = dev_pt(&ctm, x + w, y + h);
+                    let p3 = dev_pt(&ctm, x, y + h);
+                    pb.move_to(p0.0, p0.1);
+                    pb.line_to(p1.0, p1.1);
+                    pb.line_to(p2.0, p2.1);
+                    pb.line_to(p3.0, p3.1);
+                    pb.close();
+                    cur = p0;
+                }
+                4 => pb.close(),
+                5 => { r.u32(); r.f32(); }
+                6 => { r.u32(); }
+                7 | 8 | 9 => {}
+                10 => ctm_stack.push(ctm),
+                11 => { if let Some(t) = ctm_stack.pop() { ctm = t; } }
+                12 => {
+                    let a = r.f32(); let b = r.f32(); let cc = r.f32();
+                    let d = r.f32(); let e = r.f32(); let f = r.f32();
+                    ctm = Transform::from_row(a, b, cc, d, e, f).post_concat(ctm);
+                }
+                13 | 14 => { r.u8(); }
+                15 => { r.f32(); }
+                16 => {
+                    let n = r.u8() as usize;
+                    for _ in 0..n { r.f32(); }
+                    r.f32();
+                }
+                17 => { pb = PathBuilder::new(); }
+                18 => {
+                    r.f32(); r.f32(); r.f32(); r.u32();
+                    let len = r.u8() as usize;
+                    r.pos += len;
+                }
+                19 => {
+                    r.u16(); r.u16();
+                    let dlen = r.u32() as usize;
+                    r.pos += dlen;
+                }
+                20 | 21 => {}
+                _ => break, // corrupt: stop
+            }
+        }
+        pb.finish()
+    }
+
+    /// Versmal `cur` met een extra clip-pad. Semantiek:
+    /// - pad None/leeg → lege clip → masker vol-nul (alles weggeclipt);
+    /// - as-uitgelijnde rechthoek die de hele tegel omvat → geen extra
+    ///   beperking binnen deze tegel (masker ongewijzigd) — de gangbare
+    ///   viewport-clip, zo blijft het maskerpad goedkoop;
+    /// - anders: masker vullen (eerste clip) of doorsnijden (volgende).
+    fn intersect_clip(
+        cur: Option<std::rc::Rc<tiny_skia::Mask>>,
+        path: Option<&tiny_skia::Path>,
+        even_odd: bool,
+        tile_shift: Transform,
+        w: u32,
+        h: u32,
+    ) -> Option<std::rc::Rc<tiny_skia::Mask>> {
+        let Some(path) = path else {
+            return tiny_skia::Mask::new(w, h).map(std::rc::Rc::new);
+        };
+        // Tegel-rect in device-coördinaten (tile_shift = translate(-tx,-ty)).
+        let (tx, ty) = (-tile_shift.tx, -tile_shift.ty);
+        if let Some((rx0, ry0, rx1, ry1)) = axis_aligned_rect_of(path) {
+            if rx0 <= tx && ry0 <= ty && rx1 >= tx + w as f32 && ry1 >= ty + h as f32 {
+                return cur;
+            }
+        }
+        let rule = if even_odd { FillRule::EvenOdd } else { FillRule::Winding };
+        match cur {
+            None => {
+                let mut m = tiny_skia::Mask::new(w, h)?;
+                m.fill_path(path, rule, true, tile_shift);
+                Some(std::rc::Rc::new(m))
+            }
+            Some(rc) => {
+                let mut m = (*rc).clone();
+                m.intersect_path(path, rule, true, tile_shift);
+                Some(std::rc::Rc::new(m))
+            }
+        }
     }
 
     /// Render een pagina-REGIO (PDF-punten, weergave-ruimte zoals de viewer
@@ -776,6 +997,88 @@ mod tests {
         // (100..108, 8..16) raakt niets daarvan.
         let pm = scene.render_tile(1.0, 100, 8, 8, 8);
         assert!(pm.data().iter().all(|&b| b == 0));
+    }
+
+    /// Pixel (x, y) uit een RenderedPage als [r, g, b, a].
+    fn px(p: &crate::RenderedPage, x: u32, y: u32) -> [u8; 4] {
+        let i = ((y * p.width + x) * 4) as usize;
+        [p.rgba[i], p.rgba[i + 1], p.rgba[i + 2], p.rgba[i + 3]]
+    }
+
+    #[test]
+    fn clip_rect_beperkt_fill_en_tegels_blijven_identiek() {
+        // Clip-rect pdf (10,10)-(50,50); fill van het hele blad eroverheen.
+        // Y-flip: device-y = 100 - pdf-y → clipgebied device (10..50, 50..90).
+        let mut b = DrawCommandBuffer::new();
+        b.begin_path();
+        b.rect(10.0, 10.0, 40.0, 40.0);
+        b.clip();
+        b.begin_path();
+        b.set_fill(0xDC2626FF);
+        b.rect(0.0, 0.0, 100.0, 100.0);
+        b.fill();
+        let scene = scene_from(b, 0.0, 0.0, 100.0, 100.0);
+        assert_eq!(scene.clip_ops, 1);
+        let full = scene.render_full_parallel(1.0, 4096);
+        // binnen de clip gevuld, erbuiten leeg
+        assert_eq!(px(&full, 30, 70)[3], 255, "binnen clip moet gevuld zijn");
+        assert_eq!(px(&full, 5, 5)[3], 0, "buiten clip moet leeg zijn");
+        assert_eq!(px(&full, 80, 80)[3], 0, "buiten clip moet leeg zijn");
+        assert_eq!(px(&full, 30, 95)[3], 0, "onder de clip moet leeg zijn");
+        // tegel-assemblage blijft bitwise gelijk aan render-in-één-stuk
+        let tiled = scene.render_full_parallel(1.0, 16);
+        assert_eq!(full.rgba, tiled.rgba, "clips breken de tegel-gelijkheid");
+    }
+
+    #[test]
+    fn clip_werkt_over_chunk_grens_via_snapshot() {
+        // Clip vóór een lange paint-reeks: de chunk-grens valt midden in de
+        // reeks, dus chunk 2+ moet de clip via het snapshot meekrijgen.
+        let mut b = DrawCommandBuffer::new();
+        b.begin_path();
+        b.rect(20.0, 0.0, 40.0, 40.0); // clip pdf x 20..60, y 0..40
+        b.clip();
+        b.set_fill(0x16A34AFF);
+        for i in 0..(CHUNK_PAINTS as i32 + 8) {
+            b.begin_path();
+            b.rect(0.0, i as f32, 100.0, 0.8);
+            b.fill();
+        }
+        let scene = scene_from(b, 0.0, 0.0, 100.0, 100.0);
+        assert!(scene.chunk_count() >= 2, "test verwacht meerdere chunks");
+        let full = scene.render_full_parallel(1.0, 4096);
+        // balk i=10 (chunk 1): pdf y 10..10,8 → device y ~89,2..90 (AA-dekking < 1)
+        assert!(px(&full, 50, 89)[3] > 100, "balk binnen clip (chunk 1) zichtbaar");
+        assert_eq!(px(&full, 70, 89)[3], 0, "x buiten clip-band blijft leeg");
+        // balk i=70 (chunk 2): pdf y 70 > 40 → volledig weggeclipt
+        assert_eq!(px(&full, 50, 29)[3], 0, "balk boven clipgebied (chunk 2) weggeclipt");
+        let tiled = scene.render_full_parallel(1.0, 16);
+        assert_eq!(full.rgba, tiled.rgba, "snapshot-clips breken de tegel-gelijkheid");
+    }
+
+    #[test]
+    fn restore_herstelt_clip() {
+        let mut b = DrawCommandBuffer::new();
+        b.save_state();
+        b.begin_path();
+        b.rect(10.0, 10.0, 20.0, 20.0); // clip pdf (10,10)-(30,30)
+        b.clip();
+        b.begin_path();
+        b.set_fill(0x2563EBFF);
+        b.rect(0.0, 0.0, 100.0, 100.0); // alleen clipgebied wordt blauw
+        b.fill();
+        b.restore_state();
+        b.begin_path();
+        b.set_fill(0xDC2626FF);
+        b.rect(60.0, 60.0, 20.0, 20.0); // ná restore: vrij van de clip
+        b.fill();
+        let scene = scene_from(b, 0.0, 0.0, 100.0, 100.0);
+        let full = scene.render_full_parallel(1.0, 4096);
+        assert_eq!(px(&full, 20, 80)[3], 255, "geclipte fill binnen clip zichtbaar");
+        assert_eq!(px(&full, 50, 50)[3], 0, "geclipte fill buiten clip leeg");
+        assert_eq!(px(&full, 70, 30)[3], 255, "fill na restore niet meer geclipt");
+        let tiled = scene.render_full_parallel(1.0, 16);
+        assert_eq!(full.rgba, tiled.rgba);
     }
 
     #[test]
