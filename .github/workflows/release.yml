@@ -146,6 +146,17 @@ jobs:
           mkdir -p open-pdf-studio/src-tauri/binaries
           cp target/release/pdfium-worker open-pdf-studio/src-tauri/binaries/pdfium-worker-x86_64-unknown-linux-gnu
 
+      # Linux bundelt in-proc PDFium: tauri.linux.conf.json verwijst naar
+      # binaries/linux-x64/libpdfium.so. Zelfde stap als nightly.yml — zonder
+      # deze fetch faalt tauri-build op 'resource path doesn't exist'.
+      - name: Fetch libpdfium.so (Linux)
+        if: matrix.target == 'linux'
+        run: |
+          mkdir -p src-tauri/binaries/linux-x64
+          curl -L "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F7834/pdfium-linux-x64.tgz" -o /tmp/pdfium-linux.tgz
+          tar xzf /tmp/pdfium-linux.tgz -C /tmp lib/libpdfium.so
+          cp /tmp/lib/libpdfium.so src-tauri/binaries/linux-x64/libpdfium.so
+
       - name: Build pdfium-worker sidecar (macOS universal)
         if: matrix.target == 'macos'
         working-directory: .
