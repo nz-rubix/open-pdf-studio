@@ -29,6 +29,54 @@ export function isHeavyBytes(bytes) {
   return typeof bytes === 'number' && bytes > HEAVY_CONTENT_BYTES;
 }
 
+// ── [prog-perf]-instrumentatie (meting eind-van-run-gedrag) ──────────────
+// Fase-timings + rAF-heartbeat (main-thread-gaten > 100 ms). Alles logt naar
+// de console; de dump naar de detach-diag-log (uitleesbaar zonder MCP) staat
+// UIT tenzij een test-rig `window.__progPerfDump = true` zet — normale
+// sessies schrijven dus geen tempbestand vol.
+const _perfBuf = [];
+const PERF_BUF_MAX = 400;
+let _perfHbActive = false;
+let _perfHbLastActivity = 0;
+
+export function perfMark(msg) {
+  const t = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
+  const line = `[prog-perf] @${Math.round(t)} ${msg}`;
+  _perfBuf.push(line);
+  if (_perfBuf.length > PERF_BUF_MAX) _perfBuf.splice(0, _perfBuf.length - PERF_BUF_MAX);
+  try { console.log(line); } catch {}
+  _perfHbLastActivity = t;
+}
+
+export function perfHeartbeat() {
+  if (_perfHbActive || typeof requestAnimationFrame === 'undefined') return;
+  _perfHbActive = true;
+  let last = performance.now();
+  _perfHbLastActivity = last;
+  const step = (now) => {
+    const gap = now - last;
+    if (gap > 100) perfMark(`rAF-gat ${Math.round(gap)}ms`);
+    last = now;
+    if (now - _perfHbLastActivity < 12000) { requestAnimationFrame(step); return; }
+    _perfHbActive = false;
+    perfDump('hb-idle');
+  };
+  requestAnimationFrame(step);
+}
+
+export async function perfDump(reason) {
+  if (typeof window === 'undefined' || !window.__progPerfDump) return;
+  if (!_perfBuf.length) return;
+  const lines = _perfBuf.splice(0, _perfBuf.length);
+  try {
+    const { invoke } = await import('../core/platform.js');
+    for (let i = 0; i < lines.length; i += 40) {
+      await invoke('detach_diag', { label: 'prog-perf', msg: `${reason}\n${lines.slice(i, i + 40).join('\n')}` });
+    }
+  } catch { /* meetcode mag nooit breken */ }
+}
+// ── einde instrumentatie ──
+
 // Route A: pagina's waarvoor de display-list-scene niet werkt (image-zwaar,
 // exotische features) vallen blijvend terug op het PDFium-pool-pad.
 const _sceneBroken = new Set();
@@ -54,6 +102,7 @@ export async function invokeTileRegion(args) {
       return res;
     } catch (e) {
       _sceneBroken.add(key);
+      perfMark(`scene-fallback p${args.pageIndex + 1}: ${String(e).slice(0, 80)}`);
       console.log(`[prog] scene-fallback p${args.pageIndex + 1}: ${String(e).slice(0, 140)}`);
     }
   }
@@ -95,7 +144,9 @@ async function pageContentBytes(filePath, pageNum) {
   try {
     const { isTauri, invoke } = await import('../core/platform.js');
     if (isTauri()) {
+      const _s0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
       bytes = Number(await invoke('page_content_size', { path: filePath, pageIndex: pageNum - 1 })) || 0;
+      perfMark(`page_content_size p${pageNum} ${Math.round(((typeof performance !== 'undefined' && performance.now) ? performance.now() : 0) - _s0)}ms (${(bytes / 1048576).toFixed(1)}MB)`);
     }
   } catch {
     bytes = 0;
@@ -136,6 +187,12 @@ let _progGen = 0;
 // (pad+pagina+schaal+rotatie) → meteen terugkeren (aanroepers zijn
 // fire-and-forget; de lopende run publiceert zelf).
 let _inflightKey = null;
+
+/** Loopt er op dit moment een progressieve run? Gebruikt door de pre-warm
+ *  (bitmap-orchestrator) om interactie-werk voorrang te geven. */
+export function progressiveRunActive() {
+  return _inflightKey !== null;
+}
 
 // Herstart-demper: tijdens openen/fit wisselt de zoom een paar keer kort
 // achter elkaar en zou elke wissel een verse run starten, terwijl de al
@@ -181,7 +238,25 @@ export async function ensureProgressiveBitmapForCurrentView() {
 
   // Zelfde doelrun al bezig? Niet herstarten (zie _inflightKey).
   let runKey = `${filePath}:${pageNum}:${rotation}:${renderScale.toFixed(4)}`;
+  perfMark(`aanroep zoom=${viewport.zoom.toFixed(3)} scale=${renderScale.toFixed(3)} inflight=${_inflightKey ? 'ja' : 'nee'}`);
   if (_inflightKey === runKey) return;
+  // SNELPAD vóór de herstart-demper: is de doel-bucket al gecachet, dan is
+  // deze zoomstand per direct toonbaar — zonder 300 ms demper en zonder een
+  // verse run te starten. Een eventuele lopende run op een ANDERE schaal is
+  // daarmee achterhaald: de gen-bump maakt hem stale zodat hij de zojuist
+  // getoonde weergave niet later met een verkeerde schaal overschrijft.
+  {
+    const hitBucket = computeZoomBucket(renderScale);
+    const hit = getCachedBitmap(filePath, pageNum, rotation, hitBucket);
+    if (hit && hit.bitmap) {
+      perfMark(`cache-hit-direct bucket=${hitBucket} scale=${renderScale.toFixed(3)}`);
+      ++_progGen;
+      _inflightKey = null;
+      viewport.currentBitmap = hit.bitmap;
+      viewport.dirty = true;
+      return;
+    }
+  }
   // Vervangt deze aanroep een LOPENDE run op een andere schaal? Even dempen
   // (zie _restartToken) zodat een fit-/zoomcascade één echte run oplevert.
   // Ná de demping gaan we door met de dán actuele schaal — de laatste
@@ -202,6 +277,7 @@ export async function ensureProgressiveBitmapForCurrentView() {
   // Al gerenderd op deze bucket? Meteen tonen en klaar.
   const exact = getCachedBitmap(filePath, pageNum, rotation, cacheBucket);
   if (exact && exact.bitmap) {
+    perfMark(`cache-hit bucket=${cacheBucket} scale=${renderScale.toFixed(3)}`);
     viewport.currentBitmap = exact.bitmap;
     viewport.dirty = true;
     _inflightKey = null;
@@ -250,13 +326,17 @@ export async function ensureProgressiveBitmapForCurrentView() {
   const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
   let tilesDone = 0;
   console.log(`[prog] start ${fullW}x${fullH}px, ${tiles.length} tegels (tile=${tilePx}px) p${pageNum}`);
+  perfMark(`run-start ${fullW}x${fullH} ${tiles.length} tegels p${pageNum} scale=${renderScale.toFixed(3)}`);
+  perfHeartbeat();
 
   // Publiceer de accumulator als viewport-bitmap; sluit de vorige tussenstand
   // meteen na de swap zodat het geheugen begrensd blijft (elke ImageBitmap is
   // ~fullW*fullH*4 bytes; zonder sluiten stapelt dat op tot een OOM-crash). Veilig:
   // JS is single-threaded, dus geen RAF-frame tekent de oude bitmap na de swap.
   const publish = async () => {
+    const _p0 = performance.now();
     const bmp = await createImageBitmap(acc);
+    perfMark(`publish createImageBitmap ${fullW}x${fullH} ${Math.round(performance.now() - _p0)}ms`);
     if (myGen !== _progGen) { try { bmp.close && bmp.close(); } catch {} return; }
     viewport.currentBitmap = bmp;
     viewport.dirty = true;
@@ -273,12 +353,14 @@ export async function ensureProgressiveBitmapForCurrentView() {
     const regionHPt = t.ph / renderScale;
     let bytes;
     try {
+      const _i0 = performance.now();
       const res = await invokeTileRegion({
         path: filePath, pageIndex: pageNum - 1,
         scale: renderScale, rotation,
         regionXPt, regionYPt, regionWPt, regionHPt,
       });
       bytes = res instanceof Uint8Array ? res : new Uint8Array(res);
+      perfMark(`tegel-invoke ${t.pw}x${t.ph} ${Math.round(performance.now() - _i0)}ms (${(bytes.length / 1048576).toFixed(1)}MB)`);
     } catch { failed = true; return; }
     if (myGen !== _progGen) return;
     if (!bytes || bytes.length <= 8) return;
@@ -287,7 +369,10 @@ export async function ensureProgressiveBitmapForCurrentView() {
     const h = dv.getUint32(4, true);
     if (w * h * 4 !== bytes.length - 8) return;
     const rgba = new Uint8ClampedArray(bytes.buffer, bytes.byteOffset + 8, w * h * 4);
+    const _b0 = performance.now();
     actx.putImageData(new ImageData(rgba, w, h), t.px, t.py);
+    const _bMs = performance.now() - _b0;
+    if (_bMs > 5) perfMark(`putImageData ${w}x${h} ${Math.round(_bMs)}ms`);
     tilesDone++;
     // Tussenstand publiceren: de EERSTE tegel direct (snelste eerste content),
     // daarna getthrottled zodat grote pagina's niet te veel volledige-canvas-
@@ -317,10 +402,11 @@ export async function ensureProgressiveBitmapForCurrentView() {
     }
   });
   await Promise.all(workers);
-  if (myGen !== _progGen) { if (_inflightKey === runKey) _inflightKey = null; return; }
+  if (myGen !== _progGen) { perfMark(`run-STALE na ${tilesDone} tegels (scale=${renderScale.toFixed(3)})`); if (_inflightKey === runKey) _inflightKey = null; return; }
 
   if (failed) {
     // Terugval: één gewone whole-page render via de bestaande cache-weg.
+    perfMark(`run-GEFAALD na ${tilesDone} tegels`);
     console.warn('[prog] tegel-fout — terugval naar whole-page render');
     if (_inflightKey === runKey) _inflightKey = null;
     const e = await ensureBitmap(filePath, pageNum, rotation, cacheBucket);
@@ -330,22 +416,29 @@ export async function ensureProgressiveBitmapForCurrentView() {
 
   // Klaar: cache de volledige bitmap (zoom/pan/re-visit = cache-hit); sluit de
   // laatste tussenstand. De finalBmp blijft leven in de cache/viewport.
+  const _f0 = performance.now();
   const finalBmp = await createImageBitmap(acc);
+  perfMark(`finale createImageBitmap ${fullW}x${fullH} ${Math.round(performance.now() - _f0)}ms`);
   if (myGen !== _progGen) { try { finalBmp.close && finalBmp.close(); } catch {} if (_inflightKey === runKey) _inflightKey = null; return; }
   if (lastIntermediate) { try { lastIntermediate.close && lastIntermediate.close(); } catch {} }
+  const _c0 = performance.now();
   setCachedBitmapEntry(filePath, pageNum, rotation, cacheBucket, finalBmp, fullW, fullH, renderScale);
   viewport.currentBitmap = finalBmp;
   viewport.dirty = true;
+  perfMark(`setCachedBitmapEntry ${Math.round(performance.now() - _c0)}ms`);
   if (_inflightKey === runKey) _inflightKey = null;
   const tEnd = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
   console.log(`[prog] klaar @${Math.round(tEnd - t0)}ms (${tiles.length} tegels)`);
+  perfMark(`run-klaar na ${Math.round(tEnd - t0)}ms`);
 
   // Thumbnail alsnog laten maken: die is voor zware pagina's uitgesteld
   // (zie left-panel renderThumbnailToDataURL) en knipt nu gratis uit de
   // zojuist gecachete whole-page-bitmap.
   try {
+    const _t1 = performance.now();
     const lp = await import('../ui/panels/left-panel.js');
     lp.invalidateThumbnail(pageNum);
+    perfMark(`invalidateThumbnail ${Math.round(performance.now() - _t1)}ms`);
   } catch { /* thumbnail is best-effort */ }
 
   // 300%-pre-cache: warm de zoom-tegels voor de huidige view alvast op zodat

@@ -86,6 +86,18 @@ export async function ensureBitmapForCurrentView() {
     }
 }
 
+// Rustvenster voor de pre-warm: direct na "prog klaar" begint de gebruiker
+// vaak juist te zoomen/pannen. Elke prewarm-regio kost ~0,3-1,9 s scene-CPU
+// aan de Rust-kant (gemeten op MV-03); vuurt hij meteen, dan staat het échte
+// interactie-werk (eerste tegel van de nieuwe run, on-demand zoomtegel) in de
+// rij achter de prewarm — precies het "venster hangt nog even na het tilen"-
+// gevoel. Daarom: pas starten na PREWARM_CALM_MS ononderbroken rust
+// (zoom/offset/canvasmaat stabiel én geen lopende progressieve run) en
+// helemaal opgeven na PREWARM_GIVEUP_MS onrust — de on-demand-render dekt
+// het dan alsnog.
+const PREWARM_CALM_MS = 1200;
+const PREWARM_GIVEUP_MS = 10000;
+
 /**
  * Pre-warm van zoom-tegels (300%-pre-cache voor zware pagina's): rendert vast
  * de tegel(s) die het tegel-pad zou opvragen bij gecentreerd inzoomen naar
@@ -93,11 +105,35 @@ export async function ensureBitmapForCurrentView() {
  * ensureTileForCurrentView. Gecentreerd inzoomen is daarna direct scherp
  * (cache-hit); ver pannen valt terug op de normale on-demand-render.
  * Aangeroepen door het progressieve pad ná de eerste volledige render;
- * fire-and-forget en stopt stil bij tab-/paginawissel.
+ * fire-and-forget, wacht eerst op een rustvenster (zie PREWARM_CALM_MS) en
+ * stopt stil bij tab-/paginawissel of hervatte gebruikersinteractie.
  */
 export async function prewarmZoomTiles(filePath, pageNum) {
     const canvas = document.getElementById('pdf-canvas');
     if (!canvas || !viewport.active || viewport.filePath !== filePath || viewport.pageNum !== pageNum) return;
+
+    // View-handtekening: wijzigt zodra de gebruiker zoomt/pant of het venster
+    // van maat verandert — de goedkoopste betrouwbare "interactie"-detector
+    // op deze plek (geen extra event-listeners nodig).
+    const viewSig = () =>
+        `${viewport.zoom.toFixed(4)}|${Math.round(viewport.offsetX)}|${Math.round(viewport.offsetY)}|${canvas.width}x${canvas.height}`;
+    const { progressiveRunActive } = await import('./progressive-render.js');
+
+    const tWait0 = performance.now();
+    let sig = viewSig();
+    let calmSince = tWait0;
+    for (;;) {
+        await new Promise((r) => setTimeout(r, 200));
+        if (!viewport.active || viewport.filePath !== filePath || viewport.pageNum !== pageNum) return;
+        const s = viewSig();
+        if (s !== sig || progressiveRunActive()) {
+            sig = s;
+            calmSince = performance.now();
+        }
+        if (performance.now() - calmSince >= PREWARM_CALM_MS) break;
+        if (performance.now() - tWait0 > PREWARM_GIVEUP_MS) return; // druk gebleven — overslaan
+    }
+
     const dpr = window.devicePixelRatio || 1;
     const cssW = canvas.width / dpr;
     const cssH = canvas.height / dpr;
@@ -115,6 +151,10 @@ export async function prewarmZoomTiles(filePath, pageNum) {
     for (const zoom of [1.5, 3.0]) {
         if (zoom <= capScale) continue; // whole-page bitmap dekt dit bereik al
         if (!viewport.active || viewport.filePath !== filePath || viewport.pageNum !== pageNum) return;
+        // Gebruiker weer bezig (view gewijzigd of nieuwe progressieve run)?
+        // Dan direct stoppen — de interactie-render heeft voorrang op de
+        // speculatieve pre-warm.
+        if (viewSig() !== sig || progressiveRunActive()) return;
 
         // Zelfde formule als ensureTileForCurrentView, met hypothetische zoom.
         const visW = Math.min(viewport.pageW, cssW / zoom);
@@ -136,7 +176,8 @@ export async function prewarmZoomTiles(filePath, pageNum) {
         if (tileCacheGet(filePath, pageNum, zoomBucket, viewport.rotation, regionBucket)) continue;
 
         try {
-            const { invokeTileRegion } = await import('./progressive-render.js');
+            const { invokeTileRegion, perfMark } = await import('./progressive-render.js');
+            const _pw0 = performance.now();
             const raw = await invokeTileRegion({
                 path: filePath,
                 pageIndex: pageNum - 1,
@@ -149,11 +190,13 @@ export async function prewarmZoomTiles(filePath, pageNum) {
             });
             if (!viewport.active || viewport.filePath !== filePath || viewport.pageNum !== pageNum) return;
             const bytes = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
+            perfMark(`prewarm-invoke z=${zoom} ${Math.round(performance.now() - _pw0)}ms (${(bytes.length / 1048576).toFixed(1)}MB)`);
             if (!bytes || bytes.length <= 8) continue;
             const dv = new DataView(bytes.buffer, bytes.byteOffset, 8);
             const w = dv.getUint32(0, true);
             const h = dv.getUint32(4, true);
             if (w * h * 4 !== bytes.length - 8) continue;
+            const _pw1 = performance.now();
             const imageData = new ImageData(new Uint8ClampedArray(bytes.buffer, bytes.byteOffset + 8, w * h * 4), w, h);
             await tileCacheSet(filePath, pageNum, zoomBucket, viewport.rotation, regionBucket, imageData, {
                 regionXpt: region.x,
@@ -162,6 +205,7 @@ export async function prewarmZoomTiles(filePath, pageNum) {
                 regionHpt: region.h,
                 zoom,
             });
+            perfMark(`prewarm-cacheSet z=${zoom} ${w}x${h} ${Math.round(performance.now() - _pw1)}ms`);
             console.log(`[tile-orch] prewarm z=${zoom} bucket=${zoomBucket} reg=${regionBucket} (${w}x${h})`);
         } catch (e) {
             console.warn('[tile-orch] prewarm faalde:', e);
