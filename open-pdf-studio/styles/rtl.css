@@ -23,6 +23,26 @@
   text-align: right;
 }
 
+/* ===== Form fields (global) ===== */
+
+/* Numeric inputs: digits are inherently LTR, so keep the field LTR for a
+   normal caret/selection behavior. text-align: right keeps the value on the
+   label side of the row in the mirrored layout. */
+[dir="rtl"] input[type="number"] {
+  direction: ltr;
+  text-align: right;
+}
+
+/* Placeholders: let each placeholder derive its direction from its own
+   first strong character (bidi isolation). Hebrew/Arabic text renders RTL,
+   while LTR content (number ranges like "1-5, 8", URLs, untranslated
+   English) keeps its reading order instead of getting mirrored. */
+[dir="rtl"] input:not([type="number"])::placeholder,
+[dir="rtl"] textarea::placeholder {
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+
 /* Layout: left panel swaps to right side automatically via direction: rtl */
 [dir="rtl"] .left-panel {
   border-right: none;
@@ -175,6 +195,27 @@
   text-align: right;
 }
 
+/* Editable numeric combo (zoom %, pt, px, °): value is always a number, so
+   force LTR and align it to the suffix side; mirror the physical paddings. */
+[dir="rtl"] .pref-combo input[type="text"].pref-combo-input {
+  direction: ltr;
+  text-align: right;
+  padding: 0 6px 0 2px;
+}
+
+[dir="rtl"] .pref-combo-suffix {
+  padding-right: 0;
+  padding-left: 2px;
+}
+
+[dir="rtl"] .pref-combo-arrow {
+  padding: 0 0 0 6px;
+}
+
+[dir="rtl"] .pref-combo-option {
+  text-align: right;
+}
+
 /* Properties panel sections */
 [dir="rtl"] .prop-row label {
   text-align: right;
@@ -236,6 +277,12 @@
 
 /* Doc properties: swap label alignment */
 [dir="rtl"] .doc-props-label {
+  text-align: right;
+}
+
+/* Scale dialog: scale notation ("1:100", "1/4in = 1ft") is LTR content */
+[dir="rtl"] .scale-input {
+  direction: ltr;
   text-align: right;
 }
 

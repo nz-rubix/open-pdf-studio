@@ -438,6 +438,10 @@ export async function convertPdfAnnotation(annot, pageNum, viewport, stampImageM
           }
           mdProps.headSize = extraColors.opsHeadSize || 12;
           if (extraColors.opsPrecision != null) mdProps.measurePrecision = extraColors.opsPrecision;
+          // User-dragged text offset (relative to dimension-line midpoint) —
+          // written verbatim by the saver, read back verbatim here.
+          if (extraColors.opsTextOffsetX != null) mdProps.textOffsetX = extraColors.opsTextOffsetX;
+          if (extraColors.opsTextOffsetY != null) mdProps.textOffsetY = extraColors.opsTextOffsetY;
           // Compute dimension line position from PDF LL (leader length)
           // Per PDF spec: /L = base points on measured object, /LL = perpendicular
           // offset to the dimension line. Positive LL = counter-clockwise from /L direction.
@@ -1150,6 +1154,12 @@ export async function convertPdfAnnotation(annot, pageNum, viewport, stampImageM
       // the file is gone).
       if (extraColors.opsLinkedPath) {
         stampProps.linkedPath = extraColors.opsLinkedPath;
+      }
+      // Colour tint of an image compare-overlay. The extracted bitmap is the
+      // untinted original (the tint lives as a Multiply fill in the AP
+      // stream), so restoring the property re-applies the tint editably.
+      if (extraColors.opsTintColor) {
+        stampProps.tintColor = extraColors.opsTintColor;
       }
       // Stamps the app saved from an IMAGE annotation (Name 'Image', bitmap
       // embedded) round-trip back to type 'image' so the image properties

@@ -37,6 +37,18 @@ website: https://impertio.nl/
 grade: stable
 confinement: strict
 
+# The single-instance plugin claims this well-known DBus name on the session
+# bus at startup. Under strict confinement AppArmor denies the bind unless the
+# snap declares a matching dbus slot ("dbus_bind" DENIED in journalctl), and a
+# failed bind is treated as "another instance is already running": the app
+# forwards its arguments and silently exits — so the snap never launched (#218).
+# The name is `<identifier>.SingleInstance` (identifier from tauri.conf.json).
+slots:
+  single-instance:
+    interface: dbus
+    bus: session
+    name: org.openaec.openpdfstudio.SingleInstance
+
 apps:
   open-pdf-studio:
     command: usr/bin/open-pdf-studio
@@ -46,6 +58,8 @@ apps:
       - home
       - removable-media
       - network
+    slots:
+      - single-instance
 
 layout:
   /usr/lib/x86_64-linux-gnu/webkit2gtk-4.1:

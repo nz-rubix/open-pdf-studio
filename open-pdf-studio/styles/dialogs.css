@@ -3979,6 +3979,14 @@
   padding: 40px 0;
   font-style: italic;
 }
+/* Melding op de NL-tab wanneer een release geen Nederlandse sectie heeft
+   en de Engelse tekst als fallback wordt getoond (#240). */
+.whats-new-dialog .wn-lang-fallback {
+  margin: 0 0 6px 0;
+  color: #888;
+  font-size: 11px;
+  font-style: italic;
+}
 .whats-new-dialog .wn-release {
   margin-bottom: 22px;
   padding-bottom: 14px;

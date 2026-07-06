@@ -4,18 +4,17 @@ import RibbonButton from './RibbonButton.jsx';
 import RibbonButtonStack from './RibbonButtonStack.jsx';
 import SplitButton from './SplitButton.jsx';
 import { setTool } from '../../../tools/manager.js';
-import { state, getPageRotation, noPdf, getActiveDocument } from '../../../core/state.js';
-import { isPdfAReadOnly } from '../../../pdf/loader.js';
-import { zoomIn, zoomOut, fitWidth, fitPage, actualSize, goToPage, rotatePage } from '../../../pdf/renderer.js';
-import { recordPageRotation } from '../../../core/undo-manager.js';
+import { state, noPdf, getActiveDocument } from '../../../core/state.js';
+import { zoomIn, zoomOut, fitWidth, fitPage, actualSize, goToPage } from '../../../pdf/renderer.js';
 import { openFindBar } from '../../../search/find-bar.js';
 import {
   handIcon, selectTextIcon, screenshotIcon,
   zoomInIcon, zoomOutIcon, fitWidthIcon, actualSizeIcon, fitPageIcon,
-  rotateLeftIcon, rotateRightIcon, editTextIcon, addTextIcon, cropMarginsIcon,
+  editTextIcon, addTextIcon, cropMarginsIcon,
   firstPageIcon, prevPageIcon, nextPageIcon, lastPageIcon, findIcon
 } from '../../data/ribbonIcons.js';
 import { openDialog } from '../../stores/dialogStore.js';
+import { lastCaptureAvailable } from '../../stores/screenshotStore.js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
 
 // New-document icon (blank sheet with a plus)
@@ -93,6 +92,19 @@ export default function HomeTab() {
               </svg>
               {t('home.region')}
             </button>
+            <button class="ribbon-split-btn-menu-item" id="screenshot-menu-overlay"
+              title={t('home.placeAsOverlayTitle')}
+              disabled={!lastCaptureAvailable()}
+              onClick={async () => {
+                const { placeLastScreenshotAsOverlay } = await import('../../../tools/screenshot.js');
+                placeLastScreenshotAsOverlay();
+              }}>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="14" height="14">
+                <rect x="4" y="4" width="12" height="12" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+                <rect x="9" y="9" width="11" height="11" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" opacity="0.55"/>
+              </svg>
+              {t('home.placeAsOverlay')}
+            </button>
           </SplitButton>
         </RibbonGroup>
 
@@ -111,24 +123,8 @@ export default function HomeTab() {
             <RibbonButton size="small" id="fit-page-ribbon" title={t('home.fitPage')} icon={fitPageIcon} label={t('home.fitPageLabel')}
               disabled={noPdf()} onClick={() => fitPage()} />
           </RibbonButtonStack>
-          <RibbonButtonStack>
-            <RibbonButton size="small" id="rotate-left" title={t('home.rotateLeft')} icon={rotateLeftIcon} label={t('home.rotateLeft')}
-              disabled={noPdf() || isPdfAReadOnly()} onClick={() => {
-                const doc = getActiveDocument();
-                const pg = doc ? doc.currentPage : 1;
-                const oldRot = getPageRotation(pg);
-                rotatePage(-90);
-                recordPageRotation(pg, oldRot, getPageRotation(pg));
-              }} />
-            <RibbonButton size="small" id="rotate-right" title={t('home.rotateRight')} icon={rotateRightIcon} label={t('home.rotateRight')}
-              disabled={noPdf() || isPdfAReadOnly()} onClick={() => {
-                const doc = getActiveDocument();
-                const pg = doc ? doc.currentPage : 1;
-                const oldRot = getPageRotation(pg);
-                rotatePage(90);
-                recordPageRotation(pg, oldRot, getPageRotation(pg));
-              }} />
-          </RibbonButtonStack>
+          {/* Pagina-rotatie (bewerkt het document) staat bij de pagina-
+              bewerkingen op de tab "PDF bewerken & samenvoegen" (#200). */}
         </RibbonGroup>
 
         {/* Edit group moved to the "PDF bewerken & samenvoegen" tab. */}

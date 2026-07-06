@@ -246,6 +246,13 @@ export function getAnnotationHandles(annotation, scale = 1) {
       if (annotation.leaderEndX !== undefined) {
         handles.push({ type: HANDLE_TYPES.LEADER_END, x: annotation.leaderEndX - hs/2, y: annotation.leaderEndY - hs/2 });
       }
+      // Text drag handle at the label anchor (dimension-line midpoint +
+      // optional textOffset) — lets the measurement text be placed off-line.
+      if (annotation.measureText) {
+        const mdlx = (annotation.startX + annotation.endX) / 2 + (annotation.textOffsetX || 0);
+        const mdly = (annotation.startY + annotation.endY) / 2 + (annotation.textOffsetY || 0);
+        handles.push({ type: HANDLE_TYPES.LABEL_MOVE, x: mdlx - hs/2, y: mdly - hs/2 });
+      }
       break;
 
     case 'measureAngle':

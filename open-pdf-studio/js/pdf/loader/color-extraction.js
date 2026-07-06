@@ -94,6 +94,19 @@ export async function extractAnnotationColors(pageNum, pdfDoc) {
         if (prec !== null) colors.opsPrecision = prec;
       }
 
+      // Read /OPS_TextOffsetX/Y (user-dragged dimension-text offset from the
+      // dimension-line midpoint, stored in the visual annotation frame)
+      const opsToxRaw = annotDict.get(PDFName.of('OPS_TextOffsetX'));
+      if (opsToxRaw) {
+        const tox = pdfNum(context.lookup(opsToxRaw) || opsToxRaw);
+        if (tox !== null) colors.opsTextOffsetX = tox;
+      }
+      const opsToyRaw = annotDict.get(PDFName.of('OPS_TextOffsetY'));
+      if (opsToyRaw) {
+        const toy = pdfNum(context.lookup(opsToyRaw) || opsToyRaw);
+        if (toy !== null) colors.opsTextOffsetY = toy;
+      }
+
       // Read /OPS_Subtype (our custom subtype for cloud/cloudPolyline/measurements)
       const opsSubRaw = annotDict.get(PDFName.of('OPS_Subtype'));
       if (opsSubRaw) {
@@ -298,6 +311,14 @@ export async function extractAnnotationColors(pageNum, pdfDoc) {
         const lp = context.lookup(lpRaw) || lpRaw;
         if (typeof lp.decodeText === 'function') colors.opsLinkedPath = lp.decodeText();
         else if (typeof lp.value === 'string') colors.opsLinkedPath = lp.value;
+      }
+
+      // Read /OPS_TintColor — colour tint of an image compare-overlay
+      const tcRaw = annotDict.get(PDFName.of('OPS_TintColor'));
+      if (tcRaw) {
+        const tc = context.lookup(tcRaw) || tcRaw;
+        if (typeof tc.decodeText === 'function') colors.opsTintColor = tc.decodeText();
+        else if (typeof tc.value === 'string') colors.opsTintColor = tc.value;
       }
 
       // Read /OPS_ArcFlags + /OPS_ArcBulges (parallel arrays, one entry per

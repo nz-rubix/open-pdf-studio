@@ -129,10 +129,13 @@
     "name": "Name",
     "namePlaceholder": "Area name (optional)",
     "scale": "Scale",
+    "scaleAuto": "Document scale",
+    "scaleTooltip": "Override the scale for this annotation (units per point). Leave empty to use the document/region scale.",
     "unit": "Unit",
     "precision": "Precision (Decimals)",
     "dimType": "Type",
-    "dimTypeCustom": "Custom"
+    "dimTypeCustom": "Custom",
+    "extension": "Extension"
   },
   "scaleBar": {
     "title": "Scale Bar",
@@ -228,7 +231,9 @@
     "notLinked": "Not linked",
     "linkFile": "Link…",
     "refreshLink": "Refresh",
-    "unlink": "Unlink"
+    "unlink": "Unlink",
+    "tint": "Color Tint",
+    "tintNone": "None"
   },
   "multiSelect": "{{count}} annotations selected",
   "pdfText": "PDF Text",

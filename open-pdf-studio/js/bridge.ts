@@ -190,6 +190,7 @@ export {
   sortMode as annotationSortMode,
   filterMode as annotationFilterMode,
   setFilterMode as setAnnotationFilterMode,
+  hiddenStatuses as annotationHiddenStatuses,
 } from './solid/stores/panels/annotationsStore.js';
 
 export {

@@ -36,7 +36,8 @@
     "close": "Close",
     "loading": "Loading notes...",
     "error": "Could not load release notes",
-    "empty": "No new release notes"
+    "empty": "No new release notes",
+    "noDutchFallback": "No Dutch notes for this release yet — showing English."
   },
   "openPanel": {
     "title": "Open",

@@ -9,6 +9,15 @@ const observer = new MutationObserver((mutations) => {
   }
 });
 
+// True when the label overflows its box. Vertical: more than MAX_LINES
+// lines. Horizontal: a word wider than the box — `word-break: keep-all`
+// forbids mid-word breaks, so long words (e.g. "Schermafbeelding") don't
+// wrap and were silently clipped by `overflow: hidden` (#158). scrollHeight
+// only detects the vertical case, so check scrollWidth too.
+function overflows(el, maxHeight) {
+  return el.scrollHeight > maxHeight || el.scrollWidth > el.clientWidth;
+}
+
 function shrink(el) {
   if (!el || !el.parentElement) return;
 
@@ -18,8 +27,9 @@ function shrink(el) {
   const maxHeight = lineHeight * MAX_LINES + 1; // allow 2 lines
 
   let size = DEFAULT_FONT_SIZE;
-  // If content overflows 2 lines, reduce font size until it fits
-  while (el.scrollHeight > maxHeight && size > MIN_FONT_SIZE) {
+  // If content overflows the box (too many lines, or an unbreakable word
+  // that is clipped at the edge), reduce font size until it fits.
+  while (overflows(el, maxHeight) && size > MIN_FONT_SIZE) {
     size -= 0.5;
     el.style.fontSize = size + 'px';
   }

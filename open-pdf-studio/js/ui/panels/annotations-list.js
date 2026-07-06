@@ -9,6 +9,7 @@ import {
   setAnnotationItems as setItems, setAnnotationCountText as setCountText,
   setAnnotationEmptyMessage as setEmptyMessage, annotationSortMode as sortMode,
   annotationFilterMode as filterMode, setAnnotationFilterMode as setFilterMode,
+  annotationHiddenStatuses as hiddenStatuses,
 } from '../../bridge.js';
 
 const statusColors = {
@@ -61,6 +62,17 @@ export function updateAnnotationsList(filterValue) {
     filteredAnnotations = filteredAnnotations.filter(a => a.page === (doc ? doc.currentPage : 1));
   } else if (activeFilter !== 'all') {
     filteredAnnotations = filteredAnnotations.filter(a => a.type === activeFilter);
+  }
+
+  // Statusfilter (Tonen > Status): verberg annotaties waarvan de
+  // review-status door de gebruiker is uitgevinkt. Statussen worden
+  // hoofdletter-ongevoelig vergeleken ('Accepted' en 'accepted' zijn gelijk);
+  // geen status telt als 'none'.
+  const hidden = hiddenStatuses();
+  if (hidden.size > 0) {
+    filteredAnnotations = filteredAnnotations.filter(
+      a => !hidden.has(String(a.status || 'none').toLowerCase())
+    );
   }
 
   // Update count text

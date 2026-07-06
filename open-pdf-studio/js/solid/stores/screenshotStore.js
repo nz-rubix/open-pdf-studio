@@ -5,6 +5,9 @@ const [selectionRect, setSelectionRect] = createSignal(null); // { left, top, wi
 const [containerEl, setContainerEl] = createSignal(null); // the container element to position relative to
 const [onComplete, setOnComplete] = createSignal(null); // callback(rect) when selection is done
 const [onCancel, setOnCancel] = createSignal(null); // callback when cancelled
+// True once a region capture exists that can be placed as an overlay
+// annotation on another page (see tools/screenshot.js).
+const [lastCaptureAvailable, setLastCaptureAvailable] = createSignal(false);
 
 export function startScreenshot(container, completeFn, cancelFn) {
   setContainerEl(container);
@@ -19,4 +22,7 @@ export function endScreenshot() {
   setSelectionRect(null);
 }
 
-export { active, selectionRect, setSelectionRect, containerEl, onComplete, onCancel };
+export {
+  active, selectionRect, setSelectionRect, containerEl, onComplete, onCancel,
+  lastCaptureAvailable, setLastCaptureAvailable,
+};
