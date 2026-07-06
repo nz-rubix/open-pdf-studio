@@ -187,6 +187,7 @@
   "pageDisplay": {
     "rendering": "Weergave",
     "thinLines": "Dunne lijnen (alle lijnen weergeven met 1px breedte)",
+    "progressiveRender": "Progressief renderen (zware tekeningen tegel voor tegel invullen)",
     "panels": "Panels",
     "showPropertiesPanel": "Show Properties Panel by default",
     "showToolPalette": "Show Tool Palette by default",

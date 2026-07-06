@@ -226,7 +226,21 @@ export async function loadPDF(filePath, docIndex, preloadedData = null) {
     //     preview is briefly mis-positioned by a few pt — corrected once
     //     proper render fires
     let _preT0 = performance.now();
+    // Zware pagina's (grote content-stream) slaan de pre-render over: een
+    // whole-page render kost daar SECONDEN en zou — gepind op één worker —
+    // vóór de progressieve tegels in de rij staan. Het progressieve pad
+    // levert de eerste content daar zelf. (isHeavyPage cachet per bestand;
+    // de check zelf kost ~100 ms eenmalig.)
+    let _skipPre = false;
     if (filePath && isTauri()) {
+      try {
+        const prog = await import('./progressive-render.js');
+        _skipPre = !!(state.preferences && state.preferences.progressiveRender)
+          && await prog.isHeavyPage(filePath, 1);
+        if (_skipPre) console.log('[prog-guard] zware pagina → cold-open pre-render overgeslagen');
+      } catch {}
+    }
+    if (filePath && isTauri() && !_skipPre) {
       const { renderPdfPage: _renderPdfPage } = await import('./engine-router.js');
       _renderPdfPage({
         path: filePath,

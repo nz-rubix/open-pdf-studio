@@ -25,40 +25,57 @@ export function drawPolygonShape(ctx, x, y, width, height, sides = 6) {
   ctx.stroke();
 }
 
-// Build cloud path without stroking (for fill/hatch/stroke to be applied by caller)
-export function buildCloudPath(ctx, x, y, width, height) {
-  const bumpRadius = Math.min(width, height) / 8;
-  const numBumpsH = Math.max(3, Math.floor(width / (bumpRadius * 1.5)));
-  const numBumpsV = Math.max(2, Math.floor(height / (bumpRadius * 1.5)));
+// Build cloud path without stroking (for fill/hatch/stroke to be applied by caller).
+//
+// Revisiewolk-constructie zoals CAD-tools en PDF-editors hem tekenen: langs de
+// rechthoek-omtrek liggen "puffs" — cirkelbogen met een booghoek > 180° die
+// elkaar in naar binnen wijzende cusps raken. De puff-maat is (per stuk)
+// vast i.p.v. boxafhankelijk, zodat grote ballonnen dezelfde wolkjes krijgen
+// als kleine (gedrag van externe editors bij /BE cloudy).
+export function buildCloudPath(ctx, x, y, width, height, puffSize = 15) {
+  const w = Math.max(1, width);
+  const h = Math.max(1, height);
+  // Booghoek per puff: ~252° geeft de diepe krullen met naar binnen wijzende
+  // cusps zoals de "grote wolk"-randstijl van externe editors (dunne lijn
+  // langs diep ingesneden scallops).
+  const THETA = 252 * Math.PI / 180;
+
+  // Omtrek-punten met de klok mee; per zijde een geheel aantal koorden van
+  // ~puffSize (minimaal 2, zodat mini-boxen nog steeds wolken).
+  const pts = [];
+  const addEdge = (x0, y0, x1, y1) => {
+    const len = Math.hypot(x1 - x0, y1 - y0);
+    const n = Math.max(2, Math.round(len / puffSize));
+    for (let i = 0; i < n; i++) {
+      pts.push([x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n]);
+    }
+  };
+  addEdge(x, y, x + w, y);
+  addEdge(x + w, y, x + w, y + h);
+  addEdge(x + w, y + h, x, y + h);
+  addEdge(x, y + h, x, y);
 
   ctx.beginPath();
-
-  // Top edge (left to right)
-  const topSpacing = width / numBumpsH;
-  for (let i = 0; i < numBumpsH; i++) {
-    const bx = x + topSpacing * (i + 0.5);
-    ctx.arc(bx, y, bumpRadius, Math.PI, 0, false);
+  const sinHalf = Math.sin(THETA / 2);
+  const cosHalf = Math.cos(THETA / 2); // negatief voor THETA > 180°
+  for (let i = 0; i < pts.length; i++) {
+    const [x0, y0] = pts[i];
+    const [x1, y1] = pts[(i + 1) % pts.length];
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const c = Math.hypot(dx, dy);
+    if (c < 0.01) continue;
+    // Straal uit koorde + booghoek; middelpunt ligt (voor >180°) aan de
+    // binnenzijde van de koorde zodat de boog naar buiten bolt.
+    const r = c / (2 * sinHalf);
+    const nx = dy / c;   // buitennormaal bij een kloksgewijze wandeling (y-omlaag)
+    const ny = -dx / c;
+    const cx = (x0 + x1) / 2 + nx * r * cosHalf;
+    const cy = (y0 + y1) / 2 + ny * r * cosHalf;
+    const a0 = Math.atan2(y0 - cy, x0 - cx);
+    const a1 = Math.atan2(y1 - cy, x1 - cx);
+    ctx.arc(cx, cy, r, a0, a1, false);
   }
-
-  // Right edge (top to bottom)
-  const rightSpacing = height / numBumpsV;
-  for (let i = 0; i < numBumpsV; i++) {
-    const by = y + rightSpacing * (i + 0.5);
-    ctx.arc(x + width, by, bumpRadius, -Math.PI / 2, Math.PI / 2, false);
-  }
-
-  // Bottom edge (right to left)
-  for (let i = numBumpsH - 1; i >= 0; i--) {
-    const bx = x + topSpacing * (i + 0.5);
-    ctx.arc(bx, y + height, bumpRadius, 0, Math.PI, false);
-  }
-
-  // Left edge (bottom to top)
-  for (let i = numBumpsV - 1; i >= 0; i--) {
-    const by = y + rightSpacing * (i + 0.5);
-    ctx.arc(x, by, bumpRadius, Math.PI / 2, -Math.PI / 2, false);
-  }
-
   ctx.closePath();
 }
 

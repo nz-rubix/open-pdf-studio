@@ -564,6 +564,51 @@ async function renderThumbnailToDataURL(pdfDoc, pageNum) {
     }
   } catch (_) { /* fall through to Rust path */ }
 
+  // ── Zware pagina's: thumbnail uit de progressieve whole-page-bitmap ──────
+  // render_thumbnail is een SYNC in-proc command: op een zwaar CAD-blad
+  // blokkeert het de IPC-lane seconden (alle andere invokes wachten) en
+  // parst het het blad DUBBEL naast de worker (~1 GB extra). De progressieve
+  // render cachet een volledige bitmap — downschalen daarvan is gratis. Nog
+  // geen bitmap? Dan geen thumbnail; de progressieve run roept na afloop
+  // invalidateThumbnail aan zodat hij alsnog verschijnt.
+  try {
+    if (doc?.filePath) {
+      const prog = await import('../../pdf/progressive-render.js');
+      if (await prog.isHeavyPage(doc.filePath, pageNum)) {
+        const pbc = await import('../../pdf/page-bitmap-cache.js');
+        const rotation = (typeof getPageRotation === 'function' ? getPageRotation(pageNum) : 0) || 0;
+        const best = pbc.getBestAvailableBitmap(doc.filePath, pageNum, rotation, 1);
+        if (best && best.bitmap) {
+          const targetW = 140;
+          const s = targetW / best.w;
+          const w = Math.max(1, Math.round(best.w * s));
+          const h = Math.max(1, Math.round(best.h * s));
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(best.bitmap, 0, 0, w, h);
+          const dataURL = canvas.toDataURL('image/jpeg', 0.7);
+          const widthPt = doc.pageDims?.[pageNum]?.widthPt;
+          const overlayScale = widthPt ? w / widthPt : null;
+          if (overlayScale) {
+            try {
+              const composited = await overlayAnnotationsOnDataURL(dataURL, pageNum, w, h, overlayScale);
+              console.log(`[thumb] p${pageNum} uit prog-bitmap (${w}x${h})`);
+              return { dataURL: composited, width: w, height: h };
+            } catch { /* val terug op kale bitmap hieronder */ }
+          }
+          console.log(`[thumb] p${pageNum} uit prog-bitmap (${w}x${h}, zonder overlay)`);
+          return { dataURL, width: w, height: h };
+        }
+        console.log(`[thumb] p${pageNum} zwaar — wacht op progressieve bitmap`);
+        return null;
+      }
+    }
+  } catch { /* val door naar het normale pad */ }
+
   // Try Rust thumbnail rendering — uses skip_images=true so only
   // vector content is rendered (fast). Image decoding is skipped because
   // it can take 17+ seconds per page for complex PDFs, blocking the Rust

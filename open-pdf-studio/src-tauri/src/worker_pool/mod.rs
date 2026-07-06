@@ -20,6 +20,18 @@ pub use state::{Status, WorkerState};
 pub struct WorkerPool {
     pub workers: Vec<Arc<WorkerState>>,
     next_request_id: std::sync::atomic::AtomicU64,
+    /// Laatste render-activiteit (ms sinds epoch) + of er al getrimd is sinds
+    /// die activiteit. Open pagina-handles in de workers kosten op zware
+    /// CAD-pagina's ruim 1 GB per worker; bij inactiviteit sturen we Trim.
+    last_used_ms: std::sync::atomic::AtomicU64,
+    trimmed: std::sync::atomic::AtomicBool,
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 impl WorkerPool {
@@ -27,6 +39,46 @@ impl WorkerPool {
         Self {
             workers,
             next_request_id: std::sync::atomic::AtomicU64::new(1),
+            last_used_ms: std::sync::atomic::AtomicU64::new(now_ms()),
+            trimmed: std::sync::atomic::AtomicBool::new(true),
+        }
+    }
+
+    fn touch(&self, worker: &WorkerState) {
+        let now = now_ms();
+        self.last_used_ms.store(now, Ordering::Release);
+        self.trimmed.store(false, Ordering::Release);
+        worker.last_used_ms.store(now, Ordering::Release);
+        worker.trimmed.store(false, Ordering::Release);
+    }
+
+    /// Stuur Trim naar iedere levende worker die zélf langer dan `idle_ms`
+    /// niets gerenderd heeft (eenmalig per inactiviteitsperiode). Per-worker:
+    /// na de parallelle eerste render koelen de niet-affinity-workers zo
+    /// vanzelf af (~1 GB parse-state per stuk terug), terwijl de worker die de
+    /// interactieve tegels bedient heet blijft. Onder de per-worker
+    /// request_lock zodat het nooit door een lopende exchange vlecht.
+    pub async fn trim_if_idle(&self, idle_ms: u64) {
+        let now = now_ms();
+        for worker in &self.workers {
+            if worker.status() != Status::Ready {
+                continue;
+            }
+            if worker.trimmed.load(Ordering::Acquire) {
+                continue;
+            }
+            if now.saturating_sub(worker.last_used_ms.load(Ordering::Acquire)) < idle_ms {
+                continue;
+            }
+            worker.trimmed.store(true, Ordering::Release);
+            let request_lock = worker.request_lock.clone();
+            let _exchange = request_lock.lock().await;
+            let mut stdin_guard = worker.stdin.lock().await;
+            if let Some(stdin) = stdin_guard.as_mut() {
+                let _ = stdin.write_all(b"{\"op\":\"trim\"}\n").await;
+                let _ = stdin.flush().await;
+                eprintln!("[pool] worker {} idle — pagina-handles getrimd", worker.slot);
+            }
         }
     }
 
@@ -51,10 +103,15 @@ impl WorkerPool {
         scale: f32,
         rotation: i32,
     ) -> Result<(u32, u32, Vec<u8>)> {
-        // First attempt
+        // First attempt. Pinned: al het werk voor dezelfde (path, page) —
+        // volledige render, thumbnail, tegels — blijft op één worker, ook
+        // onder druk. Uitwijken naar een koude worker zou die eerst de hele
+        // content-stream laten parsen (seconden + ~1 GB parse-state op zware
+        // CAD-bladen), terwijl de warme worker in ~0,4 s klaar is.
         let depths = self.depths();
-        let slot = routing::pick_worker(path, page_index, &depths);
+        let slot = routing::pick_worker(path, page_index, &depths, true);
         let worker = self.workers[slot].clone();
+        self.touch(&worker);
         worker.queue_depth.fetch_add(1, Ordering::Release);
         let result = self.render_on_worker(worker.clone(), path, page_index, scale, rotation).await;
         worker.queue_depth.fetch_sub(1, Ordering::Release);
@@ -76,8 +133,9 @@ impl WorkerPool {
         if depths_retry.iter().all(|&d| d == usize::MAX) {
             return result; // no other workers — bubble up the error
         }
-        let slot2 = routing::pick_worker(path, page_index, &depths_retry);
+        let slot2 = routing::pick_worker(path, page_index, &depths_retry, true);
         let worker2 = self.workers[slot2].clone();
+        self.touch(&worker2);
         worker2.queue_depth.fetch_add(1, Ordering::Release);
         let result2 = self.render_on_worker(worker2.clone(), path, page_index, scale, rotation).await;
         worker2.queue_depth.fetch_sub(1, Ordering::Release);
@@ -92,6 +150,13 @@ impl WorkerPool {
         scale: f32,
         rotation: i32,
     ) -> Result<(u32, u32, Vec<u8>)> {
+        // Eén request tegelijk per worker: het draadprotocol heeft geen id-demux
+        // en de SHM-regio wordt per response overschreven.
+        let request_lock = worker.request_lock.clone();
+        let _t_queue = std::time::Instant::now();
+        let _exchange = request_lock.lock().await;
+        let _t_run = std::time::Instant::now();
+        let _plog = PoolTrace::new(worker.slot, "render", path, page_index, scale, _t_queue, _t_run);
         let id = self.next_request_id.fetch_add(1, Ordering::Release);
 
         let req = json!({
@@ -151,5 +216,168 @@ impl WorkerPool {
         let rgba = mmap[HEADER..HEADER + shm_bytes].to_vec();
 
         Ok((w, h, rgba))
+    }
+
+    /// Render a page REGION (tile) via the pool. Small tiles fit the 64 MB SHM
+    /// easily, so — unlike whole huge pages — these succeed via the pool and
+    /// render in a SEPARATE process (safe: no concurrent in-proc PDFium). One
+    /// attempt; on error the caller falls back to in-proc.
+    ///
+    /// `spread`: true = tegels over alle workers spreiden (parallelle eerste
+    /// render); false = affinity op (pad,pagina) zodat interactieve tegels
+    /// steeds dezelfde worker (met hete pagina-handle) raken en de overige
+    /// workers hun ~1 GB parse-state niet hoeven te dragen.
+    pub async fn render_region(
+        &self,
+        path: &str,
+        page_index: u32,
+        scale: f32,
+        rotation: i32,
+        region_x_pt: f32,
+        region_y_pt: f32,
+        region_w_pt: f32,
+        region_h_pt: f32,
+        spread: bool,
+    ) -> Result<(u32, u32, Vec<u8>)> {
+        let depths = self.depths();
+        // Salt de affiniteit met de regio-coördinaten wanneer spreiding gewenst
+        // is: tegels van DEZELFDE pagina landen dan op verschillende workers.
+        let salt = if spread {
+            region_x_pt.to_bits() ^ region_y_pt.to_bits().rotate_left(16)
+        } else {
+            0
+        };
+        // Zonder spread pinnen we op de affinity-worker (geen overflow-
+        // uitwijk): één worker draagt de dure parse-state en serialiseert de
+        // tegels à ~0,4 s. Met spread is uitwijken juist gewenst.
+        let slot = routing::pick_worker(path, page_index ^ salt, &depths, !spread);
+        let worker = self.workers[slot].clone();
+        self.touch(&worker);
+        worker.queue_depth.fetch_add(1, Ordering::Release);
+        let result = self.render_region_on_worker(
+            worker.clone(), path, page_index, scale, rotation,
+            region_x_pt, region_y_pt, region_w_pt, region_h_pt,
+        ).await;
+        worker.queue_depth.fetch_sub(1, Ordering::Release);
+        result
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn render_region_on_worker(
+        &self,
+        worker: Arc<WorkerState>,
+        path: &str,
+        page_index: u32,
+        scale: f32,
+        rotation: i32,
+        region_x_pt: f32,
+        region_y_pt: f32,
+        region_w_pt: f32,
+        region_h_pt: f32,
+    ) -> Result<(u32, u32, Vec<u8>)> {
+        // Zelfde volledige-round-trip-serialisatie als render_on_worker.
+        let request_lock = worker.request_lock.clone();
+        let _t_queue = std::time::Instant::now();
+        let _exchange = request_lock.lock().await;
+        let _t_run = std::time::Instant::now();
+        let _plog = PoolTrace::new(worker.slot, "region", path, page_index, scale, _t_queue, _t_run);
+        let id = self.next_request_id.fetch_add(1, Ordering::Release);
+
+        let req = json!({
+            "op": "render_region",
+            "id": id,
+            "path": path,
+            "page_index": page_index,
+            "scale": scale,
+            "rotation": rotation,
+            "region_x_pt": region_x_pt,
+            "region_y_pt": region_y_pt,
+            "region_w_pt": region_w_pt,
+            "region_h_pt": region_h_pt,
+        });
+        let req_line = format!("{}\n", req);
+
+        {
+            let mut stdin_guard = worker.stdin.lock().await;
+            let stdin = stdin_guard.as_mut()
+                .ok_or_else(|| anyhow!("worker {} has no stdin", worker.slot))?;
+            stdin.write_all(req_line.as_bytes()).await
+                .with_context(|| format!("write to worker {}", worker.slot))?;
+            stdin.flush().await?;
+        }
+
+        let mut resp_line = String::new();
+        {
+            let mut stdout_guard = worker.stdout.lock().await;
+            let stdout = stdout_guard.as_mut()
+                .ok_or_else(|| anyhow!("worker {} has no stdout", worker.slot))?;
+            stdout.read_line(&mut resp_line).await
+                .with_context(|| format!("read from worker {}", worker.slot))?;
+        }
+
+        if resp_line.is_empty() {
+            return Err(anyhow!("worker {} EOF", worker.slot));
+        }
+
+        let resp: serde_json::Value = serde_json::from_str(&resp_line)
+            .with_context(|| format!("parse worker {} response: {}", worker.slot, resp_line))?;
+
+        if !resp["ok"].as_bool().unwrap_or(false) {
+            let err = resp["error"].as_str().unwrap_or("unknown");
+            return Err(anyhow!("worker {} region render error: {}", worker.slot, err));
+        }
+
+        let w = resp["w"].as_u64().unwrap_or(0) as u32;
+        let h = resp["h"].as_u64().unwrap_or(0) as u32;
+        let shm_bytes = resp["shm_bytes"].as_u64().unwrap_or(0) as usize;
+
+        let shm_guard = worker.shm.lock().await;
+        let mmap = shm_guard.as_ref()
+            .ok_or_else(|| anyhow!("worker {} has no shm", worker.slot))?;
+        const HEADER: usize = 32;
+        if shm_bytes + HEADER > mmap.len() {
+            return Err(anyhow!("worker {} shm_bytes {} exceeds region", worker.slot, shm_bytes));
+        }
+        let rgba = mmap[HEADER..HEADER + shm_bytes].to_vec();
+
+        Ok((w, h, rgba))
+    }
+}
+
+/// Tijdelijke meet-tracer (aan met env `OPDS_POOL_TRACE=1`): schrijft per
+/// pool-request de rij-wachttijd en uitvoerduur naar
+/// %TEMP%/opds-pool-trace.log. RAII: logt bij drop, dus ook bij fouten.
+struct PoolTrace {
+    line: Option<String>,
+    t_run: std::time::Instant,
+}
+
+impl PoolTrace {
+    fn new(slot: u32, op: &'static str, path: &str, page: u32, scale: f32,
+           t_queue: std::time::Instant, t_run: std::time::Instant) -> Self {
+        if std::env::var("OPDS_POOL_TRACE").ok().as_deref() != Some("1") {
+            return Self { line: None, t_run };
+        }
+        let name = std::path::Path::new(path)
+            .file_name()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let wait_ms = t_run.duration_since(t_queue).as_millis();
+        Self {
+            line: Some(format!("w{} {} p{} s{:.3} wait={}ms {}", slot, op, page, scale, wait_ms, name)),
+            t_run,
+        }
+    }
+}
+
+impl Drop for PoolTrace {
+    fn drop(&mut self) {
+        if let Some(l) = self.line.take() {
+            use std::io::Write;
+            let p = std::env::temp_dir().join("opds-pool-trace.log");
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
+                let _ = writeln!(f, "{} run={}ms", l, self.t_run.elapsed().as_millis());
+            }
+        }
     }
 }

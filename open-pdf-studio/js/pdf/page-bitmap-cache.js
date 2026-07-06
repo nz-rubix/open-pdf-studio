@@ -73,6 +73,22 @@ export function getCachedBitmap(filePath, pageNum, rotation, zoomBucket) {
   return entry || null;
 }
 
+/**
+ * Zet een EXTERN gebouwde bitmap (bv. de progressieve accumulator) in de cache
+ * onder dezelfde key als ensureBitmap, zodat zoom/pan/re-visit op deze pagina
+ * cache-hits blijven (getBestAvailableBitmap vindt hem net als een normale
+ * whole-page render). Sluit een eventuele vorige bitmap onder deze key.
+ */
+export function setCachedBitmapEntry(filePath, pageNum, rotation, zoomBucket, bitmap, w, h, scale) {
+  const key = _key(filePath, pageNum, rotation, zoomBucket);
+  const prev = _cache.get(key);
+  if (prev && prev.bitmap && prev.bitmap !== bitmap) {
+    try { prev.bitmap.close && prev.bitmap.close(); } catch {}
+  }
+  _cache.set(key, { bitmap, w, h, scale });
+  _evictIfNeeded();
+}
+
 // Find the best available cached bitmap for a target bucket: prefer exact
 // match, otherwise the nearest available bucket (lower preferred for speed,
 // higher acceptable as fallback during downscale).
@@ -144,12 +160,15 @@ function _ensureBitmapAtScale(filePath, pageNum, rotation, cacheBucket, renderSc
       // render path (here, loader cold-open preview, renderer.js direct
       // calls) honors the same state.renderEngineOverride consistently.
       const { renderPdfPage } = await import('./engine-router.js');
+      const _t0 = performance.now();
+      console.log(`[pbc] whole-page START p${pageNum} scale=${renderScale.toFixed(3)}`);
       const result = await renderPdfPage({
         path: filePath,
         pageIndex: pageNum - 1,
         scale: renderScale,
         rotation: rotation || 0,
       });
+      console.log(`[pbc] whole-page KLAAR p${pageNum} scale=${renderScale.toFixed(3)} @${Math.round(performance.now() - _t0)}ms`);
       const fileBytes = result instanceof Uint8Array ? result : new Uint8Array(result);
       if (!fileBytes || fileBytes.length <= 8) return null;
       const header = new DataView(fileBytes.buffer, fileBytes.byteOffset, 8);
@@ -163,6 +182,9 @@ function _ensureBitmapAtScale(filePath, pageNum, rotation, cacheBucket, renderSc
       const rgba = new Uint8ClampedArray(fileBytes.buffer, fileBytes.byteOffset + 8, expected);
       const imageData = new ImageData(rgba, w, h);
       const bitmap = await createImageBitmap(imageData);
+      import('../solid/stores/engineStatusStore.js')
+        .then((m) => m.reportActiveEngine('pdfium', filePath, pageNum))
+        .catch(() => {});
       const entry = { bitmap, w, h, scale: renderScale };
       _cache.set(key, entry);
       _evictIfNeeded();

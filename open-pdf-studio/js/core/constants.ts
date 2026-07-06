@@ -248,6 +248,11 @@ export const DEFAULT_PREFERENCES: Preferences = {
   // View
   thinLines: false,
   showScrollbars: false,
+  // Zware raster-pagina's (grote content-stream, bv. CAD-tekeningen met
+  // miljoenen segmenten) progressief tegel-voor-tegel invullen via de
+  // multi-proces worker-pool: parallelle eerste render (sneller), geen
+  // zwart scherm, hoofdthread blijft vrij. Uitzetbaar in Voorkeuren.
+  progressiveRender: true,
 
   // Panels
   propertiesPanelVisible: true,

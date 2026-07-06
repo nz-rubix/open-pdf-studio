@@ -14,3 +14,6 @@ ttf-parser = "0.25"
 rayon = "1"
 hayro-font = "0.4.0"
 flate2 = "1"
+
+[dev-dependencies]
+libloading = "0.8"

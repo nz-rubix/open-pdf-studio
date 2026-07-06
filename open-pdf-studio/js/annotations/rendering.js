@@ -23,6 +23,12 @@ import { hasFill } from './fill-utils.js';
 
 // Re-export everything that external code needs
 export { drawPolygonShape, drawCloudShape, buildPolygonPath, buildCloudPath } from './rendering/shapes.js';
+
+// Puff-maat (koorde in pt) voor wolkranden op basis van de /BE-intensiteit:
+// I<=1 = "kleine wolk", anders "grote wolk" (kalibratie op externe editors).
+function cloudPuffSize(annotation) {
+  return (annotation.cloudIntensity !== undefined && annotation.cloudIntensity <= 1) ? 9 : 15;
+}
 export { updateQuickAccessButtons, snapToGrid } from './rendering/ui-state.js';
 
 // Blender-style 2D cursor marker — red/white dashed circle + crosshair,
@@ -777,10 +783,16 @@ export function drawAnnotation(ctx, annotation) {
         ctx.translate(-tbCenterX, -tbCenterY);
       }
 
-      // Draw fill
+      // Draw fill (wolkrand-annotaties vullen het scallop-pad i.p.v. de rect)
+      const tbPuff = cloudPuffSize(annotation);
       if (hasFill(annotation.fillColor)) {
         ctx.fillStyle = annotation.fillColor;
-        ctx.fillRect(annotation.x, annotation.y, tbWidth, tbHeight);
+        if (annotation.borderEffect === 'cloudy') {
+          buildCloudPath(ctx, annotation.x, annotation.y, tbWidth, tbHeight, tbPuff);
+          ctx.fill();
+        } else {
+          ctx.fillRect(annotation.x, annotation.y, tbWidth, tbHeight);
+        }
       }
 
       // Draw border with style
@@ -788,7 +800,12 @@ export function drawAnnotation(ctx, annotation) {
         ctx.strokeStyle = annotation.strokeColor || strokeColor;
         ctx.lineWidth = tbLineWidth;
         applyBorderStyle(ctx, tbBorderStyle);
-        ctx.strokeRect(annotation.x, annotation.y, tbWidth, tbHeight);
+        if (annotation.borderEffect === 'cloudy') {
+          buildCloudPath(ctx, annotation.x, annotation.y, tbWidth, tbHeight, tbPuff);
+          ctx.stroke();
+        } else {
+          ctx.strokeRect(annotation.x, annotation.y, tbWidth, tbHeight);
+        }
         ctx.setLineDash([]);
       }
 
@@ -868,10 +885,16 @@ export function drawAnnotation(ctx, annotation) {
         ctx.translate(-coCenterX, -coCenterY);
       }
 
-      // Draw fill
+      // Draw fill (wolkrand-callouts vullen het scallop-pad i.p.v. de rect)
+      const coPuff = cloudPuffSize(annotation);
       if (hasFill(annotation.fillColor)) {
         ctx.fillStyle = annotation.fillColor;
-        ctx.fillRect(annotation.x, annotation.y, coWidth, coHeight);
+        if (annotation.borderEffect === 'cloudy') {
+          buildCloudPath(ctx, annotation.x, annotation.y, coWidth, coHeight, coPuff);
+          ctx.fill();
+        } else {
+          ctx.fillRect(annotation.x, annotation.y, coWidth, coHeight);
+        }
       }
 
       // Draw border with style
@@ -879,7 +902,12 @@ export function drawAnnotation(ctx, annotation) {
         ctx.strokeStyle = annotation.strokeColor || strokeColor;
         ctx.lineWidth = coLineWidth;
         applyBorderStyle(ctx, coBorderStyle);
-        ctx.strokeRect(annotation.x, annotation.y, coWidth, coHeight);
+        if (annotation.borderEffect === 'cloudy') {
+          buildCloudPath(ctx, annotation.x, annotation.y, coWidth, coHeight, coPuff);
+          ctx.stroke();
+        } else {
+          ctx.strokeRect(annotation.x, annotation.y, coWidth, coHeight);
+        }
         ctx.setLineDash([]);
       }
 

@@ -39,6 +39,42 @@ export default function CompareView() {
   let overlayHighlightCanvasRef;
   let bodyRef;
   let overlayWrapRef;
+  // Side-by-side: elk document in een EIGEN scroll-paneel, met gespiegelde
+  // scrollpositie — zo toont links en rechts altijd dezelfde plek, ook diep
+  // ingezoomd (één gedeelde scroller schoof het andere document uit beeld).
+  let oldPaneRef;
+  let newPaneRef;
+  let _scrollSyncing = false;
+  const syncScroll = (src, dst) => {
+    if (_scrollSyncing || !src || !dst) return;
+    _scrollSyncing = true;
+    dst.scrollLeft = src.scrollLeft;
+    dst.scrollTop = src.scrollTop;
+    requestAnimationFrame(() => { _scrollSyncing = false; });
+  };
+  // Pannen door slepen in een paneel; de scroll-sync spiegelt de beweging
+  // automatisch naar het andere paneel.
+  const startPanDrag = (e, pane) => {
+    if (e.button !== 0 || !pane) return;
+    const rect = pane.getBoundingClientRect();
+    // Klik op de scrollbalk zelf niet kapen.
+    if (e.clientX - rect.left > pane.clientWidth || e.clientY - rect.top > pane.clientHeight) return;
+    e.preventDefault();
+    let lastX = e.clientX;
+    let lastY = e.clientY;
+    const move = (ev) => {
+      pane.scrollLeft -= ev.clientX - lastX;
+      pane.scrollTop -= ev.clientY - lastY;
+      lastX = ev.clientX;
+      lastY = ev.clientY;
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
   const [highlight, setHighlight] = createSignal(null); // {x,y,w,h} flash highlight
   let highlightTimer = null;
 
@@ -160,7 +196,21 @@ export default function CompareView() {
       // so what the user sees is the crisp HQ bitmap (not a CSS-stretched
       // copy). We also remember the zoom so further wheel events can compute
       // a fresh CSS-only delta from this baseline.
+      const prevZoom = renderedZoom;
       renderedZoom = zoomAtRender;
+      // Zoom-anker: de content is een factor f groter/kleiner geworden —
+      // schaal de scrollposities mee zodat beide panelen (en de overlay)
+      // dezelfde plek blijven tonen i.p.v. naar linksboven te driften.
+      const f = prevZoom > 0 ? zoomAtRender / prevZoom : 1;
+      if (f !== 1) {
+        _scrollSyncing = true;
+        for (const pane of [oldPaneRef, newPaneRef, bodyRef]) {
+          if (!pane) continue;
+          pane.scrollLeft *= f;
+          pane.scrollTop *= f;
+        }
+        requestAnimationFrame(() => { _scrollSyncing = false; });
+      }
       // If the user kept zooming during render, recompute cssScale relative
       // to the new baseline so the preview stays consistent.
       const cur = compareZoom();
@@ -320,7 +370,10 @@ export default function CompareView() {
             class="compare-body"
             ref={bodyRef}
             onClick={handleBodyClick}
-            style="flex:1; overflow:auto; display:flex; align-items:flex-start; justify-content:center; padding:14px; gap:14px;"
+            onPointerDown={(e) => { if (compareMode() !== 'side') startPanDrag(e, bodyRef); }}
+            style={compareMode() === 'side'
+              ? 'flex:1; overflow:hidden; display:flex; align-items:stretch; padding:0; gap:0;'
+              : 'flex:1; overflow:auto; display:flex; align-items:flex-start; justify-content:center; padding:14px; gap:14px;'}
           >
             <Show
               when={compareMode() === 'side'}
@@ -351,19 +404,43 @@ export default function CompareView() {
                 </div>
               }
             >
-              <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
-                <div style="color:#ddd; font-size:11px;">{t('compare.oldDoc') || 'Old'}</div>
-                <canvas
-                  ref={oldCanvasRef}
-                  style={`background:#ffffff; box-shadow:0 0 0 1px #444; transform:scale(${cssScale()}); transform-origin:0 0;`}
-                ></canvas>
+              <div style="flex:1 1 50%; min-width:0; position:relative; display:flex; border-right:1px solid #555;">
+                <div style="position:absolute; top:6px; left:8px; z-index:2; padding:2px 8px; background:rgba(40,40,40,0.85); color:#ddd; font-size:11px; pointer-events:none;">
+                  {t('compare.oldDoc') || 'Old'}
+                </div>
+                <div
+                  ref={oldPaneRef}
+                  class="compare-pane compare-pane-old"
+                  onScroll={() => syncScroll(oldPaneRef, newPaneRef)}
+                  onPointerDown={(e) => startPanDrag(e, oldPaneRef)}
+                  style="flex:1; overflow:auto;"
+                >
+                  <div style="padding:14px; display:inline-block; line-height:0;">
+                    <canvas
+                      ref={oldCanvasRef}
+                      style={`background:#ffffff; box-shadow:0 0 0 1px #444; transform:scale(${cssScale()}); transform-origin:0 0;`}
+                    ></canvas>
+                  </div>
+                </div>
               </div>
-              <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
-                <div style="color:#ddd; font-size:11px;">{t('compare.newDoc') || 'New'}</div>
-                <canvas
-                  ref={newCanvasRef}
-                  style={`background:#ffffff; box-shadow:0 0 0 1px #444; transform:scale(${cssScale()}); transform-origin:0 0;`}
-                ></canvas>
+              <div style="flex:1 1 50%; min-width:0; position:relative; display:flex;">
+                <div style="position:absolute; top:6px; left:8px; z-index:2; padding:2px 8px; background:rgba(40,40,40,0.85); color:#ddd; font-size:11px; pointer-events:none;">
+                  {t('compare.newDoc') || 'New'}
+                </div>
+                <div
+                  ref={newPaneRef}
+                  class="compare-pane compare-pane-new"
+                  onScroll={() => syncScroll(newPaneRef, oldPaneRef)}
+                  onPointerDown={(e) => startPanDrag(e, newPaneRef)}
+                  style="flex:1; overflow:auto;"
+                >
+                  <div style="padding:14px; display:inline-block; line-height:0;">
+                    <canvas
+                      ref={newCanvasRef}
+                      style={`background:#ffffff; box-shadow:0 0 0 1px #444; transform:scale(${cssScale()}); transform-origin:0 0;`}
+                    ></canvas>
+                  </div>
+                </div>
               </div>
             </Show>
           </div>

@@ -23,7 +23,7 @@ fn main() -> Result<()> {
         .unwrap_or(0);
     let ns: String = std::env::args().nth(2).unwrap_or_else(|| "0".to_string());
 
-    let renderer = Renderer::new().context("init Renderer")?;
+    let mut renderer = Renderer::new().context("init Renderer")?;
     let mut shm_region = Shm::create(&ns, slot).context("init SHM")?;
 
     // Emit ready message — main process waits for this before
@@ -80,6 +80,38 @@ fn main() -> Result<()> {
                 };
                 writeln!(stdout, "{}", serde_json::to_string(&resp)?)?;
                 stdout.flush()?;
+            }
+            Request::RenderRegion {
+                id, path, page_index, scale, rotation,
+                region_x_pt, region_y_pt, region_w_pt, region_h_pt,
+            } => {
+                let resp = match renderer.render_region(
+                    &path, page_index, scale, rotation,
+                    region_x_pt, region_y_pt, region_w_pt, region_h_pt,
+                ) {
+                    Ok(result) => {
+                        match shm_region.write_bitmap(result.width, result.height, &result.rgba) {
+                            Ok(bytes) => Response::RenderOk {
+                                id, ok: true,
+                                w: result.width, h: result.height,
+                                shm_bytes: bytes,
+                            },
+                            Err(e) => Response::RenderErr {
+                                id, ok: false,
+                                error: format!("SHM write: {}", e),
+                            },
+                        }
+                    }
+                    Err(e) => Response::RenderErr {
+                        id, ok: false,
+                        error: format!("{}", e),
+                    },
+                };
+                writeln!(stdout, "{}", serde_json::to_string(&resp)?)?;
+                stdout.flush()?;
+            }
+            Request::Trim => {
+                renderer.trim();
             }
             Request::Shutdown => {
                 eprintln!("[worker {}] shutting down", slot);
