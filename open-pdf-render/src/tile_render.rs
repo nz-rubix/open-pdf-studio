@@ -356,8 +356,22 @@ impl TileScene {
         self.render_tile_impl(scale, tx, ty, tw, th, cull)
     }
 
+    fn render_tile_impl_on_white(&self, scale: f32, tx: u32, ty: u32, tw: u32, th: u32) -> Pixmap {
+        let mut pm = Pixmap::new(tw, th).expect("tile pixmap");
+        pm.fill(tiny_skia::Color::WHITE);
+        self.replay_onto(&mut pm, scale, tx, ty, tw, th, true);
+        pm
+    }
+
     fn render_tile_impl(&self, scale: f32, tx: u32, ty: u32, tw: u32, th: u32, cull: bool) -> Pixmap {
         let mut pixmap = Pixmap::new(tw, th).expect("tile pixmap");
+        self.replay_onto(&mut pixmap, scale, tx, ty, tw, th, cull);
+        pixmap
+    }
+
+    /// Replay alle relevante chunks van een tegel op een bestaande pixmap
+    /// (transparant óf voorgevuld met papier-wit).
+    fn replay_onto(&self, pixmap: &mut Pixmap, scale: f32, tx: u32, ty: u32, tw: u32, th: u32, cull: bool) {
         // volledige-pagina-CTM = scale · base. De tegel-verschuiving gaat NIET
         // de CTM in maar als aparte integer-translate in de paint-aanroepen:
         // paden krijgen zo exact dezelfde float-coördinaten als de volledige
@@ -380,9 +394,8 @@ impl TileScene {
             if cull && (bx1 < t_min_x || bx0 > t_max_x || by1 < t_min_y || by0 > t_max_y) {
                 continue;
             }
-            self.replay_range(chunk, full, tile_shift, &mut pixmap);
+            self.replay_range(chunk, full, tile_shift, pixmap);
         }
-        pixmap
     }
 
     /// Replay één chunk op een pixmap. `ctm_base` vervangt de scene-basis
@@ -562,7 +575,11 @@ impl TileScene {
         let ty = (y_pt * scale).round().max(0.0) as u32;
         let tw = (w_pt * scale).ceil().max(1.0) as u32;
         let th = (h_pt * scale).ceil().max(1.0) as u32;
-        let pm = self.render_tile_impl(scale, tx, ty, tw, th, true);
+        // OPAAK WIT papier, zoals de PDFium-worker-tegels: de JS-kant plakt
+        // tegels met putImageData (geen compositing), dus transparante of
+        // half-doorzichtige AA-randen zouden anders tegen de donkere
+        // app-achtergrond mengen en de lijnkleuren vervuilen.
+        let pm = self.render_tile_impl_on_white(scale, tx, ty, tw, th);
         let mut rgba = pm.take();
         // premultiplied → straight alpha voor putImageData aan de JS-kant.
         for p in rgba.chunks_exact_mut(4) {
