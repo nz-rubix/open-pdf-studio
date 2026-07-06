@@ -10,7 +10,7 @@ import { getPropertyPanel } from '../../plugins/property-panel-registry.js';
 import { fireSelectionChange } from '../../plugins/selection-listener-registry.js';
 import i18next from '../../i18n/config.js';
 import { syncDocScale } from '../../annotations/scale-bar.js';
-import { recalculateAllMeasurements, calculateArea, calculatePerimeter, formatMeasurement, getMeasureScale } from '../../annotations/measurement.js';
+import { recalculateAllMeasurements, calculateArea, calculatePerimeter, calculateDistance, formatMeasurement, formatDimensionText, getMeasureScale } from '../../annotations/measurement.js';
 
 // Types whose single 'color' control IS their stroke colour and which render
 // via `strokeColor || color`. For these, the 'color' control must mirror onto
@@ -708,9 +708,9 @@ function applyPropToAnnotation(ann, key, value) {
       break;
     }
     case 'rotation': ann.rotation = Math.max(-360, Math.min(360, parseInt(value) || 0)); break;
-    case 'measureScale': ann.measureScale = parseFloat(value) || 0; break;
-    case 'measureUnit': ann.measureUnit = value; break;
-    case 'measurePrecision': ann.measurePrecision = parseInt(value); break;
+    case 'measureScale': ann.measureScale = parseFloat(value) || 0; recomputeMeasureText(ann); break;
+    case 'measureUnit': ann.measureUnit = value; recomputeMeasureText(ann); break;
+    case 'measurePrecision': ann.measurePrecision = parseInt(value); recomputeMeasureText(ann); break;
     case 'measureName': ann.measureName = value; break;
     case 'scaleBarUnit': ann.unit = value; break;
     case 'scaleBarTotalUnits': ann.totalUnits = parseFloat(value) || 1; break;
@@ -754,8 +754,19 @@ function recomputeMeasureText(ann) {
     const dy = ann.endY - ann.startY;
     const pixelDist = Math.sqrt(dx * dx + dy * dy);
     const scaledVal = pixelDist * ann.measureScale;
+    ann.measurePixels = pixelDist;
+    ann.measureValue = scaledVal;
     // mm is the implied drawing unit on dimensions — no suffix.
     ann.measureText = unit === 'mm' ? scaledVal.toFixed(prec) : `${scaledVal.toFixed(prec)} ${unit}`;
+  } else if (ann.type === 'measureDistance') {
+    // No per-annotation scale override (cleared or never set): fall back to
+    // the document/region scale so clearing the override actually reverts
+    // the shown value instead of leaving the old text.
+    const dist = calculateDistance(ann.startX, ann.startY, ann.endX, ann.endY, ann.page);
+    ann.measureText = formatDimensionText(dist);
+    ann.measureValue = dist.value;
+    ann.measureUnit = dist.unit;
+    ann.measurePixels = dist.pixels;
   } else if (ann.type === 'measureArea' && ann.points && ann.points.length >= 3) {
     const area = calculateArea(ann.points, ann.holes, ann.page);
     ann.measureText = formatMeasurement(area);

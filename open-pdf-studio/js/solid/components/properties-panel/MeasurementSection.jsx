@@ -35,7 +35,9 @@ export default function MeasurementSection() {
         <div class="property-group">
           <label>{t('measurement.scale')}</label>
           <input type="number" step="0.001" min="0"
-            value={annotProps.measureScale}
+            value={annotProps.measureScale || ''}
+            placeholder={t('measurement.scaleAuto')}
+            title={t('measurement.scaleTooltip')}
             disabled={isLocked()}
             onChange={(e) => updateAnnotProp('measureScale', e.target.value)}
           />

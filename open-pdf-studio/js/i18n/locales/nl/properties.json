@@ -312,14 +312,17 @@
     "label": "Label"
   },
   "measurement": {
-    "title": "Measurement",
-    "name": "Name",
-    "namePlaceholder": "Area name (optional)",
-    "scale": "Scale",
-    "unit": "Unit",
-    "precision": "Precision (Decimals)",
+    "title": "Meting",
+    "name": "Naam",
+    "namePlaceholder": "Naam gebied (optioneel)",
+    "scale": "Schaal",
+    "scaleAuto": "Documentschaal",
+    "scaleTooltip": "Overschrijf de schaal voor deze annotatie (eenheden per punt). Laat leeg om de document-/gebiedsschaal te gebruiken.",
+    "unit": "Eenheid",
+    "precision": "Precisie (decimalen)",
     "dimType": "Type",
-    "dimTypeCustom": "Aangepast"
+    "dimTypeCustom": "Aangepast",
+    "extension": "Extensie"
   },
   "measurements": {
     "scale": "Schaal",

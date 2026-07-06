@@ -21,6 +21,23 @@ function computeDimensionText(ann) {
   return formatDimensionText(calculateDistance(ann.startX, ann.startY, ann.endX, ann.endY, ann.page));
 }
 
+// Keep the stored measurement fields of a dimension in sync with its geometry.
+// Called after any endpoint edit so measureValue/measurePixels never go stale
+// (recalculateAllMeasurements trusts measurePixels when recomputing on a
+// scale change) and measureText reflects the new length × scale.
+function syncDimensionMeasurement(ann) {
+  const dx = ann.endX - ann.startX;
+  const dy = ann.endY - ann.startY;
+  const pixelDist = Math.sqrt(dx * dx + dy * dy);
+  ann.measurePixels = pixelDist;
+  if (ann.measureScale) {
+    ann.measureValue = pixelDist * ann.measureScale;
+  } else {
+    ann.measureValue = calculateDistance(ann.startX, ann.startY, ann.endX, ann.endY, ann.page).value;
+  }
+  ann.measureText = computeDimensionText(ann);
+}
+
 // Recalculate callout leader line geometry from box position and arrow tip.
 // Picks the best box edge based on arrow position:
 //   - Arrow to the side → horizontal arm from left/right edge at vertical center
@@ -493,7 +510,41 @@ export function applyResize(annotation, handleType, deltaX, deltaY, originalAnn,
         annotation.endX = newLEX + perpDist * perpX;
         annotation.endY = newLEY + perpDist * perpY;
 
-        annotation.measureText = computeDimensionText(annotation);
+        syncDimensionMeasurement(annotation);
+      } else if ((handleType === HANDLE_TYPES.LINE_START || handleType === HANDLE_TYPES.LINE_END)
+                 && originalAnn.leaderStartX === undefined) {
+        // Dimension WITHOUT extension lines (e.g. imported without /LL): the
+        // dimension-line endpoints ARE the measured points. Move them freely,
+        // exactly like line/arrow endpoints, and recompute the measurement.
+        // (The old perpendicular-offset math below divides by the leader
+        // vector, which does not exist here — it would corrupt the geometry.)
+        const isStart = handleType === HANDLE_TYPES.LINE_START;
+        let newPX = (isStart ? originalAnn.startX : originalAnn.endX) + deltaX;
+        let newPY = (isStart ? originalAnn.startY : originalAnn.endY) + deltaY;
+        const fixedX = isStart ? originalAnn.endX : originalAnn.startX;
+        const fixedY = isStart ? originalAnn.endY : originalAnn.startY;
+        if (shiftKey && state.preferences.enableAngleSnap) {
+          const dx = newPX - fixedX;
+          const dy = newPY - fixedY;
+          const length = Math.sqrt(dx * dx + dy * dy);
+          const currentAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+          const snappedAngle = snapAngle(currentAngle, state.preferences.angleSnapDegrees) * (Math.PI / 180);
+          newPX = fixedX + length * Math.cos(snappedAngle);
+          newPY = fixedY + length * Math.sin(snappedAngle);
+        }
+        // Ctrl key: snap measured distance to nearest N units
+        if (ctrlKey) {
+          const s = snapDistanceTo10(fixedX, fixedY, newPX, newPY);
+          newPX = s.x; newPY = s.y;
+        }
+        if (isStart) {
+          annotation.startX = newPX;
+          annotation.startY = newPY;
+        } else {
+          annotation.endX = newPX;
+          annotation.endY = newPY;
+        }
+        syncDimensionMeasurement(annotation);
       } else if (handleType === HANDLE_TYPES.LINE_START || handleType === HANDLE_TYPES.LINE_END) {
         // Inner handles: constrain to perpendicular direction only (change offset, not measurement)
         // Perpendicular direction based on the leader line
@@ -509,6 +560,12 @@ export function applyResize(annotation, handleType, deltaX, deltaY, originalAnn,
         annotation.startY = originalAnn.startY + pDot * pY;
         annotation.endX = originalAnn.endX + pDot * pX;
         annotation.endY = originalAnn.endY + pDot * pY;
+      } else if (handleType === HANDLE_TYPES.LABEL_MOVE) {
+        // Text handle: drag the measurement text independent of the line.
+        // Stored as an OFFSET from the dimension-line midpoint so the text
+        // follows the line on move/endpoint edits. Default (0,0) = on the line.
+        annotation.textOffsetX = (originalAnn.textOffsetX || 0) + deltaX;
+        annotation.textOffsetY = (originalAnn.textOffsetY || 0) + deltaY;
       }
       break;
     }

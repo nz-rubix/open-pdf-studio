@@ -423,6 +423,14 @@ function _handleResize(ctx, e, coords) {
         oy = cly / orig.points.length;
       }
     }
+    // Label move on a dimension line (measureDistance text handle): anchor =
+    // dimension-line midpoint + textOffset. Without this the generic x/width
+    // fallback below would produce NaN (dimensions have no x/width).
+    if (h === 'label_move' && ox === undefined
+        && typeof orig.startX === 'number' && typeof orig.endX === 'number') {
+      ox = (orig.startX + orig.endX) / 2 + (orig.textOffsetX || 0);
+      oy = (orig.startY + orig.endY) / 2 + (orig.textOffsetY || 0);
+    }
     if (ox === undefined) {
       ox = h === 'line_start' ? orig.startX
         : h === 'line_end' ? orig.endX

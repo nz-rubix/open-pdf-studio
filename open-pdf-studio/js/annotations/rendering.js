@@ -1358,6 +1358,9 @@ export function drawAnnotation(ctx, annotation) {
         color: strokeColor,
         measureText: annotation.measureText,
         fontSize: annotation.fontSize,
+        // User-dragged text position (offset from dimension-line midpoint)
+        textOffsetX: annotation.textOffsetX || 0,
+        textOffsetY: annotation.textOffsetY || 0,
         // Extension is the DEFAULT (NL drafting style): only explicitly
         // disabling it (dimExtension === false) turns it off.
         extension: annotation.dimExtension !== false
