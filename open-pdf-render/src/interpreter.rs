@@ -1,4 +1,3 @@
-use lopdf::content::Content;
 use lopdf::{Document, Dictionary, Object};
 use crate::graphics_state::GraphicsStateStack;
 use crate::renderer::SkiaRenderer;
@@ -265,9 +264,6 @@ impl Interpreter {
                 }
             }
         }
-        let content = Content::decode(content_bytes)
-            .map_err(|e| RenderError::ParseError(format!("Content decode: {}", e)))?;
-
         // ─── iter-25: parallel image pre-decode ──────────────────────────
         // Walk the operations to find Image XObject references made by this
         // content stream's `Do` operators, then decode them in parallel via
@@ -278,7 +274,7 @@ impl Interpreter {
         // Targets pages like Barn Relocation p3/p5 (14 unique large
         // FlateDecode + PNG-predictor images per page) where iter-24's
         // dedup cache was a no-op (each image referenced exactly once).
-        Self::predecode_images_parallel(&content, doc, resources, max_image_pixels, &mut img_cache);
+        Self::predecode_images_parallel(content_bytes, doc, resources, max_image_pixels, &mut img_cache);
 
         let mut has_active_path = false;
         let mut text_state = TextState::new();
@@ -301,7 +297,13 @@ impl Interpreter {
         // consumed by the paint op via path_builder.take().
         let mut pending_clip: Option<bool> = None;
 
-        for op in &content.operations {
+        // Streamende lexer i.p.v. Content::decode: de volledige Vec<Operation>
+        // van een 5M-ops CAD-blad kostte gigabytes aan kleine allocaties;
+        // deze lus hergebruikt één Operation-buffer per stap.
+        let mut op_stream = crate::content_stream::ContentStreamIter::new(content_bytes);
+        let mut op_buf = lopdf::content::Operation { operator: String::new(), operands: Vec::new() };
+        while op_stream.next_into(&mut op_buf) {
+            let op = &op_buf;
             // If a W/W* was just seen, the next paint op (or n) consumes
             // the path AND uses it as the clip — snapshot it now before
             // the paint op takes the builder.
@@ -870,7 +872,7 @@ impl Interpreter {
     /// Form XObject are pre-decoded by the recursive pre-pass when the Form
     /// itself executes.
     fn predecode_images_parallel(
-        content: &Content,
+        content_bytes: &[u8],
         doc: &Document,
         resources: &Dictionary,
         max_image_pixels: u32,
@@ -892,7 +894,10 @@ impl Interpreter {
         // the HashSet check.
         let mut seen: std::collections::HashSet<lopdf::ObjectId> = std::collections::HashSet::new();
         let mut to_decode: Vec<lopdf::ObjectId> = Vec::new();
-        for op in &content.operations {
+        let mut op_stream = crate::content_stream::ContentStreamIter::new(content_bytes);
+        let mut op_buf = lopdf::content::Operation { operator: String::new(), operands: Vec::new() };
+        while op_stream.next_into(&mut op_buf) {
+            let op = &op_buf;
             if op.operator.as_str() != "Do" { continue; }
             let name = match op.operands.first() {
                 Some(Object::Name(n)) => n,
@@ -1675,13 +1680,14 @@ impl Interpreter {
         font_registry: &mut crate::fonts::FontRegistry,
         mut text_spans: Option<&mut Vec<TextSpan>>,
     ) -> Result<(), RenderError> {
-        let content = Content::decode(content_bytes)
-            .map_err(|e| RenderError::ParseError(format!("Content decode: {}", e)))?;
-
         let mut has_active_path = false;
         let mut text_state = TextState::new();
 
-        for op in &content.operations {
+        // Streamende lexer i.p.v. Content::decode — zie execute_internal.
+        let mut op_stream = crate::content_stream::ContentStreamIter::new(content_bytes);
+        let mut op_buf = lopdf::content::Operation { operator: String::new(), operands: Vec::new() };
+        while op_stream.next_into(&mut op_buf) {
+            let op = &op_buf;
             match op.operator.as_str() {
                 // Graphics state
                 "q" => {
@@ -3161,12 +3167,13 @@ impl Interpreter {
         resources: &Dictionary,
         font_registry: &mut crate::fonts::FontRegistry,
     ) -> Result<(), RenderError> {
-        let content = Content::decode(content_bytes)
-            .map_err(|e| RenderError::ParseError(format!("Content decode: {}", e)))?;
-
         let mut text_state = TextState::new();
 
-        for op in &content.operations {
+        // Streamende lexer i.p.v. Content::decode — zie execute_internal.
+        let mut op_stream = crate::content_stream::ContentStreamIter::new(content_bytes);
+        let mut op_buf = lopdf::content::Operation { operator: String::new(), operands: Vec::new() };
+        while op_stream.next_into(&mut op_buf) {
+            let op = &op_buf;
             match op.operator.as_str() {
                 // Graphics state stack — only CTM matters for text positioning.
                 "q" => state.save(),

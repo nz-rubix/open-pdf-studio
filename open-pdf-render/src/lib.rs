@@ -1,4 +1,6 @@
 mod parser;
+pub mod content_stream;
+pub mod tile_render;
 mod graphics_state;
 mod interpreter;
 mod renderer;
