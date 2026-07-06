@@ -43,7 +43,8 @@ const _sceneBroken = new Set();
 export async function invokeTileRegion(args) {
   const { invoke } = await import('../core/platform.js');
   const key = `${args.path}|${args.pageIndex}|${args.rotation || 0}`;
-  if (!_sceneBroken.has(key)) {
+  const sceneWorthIt = (await pageContentBytes(args.path, args.pageIndex + 1)) > SCENE_CONTENT_BYTES;
+  if (sceneWorthIt && !_sceneBroken.has(key)) {
     try {
       return await invoke('render_tile_scene_region', args);
     } catch (e) {
@@ -71,8 +72,27 @@ export function computeTileGrid(w, h, tilePx) {
   return tiles;
 }
 
-// Zwaarte-detectie met cache per (filePath,pageNum). Onbekend/niet-Tauri => false.
-const _heavyCache = new Map();
+// Content-groottes met cache per (filePath,pageNum): de RUWE bytes, zodat
+// zowel de prog-drempel (1 MB) als de engine-keuze (scene vanaf
+// SCENE_CONTENT_BYTES) uit één goedkope meting komen. Onbekend/niet-Tauri => 0.
+const _contentBytesCache = new Map();
+
+async function pageContentBytes(filePath, pageNum) {
+  if (!filePath) return 0;
+  const key = `${filePath}:${pageNum}`;
+  if (_contentBytesCache.has(key)) return _contentBytesCache.get(key);
+  let bytes = 0;
+  try {
+    const { isTauri, invoke } = await import('../core/platform.js');
+    if (isTauri()) {
+      bytes = Number(await invoke('page_content_size', { path: filePath, pageIndex: pageNum - 1 })) || 0;
+    }
+  } catch {
+    bytes = 0;
+  }
+  _contentBytesCache.set(key, bytes);
+  return bytes;
+}
 
 /**
  * Is deze pagina "zwaar" genoeg voor het progressieve pad? Vraagt de
@@ -81,22 +101,16 @@ const _heavyCache = new Map();
  * Gecachet per (filePath,pageNum); buiten Tauri altijd false.
  */
 export async function isHeavyPage(filePath, pageNum) {
-  if (!filePath) return false;
-  const key = `${filePath}:${pageNum}`;
-  if (_heavyCache.has(key)) return _heavyCache.get(key);
-  let heavy = false;
-  try {
-    const { isTauri, invoke } = await import('../core/platform.js');
-    if (isTauri()) {
-      const bytes = await invoke('page_content_size', { path: filePath, pageIndex: pageNum - 1 });
-      heavy = isHeavyBytes(Number(bytes));
-    }
-  } catch {
-    heavy = false;
-  }
-  _heavyCache.set(key, heavy);
-  return heavy;
+  return isHeavyBytes(await pageContentBytes(filePath, pageNum));
 }
+
+// Engine-keuze BINNEN het zware pad: de scene-route (extract + chunk-index)
+// loont pas wanneer de PDFium-parse zelf seconden kost. Gemeten: bladen van
+// 1-2 MB content (NKD1a-klasse) parsen in PDFium in honderden ms en bladeren
+// sneller via de warme worker-doc-cache dan via een verse extract per pagina;
+// vanaf ~4 MB (MV-03: 8,5 MB → parse 3-7 s, ~1,1 GB parse-state) wint de
+// scene ruim op tijd én geheugen.
+const SCENE_CONTENT_BYTES = 4_000_000;
 
 // Generatie-teller voor stale-guards: elke start bumpt hem; na elke await checken
 // we of onze generatie nog actueel is voor we viewport-state muteren. Zo kan een
