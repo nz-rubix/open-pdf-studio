@@ -5,9 +5,13 @@ node_modules/
 dist/
 out/
 
-# Tauri build
-src-tauri/target/
-open-pdf-studio/src-tauri/target/
+# Rust / Cargo build output — elke target-map op elk niveau
+# (root workspace, open-pdf-render, src-tauri) plus losse iteratie-varianten
+target/
+target-*/
+
+# pdfium-worker-sidecar: build-artefact dat build.rs/CI zelf plaatsen
+binaries/pdfium-worker-*
 
 # OS files
 .DS_Store
