@@ -4,6 +4,10 @@
 // parametricSymbol tool so the placed annotation stays editable (number,
 // value, orientation, …) via the properties panel.
 
+// Elektra-legendasymbolen (NLRS) — statische SVG-stempels, gegenereerd uit de
+// lokale elektra-renvooi-DXF (zie scripts/dxf-elektra-convert.mjs).
+import { ELEKTRA_SYMBOLS } from './elektraSymbols.js';
+
 const stramienPreview = `<svg viewBox="0 0 64 64" fill="none" stroke="#000" stroke-width="2"><circle cx="32" cy="12" r="9"/><text x="32" y="16" font-size="11" font-weight="bold" text-anchor="middle" fill="#000" stroke="none">1</text><line x1="32" y1="21" x2="32" y2="30"/><line x1="32" y1="34" x2="32" y2="36"/><line x1="32" y1="40" x2="32" y2="49"/><line x1="32" y1="53" x2="32" y2="55"/><line x1="32" y1="59" x2="32" y2="62"/></svg>`;
 
 const peilmaatPreview = `<svg viewBox="0 0 64 64" fill="none" stroke="#000" stroke-width="2"><text x="32" y="22" font-size="12" text-anchor="middle" fill="#000" stroke="none">P = 0</text><line x1="6" y1="30" x2="58" y2="30"/><polyline points="24,30 32,46 40,30" /></svg>`;
@@ -80,5 +84,15 @@ export const NL_CATEGORIES = [
       // wapeningVerdeling and beugel — templates stay registered in
       // symbols/registry.js, only their palette entries are hidden.
     ],
+  },
+  {
+    // Elektra — NLRS-legendasymbolen (stopcontacten, schakelaars, verlichting,
+    // aansluitpunten, bel, meterkast, bewegingsdetector). Statische SVG-stempels
+    // die als stempel geplaatst worden; geometrie uit de elektra-renvooi-DXF.
+    id: 'nl-elektra',
+    name: 'Elektra',
+    color: 'var(--theme-text, #000000)',
+    icon: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 1 3 9h4l-1 6 6-8H8z"/></svg>`,
+    symbols: ELEKTRA_SYMBOLS,
   },
 ];
