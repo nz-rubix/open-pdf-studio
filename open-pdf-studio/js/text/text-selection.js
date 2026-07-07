@@ -1,10 +1,17 @@
 import { state, getActiveDocument } from '../core/state.js';
 import { showTextSelectionContextMenu } from '../ui/chrome/context-menus.js';
+import { applyBandRestriction, clearBandRestriction } from './selection-guard.js';
 
 /**
  * Text Selection Module
  * Handles text selection state and operations
  */
+
+// Spans die tijdens een actieve sleep tijdelijk op user-select:none staan
+// (kolom-begrenzing tegen spurious selecties bij tabellen/meerkoloms).
+let _guardRestricted = [];
+// De .endOfContent-div van de tekstlaag waarin de huidige sleep begon.
+let _activeEndOfContent = null;
 
 /**
  * Initializes text selection event listeners
@@ -18,6 +25,10 @@ export function initTextSelection() {
 
   // Clear selection when clicking outside text layer
   document.addEventListener('mousedown', handleMouseDown);
+
+  // Einde van een sleep: hef de kolom-begrenzing en endOfContent weer op.
+  // Document-breed zodat het ook vuurt als de muis buiten de tekstlaag loslaat.
+  document.addEventListener('mouseup', handleMouseUp);
 }
 
 /**
@@ -82,7 +93,11 @@ function handleMouseDown(e) {
 
   // Don't clear selection if clicking within text layer
   const textLayer = findParentTextLayer(e.target);
-  if (textLayer) return;
+  if (textLayer) {
+    // Alleen de linkermuisknop start een tekstselectie-sleep.
+    if (e.button === 0) beginSelectionDrag(textLayer, e);
+    return;
+  }
 
   // Check if we're clicking on an annotation canvas in select tool mode
   if (state.currentTool === 'select') {
@@ -91,6 +106,62 @@ function handleMouseDown(e) {
       // Clear selection when clicking outside text layer
       selection.removeAllRanges();
     }
+  }
+}
+
+/**
+ * Handles mouseup: end a selection drag and lift the temporary column guard.
+ */
+function handleMouseUp() {
+  endSelectionDrag();
+}
+
+/**
+ * Start van een tekstselectie-sleep binnen een tekstlaag.
+ * 1) Begrenst — indien de startregel een tabelrij is — de selectie tot de
+ *    kolom van het startpunt (voorkomt spurious selecties in andere kolommen).
+ * 2) Activeert de endOfContent-div op de start-Y zodat een omgekeerde sleep
+ *    (onder -> boven) de selectie niet naar verre tekst laat uitschieten.
+ * @param {HTMLElement} textLayer
+ * @param {MouseEvent} e
+ */
+function beginSelectionDrag(textLayer, e) {
+  // Ruim een eventuele vorige (niet netjes afgesloten) sleep op.
+  endSelectionDrag();
+
+  try {
+    _guardRestricted = applyBandRestriction(textLayer, e.clientX, e.clientY);
+  } catch {
+    _guardRestricted = [];
+  }
+
+  // endOfContent-truc (zoals PDF.js viewer): plaats het niet-selecteerbare
+  // "einde" op de start-Y en activeer het, zodat de selectie-ankering bij een
+  // omgekeerde sleep niet buiten de begonnen tekst springt.
+  const end = textLayer.querySelector('.endOfContent');
+  if (end) {
+    const rect = textLayer.getBoundingClientRect();
+    const r = rect.height > 0
+      ? Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height))
+      : 0;
+    end.style.top = `${(r * 100).toFixed(2)}%`;
+    end.classList.add('active');
+    _activeEndOfContent = end;
+  }
+}
+
+/**
+ * Einde van een tekstselectie-sleep: herstel user-select en endOfContent.
+ */
+function endSelectionDrag() {
+  if (_guardRestricted.length) {
+    clearBandRestriction(_guardRestricted);
+    _guardRestricted = [];
+  }
+  if (_activeEndOfContent) {
+    _activeEndOfContent.classList.remove('active');
+    _activeEndOfContent.style.top = '';
+    _activeEndOfContent = null;
   }
 }
 
