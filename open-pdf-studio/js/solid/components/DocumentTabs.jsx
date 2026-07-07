@@ -2,6 +2,15 @@ import { For, Show, createSignal, onCleanup } from 'solid-js';
 import { state } from '../../core/state.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
 import { invoke } from '../../core/platform.js';
+import {
+  compareActive,
+  compareFocused,
+  focusCompareTab,
+  blurCompareTab,
+  exitCompare,
+  compareOldPath,
+  compareNewPath,
+} from '../../compare/compare-store.js';
 
 // Detach threshold — how far the mouse must travel BELOW the tab bar
 // during drag before we treat it as a "detach to new window" gesture.
@@ -72,6 +81,7 @@ let dragState = null;
 
 function handleTabClick(index) {
   if (editingIndex() === index) return;
+  blurCompareTab(); // switching to a PDF tab leaves the compare view
   import('../../ui/chrome/tabs.js').then(m => m.switchToTab(index));
 }
 
@@ -308,6 +318,13 @@ function onDocMouseUp(e) {
 export default function DocumentTabs() {
   const { t } = useTranslation('statusbar');
 
+  const baseName = (p) => ((p || '').split(/[\\/]/).pop() || '').replace(/\.pdf$/i, '');
+  const compareTabTip = () => {
+    const a = baseName(compareOldPath());
+    const b = baseName(compareNewPath());
+    return a && b ? `${a} ↔ ${b}` : (t('compareTabTitle') || 'Vergelijken');
+  };
+
   // Close the tab context menu on outside click / Escape.
   const onDocClick = (e) => {
     if (!ctxMenu()) return;
@@ -335,7 +352,7 @@ export default function DocumentTabs() {
         {(doc, i) => (
           <div
             class={'document-tab'
-              + (i() === state.activeDocumentIndex ? ' active' : '')
+              + (i() === state.activeDocumentIndex && !compareFocused() ? ' active' : '')
               + (draggingIndex() === i() ? ' dragging' : '')
               + (dropTargetIndex() === i() ? ' drop-target' : '')}
             data-index={i()}
@@ -361,6 +378,25 @@ export default function DocumentTabs() {
           </div>
         )}
       </For>
+
+      {/* Compare session lives as its OWN tab (not a real document) so you can
+          flip between your PDFs and the side-by-side comparison. */}
+      <Show when={compareActive()}>
+        <div
+          class={'document-tab compare-tab' + (compareFocused() ? ' active' : '')}
+          title={compareTabTip()}
+          onClick={() => focusCompareTab()}
+          onAuxClick={(e) => { if (e.button === 1) { e.preventDefault(); exitCompare(); } }}
+        >
+          <span class="document-tab-title" style="display:inline-flex; align-items:center; gap:5px;">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" style="flex:none;">
+              <rect x="3" y="4" width="7" height="16" /><rect x="14" y="4" width="7" height="16" />
+            </svg>
+            {t('compareTabTitle') || 'Vergelijken'}
+          </span>
+          <span class="document-tab-close" title={t('closeTab')} onClick={(e) => { e.stopPropagation(); exitCompare(); }}>&times;</span>
+        </div>
+      </Show>
 
       <div class="document-tabs-add" title={t('openPdfFile')} onClick={handleAddClick}>+</div>
 

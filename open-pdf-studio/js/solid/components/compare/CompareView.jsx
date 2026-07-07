@@ -13,10 +13,15 @@ import {
   compareShowAdded,
   compareShowRemoved,
   compareShowModified,
+  compareShowBox,
+  compareShowContour,
+  compareFocused,
   compareFitRequest,
   setCompareShowAdded,
   setCompareShowRemoved,
   setCompareShowModified,
+  setCompareShowBox,
+  setCompareShowContour,
   setFocusedChange,
   exitCompare,
   nextPagePair,
@@ -96,6 +101,13 @@ export default function CompareView() {
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   };
+  // Middle mouse button (button 1) over a scrollable pane otherwise triggers the
+  // browser's autoscroll, which hijacks the gesture so the pointer-based pan in
+  // startPanDrag never runs. preventDefault() on pointerdown does NOT stop it —
+  // for a mouse the autoscroll is a default of the separate mousedown event. So
+  // suppress it here, bound as a DIRECT native listener (on:mousedown) so the
+  // preventDefault is honoured before the default action fires.
+  const killMiddleAutoscroll = (e) => { if (e.button === 1) e.preventDefault(); };
   const [highlight, setHighlight] = createSignal(null); // {x,y,w,h} flash highlight
   let highlightTimer = null;
 
@@ -158,14 +170,27 @@ export default function CompareView() {
     // Only draw the selection accent on a pane that shows the selected type,
     // so a "removed" selection doesn't get a border on the NEW pane.
     const selForPane = sel && allow[sel.type] && v[sel.type] ? sel : null;
+    const vis = {
+      added: !!v.added && !!allow.added,
+      removed: !!v.removed && !!allow.removed,
+      modified: !!v.modified && !!allow.modified,
+    };
+    const style = { showBox: compareShowBox(), showContour: compareShowContour() };
+    // Content changes are measured in detection-px → highlightRatio(). This call
+    // clears the canvas first.
     paintHighlights(canvas, compareChanges(), {
-      ratio: highlightRatio(),
-      visibleTypes: {
-        added: !!v.added && !!allow.added,
-        removed: !!v.removed && !!allow.removed,
-        modified: !!v.modified && !!allow.modified,
-      },
-      selected: selForPane,
+      ratio: highlightRatio(), visibleTypes: vis, ...style,
+      selected: selForPane && selForPane.source !== 'annotation' ? selForPane : null,
+      clear: true,
+    });
+    // Annotation changes are measured in page-points (scale 1) → 1.5*renderedZoom,
+    // the SAME mapping the page render uses. Previously these weren't painted at
+    // all (only listed), and a selected annotation got drawn with the content
+    // ratio — landing in the wrong place. Layer them on top without clearing.
+    paintHighlights(canvas, annotationChanges(), {
+      ratio: 1.5 * renderedZoom, visibleTypes: vis, ...style,
+      selected: selForPane && selForPane.source === 'annotation' ? selForPane : null,
+      clear: false,
     });
   };
 
@@ -208,6 +233,33 @@ export default function CompareView() {
     });
   };
 
+  // Click a change → center it in the pane(s) AND zoom in so it fills a
+  // comfortable part of the viewport. Reuses scrollPaneToChange (instant centre)
+  // + zoomAnchored (keeps that centre fixed while scaling), so both panes stay
+  // in sync via the existing scroll/zoom mirroring. Only ever zooms IN.
+  const zoomToChange = (c) => {
+    const isOverlay = compareMode() === 'overlay';
+    const pairs = isOverlay
+      ? [[bodyRef, overlayWrapRef]]
+      : [[oldPaneRef, oldWrapRef], [newPaneRef, newWrapRef]];
+    const refPane = pairs[0][0];
+    if (!refPane) return;
+    // 1. instantly centre the change in each pane at the current zoom
+    _scrollSyncing = true;
+    for (const [pane, wrap] of pairs) scrollPaneToChange(pane, wrap, c, false);
+    requestAnimationFrame(() => { _scrollSyncing = false; });
+    // 2. zoom so the change fills ~55% of the pane — clamp to zoom-in only
+    const curW = Math.max(1, c.width * changeRatio(c));
+    const curH = Math.max(1, c.height * changeRatio(c));
+    const frac = 0.55;
+    let factor = Math.min(refPane.clientWidth * frac / curW, refPane.clientHeight * frac / curH);
+    factor = Math.min(factor, 8 / Math.max(0.01, compareZoom())); // never past max zoom
+    if (factor <= 1.02) return; // already large enough → leave it centred
+    // 3. zoom around the pane centre, where the change now sits
+    const rect = refPane.getBoundingClientRect();
+    zoomAnchored(refPane, rect.left + refPane.clientWidth / 2, rect.top + refPane.clientHeight / 2, factor);
+  };
+
   const focusOnChange = (c) => {
     // Toggle selection if same record clicked again.
     const cur = compareFocusedChange();
@@ -218,21 +270,14 @@ export default function CompareView() {
     }
     setFocusedChange(c);
 
-    if (compareMode() === 'overlay') {
-      if (bodyRef && overlayWrapRef) {
-        scrollPaneToChange(bodyRef, overlayWrapRef, c);
-        const ratio = changeRatio(c);
-        setHighlight({ x: c.x * ratio, y: c.y * ratio, w: c.width * ratio, h: c.height * ratio });
-        if (highlightTimer) clearTimeout(highlightTimer);
-        highlightTimer = setTimeout(() => setHighlight(null), 1000);
-      }
-    } else {
-      // Side-by-side: scroll BOTH panes to the same spot. Guard the sync so
-      // the two programmatic scrolls don't fight each other.
-      _scrollSyncing = true;
-      scrollPaneToChange(oldPaneRef, oldWrapRef, c);
-      scrollPaneToChange(newPaneRef, newWrapRef, c);
-      requestAnimationFrame(() => { _scrollSyncing = false; });
+    // Centre + zoom in on the clicked change (both panes / overlay).
+    zoomToChange(c);
+
+    if (compareMode() === 'overlay' && bodyRef && overlayWrapRef) {
+      const ratio = changeRatio(c);
+      setHighlight({ x: c.x * ratio, y: c.y * ratio, w: c.width * ratio, h: c.height * ratio });
+      if (highlightTimer) clearTimeout(highlightTimer);
+      highlightTimer = setTimeout(() => setHighlight(null), 1000);
     }
     repaintHighlights();
   };
@@ -376,9 +421,12 @@ export default function CompareView() {
   // modes now (side-by-side paints per pane, overlay paints one canvas).
   createEffect(() => {
     compareChanges();
+    annotationChanges();
     compareShowAdded();
     compareShowRemoved();
     compareShowModified();
+    compareShowBox();
+    compareShowContour();
     compareFocusedChange();
     compareMode();
     if (compareActive()) {
@@ -434,7 +482,7 @@ export default function CompareView() {
   // Esc closes compare mode (capture phase so it wins over other Esc handlers)
   onMount(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape' && compareActive()) {
+      if (e.key === 'Escape' && compareActive() && compareFocused()) {
         e.preventDefault();
         e.stopPropagation();
         exitCompare();
@@ -514,7 +562,7 @@ export default function CompareView() {
     <Show when={compareActive()}>
       <div
         class="compare-view"
-        style="position:absolute; inset:0; display:flex; flex-direction:column; background:#2a2a2a;"
+        style={`position:absolute; inset:0; display:${compareFocused() ? 'flex' : 'none'}; flex-direction:column; background:#2a2a2a;`}
         onWheel={handleWheel}
       >
         <div
@@ -533,6 +581,15 @@ export default function CompareView() {
           <button class="pref-btn pref-btn-secondary" onClick={() => zoomButton(1.2)}>+</button>
           <button class="pref-btn pref-btn-secondary" title={t('compare.fit') || 'Passend'} onClick={requestCompareFit}>{t('compare.fit') || 'Passend'}</button>
           <button class="pref-btn pref-btn-secondary" title={t('compare.reset') || '100%'} onClick={requestCompareReset}>100%</button>
+          <span style="margin-left:12px;">{t('compare.marking') || 'Markering'}:</span>
+          <label style="display:inline-flex; align-items:center; gap:3px; cursor:pointer;" title={t('compare.boxHint') || 'Toon wijzigingen als gevuld vlak'}>
+            <input type="checkbox" checked={compareShowBox()} onChange={(e) => setCompareShowBox(e.currentTarget.checked)} />
+            {t('compare.box') || 'Vlak'}
+          </label>
+          <label style="display:inline-flex; align-items:center; gap:3px; cursor:pointer;" title={t('compare.contourHint') || 'Toon wijzigingen met een omtreklijn'}>
+            <input type="checkbox" checked={compareShowContour()} onChange={(e) => setCompareShowContour(e.currentTarget.checked)} />
+            {t('compare.contour') || 'Contour'}
+          </label>
           <Show when={compareMode() === 'overlay'}>
             <span style="margin-left:12px;">{t('compare.align') || 'Align'} dx:</span>
             <input
@@ -571,6 +628,7 @@ export default function CompareView() {
             class="compare-body"
             ref={bodyRef}
             onClick={handleBodyClick}
+            on:mousedown={killMiddleAutoscroll}
             onPointerDown={(e) => { if (compareMode() !== 'side') startPanDrag(e, bodyRef); }}
             style={compareMode() === 'side'
               ? 'flex:1; overflow:hidden; display:flex; align-items:stretch; padding:0; gap:0;'
@@ -613,6 +671,7 @@ export default function CompareView() {
                   ref={oldPaneRef}
                   class="compare-pane compare-pane-old"
                   onScroll={() => syncScroll(oldPaneRef, newPaneRef)}
+                  on:mousedown={killMiddleAutoscroll}
                   onPointerDown={(e) => startPanDrag(e, oldPaneRef)}
                   style="flex:1; overflow:auto;"
                 >
@@ -643,6 +702,7 @@ export default function CompareView() {
                   ref={newPaneRef}
                   class="compare-pane compare-pane-new"
                   onScroll={() => syncScroll(newPaneRef, oldPaneRef)}
+                  on:mousedown={killMiddleAutoscroll}
                   onPointerDown={(e) => startPanDrag(e, newPaneRef)}
                   style="flex:1; overflow:auto;"
                 >

@@ -110,12 +110,16 @@ function DesktopApp() {
               <div id="continuous-container" class="continuous-container"></div>
             </div>
             <CanvasScrollbars />
-            <CompareView />
           </div>
         </div>
 
         <OrderedDockedPalettes side="right" />
         <PropertiesPanel />
+
+        {/* Compare lives at the .content level (position:relative) so, when its
+            tab is focused, the side-by-side view covers the FULL workspace width
+            — panels included — instead of being squeezed into the centre. */}
+        <CompareView />
       </div>
 
       <StatusBar />

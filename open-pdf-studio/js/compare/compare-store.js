@@ -17,6 +17,13 @@ const [focusedChange, setFocusedChangeSignal] = createSignal(null);
 const [showAdded, setShowAdded] = createSignal(true);
 const [showRemoved, setShowRemoved] = createSignal(true);
 const [showModified, setShowModified] = createSignal(true);
+// Highlight style toggles: filled box and/or contour outline. Both on by default.
+const [showBox, setShowBox] = createSignal(true);
+const [showContour, setShowContour] = createSignal(true);
+// True when the compare TAB is the currently-shown view (vs. a normal PDF tab).
+// The compare session stays "active" while a PDF tab is focused; this flag just
+// controls whether the compare view is on screen.
+const [focused, setFocused] = createSignal(false);
 // Bumped as a counter to request a "fit page to viewport" recalculation. The
 // view watches this signal and, on change, re-fits the zoom to the current
 // container size. Carries the desired kind: 'fit' (fill the pane) or 'reset'
@@ -41,8 +48,19 @@ export {
   setShowAdded as setCompareShowAdded,
   setShowRemoved as setCompareShowRemoved,
   setShowModified as setCompareShowModified,
+  showBox as compareShowBox,
+  showContour as compareShowContour,
+  setShowBox as setCompareShowBox,
+  setShowContour as setCompareShowContour,
+  focused as compareFocused,
   fitRequest as compareFitRequest,
 };
+
+// Bring the compare tab to the front (show the compare view).
+export function focusCompareTab() { if (active()) setFocused(true); }
+// Send the compare tab to the back (a normal PDF tab is shown instead). The
+// compare session stays alive so switching back is instant.
+export function blurCompareTab() { setFocused(false); }
 
 // Request the view to fit the page(s) to the available space.
 export function requestCompareFit() {
@@ -70,11 +88,14 @@ export function startCompare({ oldFilePath, newFilePath, mode: m, oldPage: op = 
   setNewPage(np);
   setOffset({ dx: 0, dy: 0, rotation: 0 });
   setZoom(1);
+  setFocusedChangeSignal(null); // clean slate — no change selected yet
   setActive(true);
+  setFocused(true); // open the compare tab in front
 }
 
 export function exitCompare() {
   setActive(false);
+  setFocused(false);
   setOldPath(null);
   setNewPath(null);
 }

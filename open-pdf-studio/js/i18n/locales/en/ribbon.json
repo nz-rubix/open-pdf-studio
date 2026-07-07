@@ -205,7 +205,12 @@
     "noChanges": "No changes",
     "annotation": "Annotation",
     "fit": "Fit",
-    "reset": "100%"
+    "reset": "100%",
+    "marking": "Marking",
+    "box": "Box",
+    "contour": "Contour",
+    "boxHint": "Show changes as a filled box",
+    "contourHint": "Show changes with an outline"
   },
   "organize": {
     "pages": "Pages",

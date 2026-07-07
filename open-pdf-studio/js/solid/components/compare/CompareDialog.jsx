@@ -13,7 +13,7 @@ export default function CompareDialog() {
 
   const [oldIdx, setOldIdx] = createSignal(0);
   const [newIdx, setNewIdx] = createSignal(Math.min(1, Math.max(0, docs().length - 1)));
-  const [mode, setMode] = createSignal('overlay');
+  const [mode, setMode] = createSignal('side');
   const [oldPage, setOldPage] = createSignal(1);
   const [newPage, setNewPage] = createSignal(1);
 

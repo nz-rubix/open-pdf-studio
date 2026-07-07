@@ -73,12 +73,18 @@ export const HIGHLIGHT_COLORS = {
 export function drawHighlights(canvas, changes, opts = {}) {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // clear defaults true; pass clear:false to layer a second set of changes
+  // (e.g. annotation changes at a different px-ratio) onto the same canvas.
+  if (opts.clear !== false) ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (!Array.isArray(changes) || changes.length === 0) return;
 
   const ratio = opts.ratio || 1;
   const visibleTypes = opts.visibleTypes || { added: true, removed: true, modified: true };
   const selected = opts.selected || null;
+  // Highlight style: filled box and/or contour outline. Default both on so the
+  // legacy look (fill + thin border) is preserved when callers omit the flags.
+  const showBox = opts.showBox !== false;
+  const showContour = opts.showContour !== false;
 
   for (const c of changes) {
     if (!visibleTypes[c.type]) continue;
@@ -87,11 +93,15 @@ export function drawHighlights(canvas, changes, opts = {}) {
     const y = c.y * ratio;
     const w = c.width * ratio;
     const h = c.height * ratio;
-    ctx.fillStyle = colors.fill;
-    ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = colors.stroke;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+    if (showBox) {
+      ctx.fillStyle = colors.fill;
+      ctx.fillRect(x, y, w, h);
+    }
+    if (showContour) {
+      ctx.strokeStyle = colors.stroke;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x + 1, y + 1, Math.max(0, w - 2), Math.max(0, h - 2));
+    }
   }
 
   // Selected change: draw a thicker border on top, no fill, with subtle glow.

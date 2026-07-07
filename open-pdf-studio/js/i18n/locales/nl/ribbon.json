@@ -205,7 +205,12 @@
     "noChanges": "Geen wijzigingen",
     "annotation": "Annotatie",
     "fit": "Passend",
-    "reset": "100%"
+    "reset": "100%",
+    "marking": "Markering",
+    "box": "Vlak",
+    "contour": "Contour",
+    "boxHint": "Toon wijzigingen als gevuld vlak",
+    "contourHint": "Toon wijzigingen met een omtreklijn"
   },
   "organize": {
     "pages": "Pagina's",
