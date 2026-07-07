@@ -433,16 +433,26 @@ export async function buildUserAgent() {
   return `OpenPDFStudio/${ver} (${os.name} ${os.version}; ${os.arch})`.replace(/\s+/g, ' ').trim();
 }
 
-// Get app version from Tauri config
+// Get app version for display.
+// Prefer the build-time version that Vite bakes in from package.json. In dev
+// this tracks the source and refreshes on a Vite (re)start, whereas the Tauri
+// runtime getVersion() reflects the COMPILED binary, which stays stale until a
+// full Rust rebuild — the reason the title kept showing the previous version
+// after a version bump. In a release build both values are identical (the bump
+// syncs package.json and tauri.conf.json), so there is no downside. Fall back
+// to the Tauri runtime value only if the build-time define is somehow absent.
 export async function getAppVersion() {
-  if (!isTauri()) {
-    return typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : null;
+  if (typeof __APP_VERSION__ !== 'undefined' && __APP_VERSION__) {
+    return __APP_VERSION__;
   }
-  try {
-    return await window.__TAURI__.app.getVersion();
-  } catch {
-    return null;
+  if (isTauri()) {
+    try {
+      return await window.__TAURI__.app.getVersion();
+    } catch {
+      return null;
+    }
   }
+  return null;
 }
 
 // Check if running in dev/debug mode
