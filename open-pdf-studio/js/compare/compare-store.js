@@ -17,6 +17,12 @@ const [focusedChange, setFocusedChangeSignal] = createSignal(null);
 const [showAdded, setShowAdded] = createSignal(true);
 const [showRemoved, setShowRemoved] = createSignal(true);
 const [showModified, setShowModified] = createSignal(true);
+// Bumped as a counter to request a "fit page to viewport" recalculation. The
+// view watches this signal and, on change, re-fits the zoom to the current
+// container size. Carries the desired kind: 'fit' (fill the pane) or 'reset'
+// (jump to exactly 100%). We use {kind,seq} so two consecutive identical
+// requests still trigger the effect.
+const [fitRequest, setFitRequest] = createSignal({ kind: null, seq: 0 });
 
 export {
   active as compareActive,
@@ -35,7 +41,18 @@ export {
   setShowAdded as setCompareShowAdded,
   setShowRemoved as setCompareShowRemoved,
   setShowModified as setCompareShowModified,
+  fitRequest as compareFitRequest,
 };
+
+// Request the view to fit the page(s) to the available space.
+export function requestCompareFit() {
+  setFitRequest((r) => ({ kind: 'fit', seq: r.seq + 1 }));
+}
+
+// Request the view to reset zoom to exactly 100%.
+export function requestCompareReset() {
+  setFitRequest((r) => ({ kind: 'reset', seq: r.seq + 1 }));
+}
 
 export function setChanges(list) {
   setChangesSignal(Array.isArray(list) ? list : []);
