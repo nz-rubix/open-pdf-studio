@@ -344,7 +344,8 @@
     "h": "H:"
   },
   "common": {
-    "comingSoon": "Coming soon"
+    "comingSoon": "Coming soon",
+    "more": "More"
   },
   "drawing": {
     "selection": "Selection",
