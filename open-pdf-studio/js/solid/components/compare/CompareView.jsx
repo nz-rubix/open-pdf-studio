@@ -6,6 +6,8 @@ import {
   compareMode,
   compareOldPage,
   compareNewPage,
+  compareOldPageCount,
+  compareNewPageCount,
   compareOffset,
   compareZoom,
   compareChanges,
@@ -26,6 +28,8 @@ import {
   exitCompare,
   nextPagePair,
   prevPagePair,
+  canNextPagePair,
+  canPrevPagePair,
   setCompareZoom,
   setCompareOffset,
   requestCompareFit,
@@ -572,9 +576,9 @@ export default function CompareView() {
           <strong>{t('compare.title') || 'Compare PDFs'}</strong>
           <span>·</span>
           <span>{compareMode() === 'overlay' ? (t('compare.overlay') || 'Overlay') : (t('compare.sideBySide') || 'Side-by-side')}</span>
-          <span style="margin-left:12px;">{t('compare.page') || 'Page'}: {compareOldPage()} / {compareNewPage()}</span>
-          <button class="pref-btn pref-btn-secondary" onClick={prevPagePair}>{'<'}</button>
-          <button class="pref-btn pref-btn-secondary" onClick={nextPagePair}>{'>'}</button>
+          <span style="margin-left:12px;">{t('compare.page') || 'Page'}: {compareOldPage()}/{compareOldPageCount()} · {compareNewPage()}/{compareNewPageCount()}</span>
+          <button class="pref-btn pref-btn-secondary" disabled={!canPrevPagePair()} onClick={prevPagePair}>{'<'}</button>
+          <button class="pref-btn pref-btn-secondary" disabled={!canNextPagePair()} onClick={nextPagePair}>{'>'}</button>
           <span style="margin-left:12px;">Zoom:</span>
           <button class="pref-btn pref-btn-secondary" onClick={() => zoomButton(1 / 1.2)}>-</button>
           <span style="min-width:40px; text-align:center;">{Math.round(compareZoom() * 100)}%</span>

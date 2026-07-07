@@ -3,6 +3,7 @@
 // Reactive via solid-js signals so UI re-renders when fields change.
 
 import { createSignal } from 'solid-js';
+import { state } from '../core/state.js';
 
 const [active, setActive] = createSignal(false);
 const [oldPath, setOldPath] = createSignal(null);
@@ -10,6 +11,13 @@ const [newPath, setNewPath] = createSignal(null);
 const [mode, setMode] = createSignal('overlay'); // 'overlay' | 'side'
 const [oldPage, setOldPage] = createSignal(1);
 const [newPage, setNewPage] = createSignal(1);
+// Aantal pagina's per document, zodat pagina-navigatie binnen de grenzen
+// blijft. Zonder deze grens liep nextPagePair ongelimiteerd door: de render
+// klemt intern naar de laatste pagina, dus je bleef "vooruit" klikken terwijl
+// dezelfde laatste pagina zichtbaar bleef en de teller doorliep. Documenten
+// mogen verschillende paginaaantallen hebben — elk kent zijn eigen maximum.
+const [oldPageCount, setOldPageCount] = createSignal(1);
+const [newPageCount, setNewPageCount] = createSignal(1);
 const [offset, setOffset] = createSignal({ dx: 0, dy: 0, rotation: 0 });
 const [zoom, setZoom] = createSignal(1);
 const [changes, setChangesSignal] = createSignal([]);
@@ -38,6 +46,8 @@ export {
   mode as compareMode,
   oldPage as compareOldPage,
   newPage as compareNewPage,
+  oldPageCount as compareOldPageCount,
+  newPageCount as compareNewPageCount,
   offset as compareOffset,
   zoom as compareZoom,
   changes as compareChanges,
@@ -80,12 +90,25 @@ export function setFocusedChange(change) {
   setFocusedChangeSignal(change || null);
 }
 
+// Zoek het paginaaantal van een geopend document op via het pdf.js-doc dat de
+// hoofd-viewer al geladen heeft. Valt terug op 1 als het onbekend is.
+function _pageCountFor(filePath) {
+  const doc = (state.documents || []).find(d => d && d.filePath === filePath);
+  return doc?.pdfDoc?.numPages || doc?.pageCount || 1;
+}
+
 export function startCompare({ oldFilePath, newFilePath, mode: m, oldPage: op = 1, newPage: np = 1 }) {
   setOldPath(oldFilePath);
   setNewPath(newFilePath);
   setMode(m || 'overlay');
-  setOldPage(op);
-  setNewPage(np);
+  const oc = Math.max(1, _pageCountFor(oldFilePath));
+  const nc = Math.max(1, _pageCountFor(newFilePath));
+  setOldPageCount(oc);
+  setNewPageCount(nc);
+  // Klem de start-pagina's binnen hun document zodat we nooit op een
+  // niet-bestaande pagina beginnen.
+  setOldPage(Math.max(1, Math.min(oc, op)));
+  setNewPage(Math.max(1, Math.min(nc, np)));
   setOffset({ dx: 0, dy: 0, rotation: 0 });
   setZoom(1);
   setFocusedChangeSignal(null); // clean slate — no change selected yet
@@ -104,19 +127,33 @@ export function setCompareMode(m) {
   setMode(m);
 }
 
+// Kan het pagina-paar nog vooruit/achteruit? Waar als ten minste één document
+// nog een volgende/vorige pagina heeft. Gebruikt om de knoppen te dimmen.
+export function canNextPagePair() {
+  return oldPage() < oldPageCount() || newPage() < newPageCount();
+}
+export function canPrevPagePair() {
+  return oldPage() > 1 || newPage() > 1;
+}
+
 export function nextPagePair() {
-  setOldPage(p => p + 1);
-  setNewPage(p => p + 1);
+  // Elk document stapt op tot zijn eigen laatste pagina. Zo blijf je bij
+  // ongelijke paginaaantallen vloeiend doorlopen: het kortere document blijft
+  // op zijn laatste pagina staan terwijl het langere verder gaat.
+  if (!canNextPagePair()) return;
+  setOldPage(p => Math.min(oldPageCount(), p + 1));
+  setNewPage(p => Math.min(newPageCount(), p + 1));
 }
 
 export function prevPagePair() {
+  if (!canPrevPagePair()) return;
   setOldPage(p => Math.max(1, p - 1));
   setNewPage(p => Math.max(1, p - 1));
 }
 
 export function setPagePair(op, np) {
-  if (op != null) setOldPage(op);
-  if (np != null) setNewPage(np);
+  if (op != null) setOldPage(Math.max(1, Math.min(oldPageCount(), op)));
+  if (np != null) setNewPage(Math.max(1, Math.min(newPageCount(), np)));
 }
 
 export function setCompareZoom(z) {
