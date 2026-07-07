@@ -106,7 +106,15 @@ export async function invokeTileRegion(args) {
       console.log(`[prog] scene-fallback p${args.pageIndex + 1}: ${String(e).slice(0, 140)}`);
     }
   }
-  const res = await invoke('render_pdf_page_region', { ...args, spread: false });
+  // Tegels SPREIDEN over de pool (parallel). Het pinnen-op-één-worker was
+  // bedoeld voor extreme bladen waar een koude worker seconden aan
+  // content-stream moet parsen — MAAR die (MV-03-klasse, content > 6 MB) gaan
+  // hierboven al naar de scene-engine. Dit PDFium-tegelpad wordt dus alleen
+  // geraakt door gematigde bladen (content 1-6 MB, bv. NKD1a) waar het openen
+  // van de pagina goedkoop is (~0,2 s) en de rendertijd per tegel domineert;
+  // daar wint parallelisme over 4 workers ruim van serieel pinnen (gemeten
+  // NKD1a p2: ~6 s serieel -> ~1,5 s gespreid).
+  const res = await invoke('render_pdf_page_region', { ...args, spread: true });
   try {
     const { reportActiveEngine } = await import('../solid/stores/engineStatusStore.js');
     reportActiveEngine('pdfium', args.path, args.pageIndex + 1);
@@ -388,12 +396,12 @@ export async function ensureProgressiveBitmapForCurrentView() {
     }
   };
 
-  // De tegels gaan GEPIND naar één worker (die draagt als enige de dure
-  // parse-state; zie routing.rs) en worden daar geserialiseerd door de
-  // per-worker request-lock. CONC=2 houdt de pijplijn gevuld (er staat
-  // altijd een volgende tegel klaar) zonder dat een gen-wissel veel al
-  // ingediende — en dus niet meer te annuleren — stale tegels achterlaat.
-  const CONC = 2; // zie routing: gepind → serieel op de warme worker
+  // De tegels worden GESPREID over de pool (zie invokeTileRegion: spread=true),
+  // dus CONC bepaalt hoeveel workers tegelijk werken. CONC=4 = alle vier de
+  // workers parallel op één blad; dat brengt een NKD1a-blad van ~6 s (serieel)
+  // naar ~1,5 s. Hoger dan het aantal workers heeft geen zin en laat bij een
+  // gen-wissel (paginawissel) meer niet-annuleerbare stale tegels achter.
+  const CONC = 4;
   let idx = 0;
   const workers = Array.from({ length: CONC }, async () => {
     while (idx < tiles.length && myGen === _progGen && !failed) {
