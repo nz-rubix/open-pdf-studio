@@ -13,7 +13,10 @@
 //! (js/pdf/vector-renderer.js): pad-punten worden met de CTM van het moment
 //! van toevoegen naar device-ruimte gebracht; stroke-breedte en dash-pattern
 //! schalen met de CTM op het stroke-moment; basis-CTM = scale(s) · Y-flip ·
-//! translate(-x0, +y0) (MediaBox-origin, zie vector-renderer.js).
+//! translate(-x0, -y0) (MediaBox-origin, zie build()). Beide assen trekken
+//! hun MediaBox-origin AF; een niet-nul origin (gecentreerde CAD-bladen) zou
+//! anders de hele pagina uit beeld schuiven. NB: de JS-replayer aan de
+//! app-kant heeft dezelfde origin-correctie nodig (valt buiten deze crate).
 //!
 //! Tegel-offsets zijn GEHELE pixels, dus de geometrie per pixel is identiek
 //! aan de volledige render — anti-aliasing is translatie-invariant en de
@@ -258,9 +261,17 @@ impl TileScene {
         let w = f32::from_le_bytes(buffer[8..12].try_into().unwrap());
         let h = f32::from_le_bytes(buffer[12..16].try_into().unwrap());
 
-        // Zelfde basis als de JS-replayer: Y-flip dan translate(-x0, +y0).
+        // Origin-verschuiving: schuif de MediaBox-oorsprong (x0, y0) naar (0, 0)
+        // en flip de Y-as (PDF omhoog -> device omlaag). Voor een punt (x, y):
+        //   device_x = x - x0
+        //   device_y = (y0 + h) - y
+        // Beide assen trekken hun origin AF: translate(-x0, -y0), daarna de flip.
+        // Eerder stond hier translate(-x0, +y0); bij een niet-nul MediaBox-
+        // origin (o.a. gecentreerde CAD-bladen met y0 = -h/2) verschoof dat de
+        // hele pagina 2*|y0| in device-Y buiten het canvas, waardoor het blad
+        // (vrijwel) leeg raste. De X-as gebruikte al correct -x0.
         // post_concat: eerst translate-matrix, dan flip erover heen.
-        let base = Transform::from_translate(-x0, y0).post_concat(Transform::from_row(
+        let base = Transform::from_translate(-x0, -y0).post_concat(Transform::from_row(
             1.0, 0.0, 0.0, -1.0, 0.0, h,
         ));
 
