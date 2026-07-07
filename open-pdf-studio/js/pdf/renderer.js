@@ -983,6 +983,10 @@ export async function reRenderVisibleContinuousPages() {
     if (extraRotation) vpOpts.rotation = (page.rotate + extraRotation) % 360;
     const viewport = page.getViewport(vpOpts);
 
+    // Keep the scale-1 base dims fresh so instant zoom can resize synchronously.
+    wrapper.dataset.baseW = viewport.width / scale;
+    wrapper.dataset.baseH = viewport.height / scale;
+
     const cc = wrapper.querySelector('.canvas-container-cont');
     if (cc) {
       cc.style.width = `${viewport.width}px`;
@@ -1002,42 +1006,68 @@ export async function reRenderVisibleContinuousPages() {
 
 // ─── Continuous mode: zoom + scroll/page sync ───────────────────────────────
 
-// Zoom WITHOUT the full DOM rebuild: wrappers get their new size
-// (reRenderVisibleContinuousPages), existing canvases stay up as CSS-stretched
-// placeholders, and the scroll position is recomputed so the anchor point
-// (cursor or viewport center) keeps pointing at the same content. The old
-// renderContinuous()-per-zoom-step approach flashed white AND reset the
-// scroll position — the two reasons zooming in continuous mode was unusable.
-async function _continuousRezoom(oldScale, anchorY = null) {
+// Instant zoom: resize every page's container + its rendered canvases straight
+// to the new scale and re-anchor the scroll in the SAME synchronous frame, so
+// the page tracks the wheel/button immediately. The crisp Rust re-render is
+// debounced (see continuousZoomBy) and swaps in once the gesture settles. The
+// old approach awaited a full re-render BEFORE moving the scroll, which made
+// the page lurch and lag a notch behind the wheel (schokkerig + vertraging).
+function _applyContinuousZoomInstant(oldScale, anchorY = null) {
   const doc = getActiveDocument();
   const container = document.getElementById('pdf-container');
-  if (!doc || !container || !oldScale) return;
-  const factor = doc.scale / oldScale;
+  const cont = document.getElementById('continuous-container');
+  if (!doc || !container || !cont || !oldScale) return;
+  const newScale = doc.scale;
+  const factor = newScale / oldScale;
   const anchor = anchorY != null ? anchorY : container.clientHeight / 2;
   const target = (container.scrollTop + anchor) * factor - anchor;
-  await reRenderVisibleContinuousPages();
+  cont.querySelectorAll('.page-wrapper').forEach(wrapper => {
+    const cc = wrapper.querySelector('.canvas-container-cont');
+    if (!cc) return;
+    const baseW = parseFloat(wrapper.dataset.baseW);
+    const baseH = parseFloat(wrapper.dataset.baseH);
+    // Exact size from scale-1 base (no drift); fall back to scaling the current
+    // box if base dims are somehow missing.
+    const w = (baseW && baseH) ? baseW * newScale : (parseFloat(cc.style.width) || cc.offsetWidth) * factor;
+    const h = (baseW && baseH) ? baseH * newScale : (parseFloat(cc.style.height) || cc.offsetHeight) * factor;
+    cc.style.width = `${w}px`;
+    cc.style.height = `${h}px`;
+    // Stretch the already-rendered bitmap(s) to the new box immediately; the
+    // debounced re-render replaces them with a crisp render at the new scale.
+    cc.querySelectorAll('canvas').forEach(cv => {
+      cv.style.width = `${w}px`;
+      cv.style.height = `${h}px`;
+    });
+  });
   container.scrollTop = Math.max(0, target);
 }
 
-// One zoom step (same step curve as zoomIn/zoomOut) anchored at anchorY
-// (px within #pdf-container). Used by the zoom buttons and ctrl+wheel.
-export async function continuousZoomStep(direction, anchorY = null) {
+let _contRerenderTimer = null;
+
+// Core continuous zoom: multiply scale by `factor`, apply the instant visual
+// zoom, then debounce the crisp re-render. Anchored at anchorY (px within
+// #pdf-container) so content under the cursor stays put.
+export function continuousZoomBy(factor, anchorY = null) {
   const doc = getActiveDocument();
-  if (!doc || doc.viewMode !== 'continuous') return;
+  if (!doc || doc.viewMode !== 'continuous' || !factor) return;
   const old = doc.scale;
-  let next;
-  if (direction > 0) {
-    next = Math.min(24, old + 0.25);
-  } else if (old <= 0.2) {
-    next = Math.max(0.05, old - 0.025);
-  } else if (old <= 0.5) {
-    next = Math.max(0.05, old - 0.1);
-  } else {
-    next = old - 0.25;
-  }
+  let next = Math.min(24, Math.max(0.05, old * factor));
+  next = Math.round(next * 1000) / 1000;
   if (next === old) return;
   doc.scale = next;
-  await _continuousRezoom(old, anchorY);
+  _applyContinuousZoomInstant(old, anchorY);
+  updateAllStatus(); // zoom % tracks the gesture immediately
+  if (_contRerenderTimer) clearTimeout(_contRerenderTimer);
+  _contRerenderTimer = setTimeout(() => {
+    _contRerenderTimer = null;
+    if (getActiveDocument()?.viewMode !== 'continuous') return;
+    reRenderVisibleContinuousPages();
+  }, 130);
+}
+
+// One discrete zoom step (zoom buttons / keyboard) anchored at anchorY.
+export function continuousZoomStep(direction, anchorY = null) {
+  continuousZoomBy(direction > 0 ? 1.25 : 0.8, anchorY);
 }
 
 // While the user scrolls freely, the page whose center sits closest to the
@@ -1136,11 +1166,10 @@ export async function renderContinuous(forceRebuild) {
     const pageWrapper = document.createElement('div');
     pageWrapper.className = 'page-wrapper';
     pageWrapper.dataset.page = pageNum;
-
-    const pageLabel = document.createElement('div');
-    pageLabel.className = 'page-number-label';
-    pageLabel.textContent = `Page ${pageNum}`;
-    pageWrapper.appendChild(pageLabel);
+    // Scale-1 base dims so instant zoom can resize synchronously without a
+    // per-step getPage() round-trip — see _applyContinuousZoomInstant.
+    pageWrapper.dataset.baseW = viewport.width / scale;
+    pageWrapper.dataset.baseH = viewport.height / scale;
 
     // Placeholder container with correct dimensions
     const canvasContainer = document.createElement('div');

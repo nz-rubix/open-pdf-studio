@@ -61,8 +61,14 @@ export function setupWheelZoom() {
             const anchorY = container
               ? e.clientY - container.getBoundingClientRect().top
               : null;
+            // Proportional zoom: scale tracks the wheel delta directly so the
+            // page follows the cursor immediately instead of jumping a fixed
+            // chunk per notch. Clamp per event so a high-res wheel can't
+            // slingshot through several zoom levels at once.
+            let zf = Math.pow(1.0012, -contDy);
+            zf = Math.max(0.5, Math.min(2.0, zf));
             const m = await import('../../pdf/renderer.js');
-            await m.continuousZoomStep(contDy < 0 ? +1 : -1, anchorY);
+            m.continuousZoomBy(zf, anchorY);
           }
           return;
         }
