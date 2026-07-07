@@ -17,15 +17,15 @@
 
 ---
 
-Open PDF Studio is a lightweight, native desktop application that provides professional-grade PDF annotation, markup, and editing tools without subscriptions, telemetry, or bloatware. Built with [Tauri 2](https://tauri.app/) and web technologies, it delivers a fast, modern experience with a Microsoft Office-style ribbon interface.
+Open PDF Studio is a lightweight, native desktop application that provides professional-grade PDF annotation, markup, and editing tools without subscriptions, telemetry, or bloatware. Built with [Tauri 2](https://tauri.app/) and web technologies, it delivers a fast, modern experience with a familiar ribbon-style interface.
 
 <p align="center">
-  <img src="docs/screenshots/main-view.jpg" alt="Open PDF Studio - Main View" width="100%">
+  <img src="docs/screenshots/pdf-compare.jpg" alt="Open PDF Studio – side-by-side PDF compare with change list" width="100%">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/comment-tools.jpg" alt="Annotation & Comment Tools" width="49%">
-  <img src="docs/screenshots/print-dialog.jpg" alt="Print Dialog with Preview" width="49%">
+  <img src="docs/screenshots/drawing-tools.jpg" alt="CAD-style drawing, measurement & markup tools" width="49%">
+  <img src="docs/screenshots/annotation-tools.jpg" alt="Annotation, stamps & redaction tools" width="49%">
 </p>
 
 ## Why Open PDF Studio?
