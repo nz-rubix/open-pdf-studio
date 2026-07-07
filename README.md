@@ -17,15 +17,24 @@
 
 ---
 
-Open PDF Studio is a lightweight, native desktop application that provides professional-grade PDF annotation, markup, and editing tools without subscriptions, telemetry, or bloatware. Built with [Tauri 2](https://tauri.app/) and web technologies, it delivers a fast, modern experience with a familiar ribbon-style interface.
+Open PDF Studio is a lightweight, native desktop application that provides professional-grade PDF annotation, markup, and editing tools without subscriptions, telemetry, or bloatware. Built with [Tauri 2](https://tauri.app/) and web technologies, it delivers a fast, modern experience with a Microsoft Office-style ribbon interface.
 
 <p align="center">
   <img src="docs/screenshots/pdf-compare.jpg" alt="Open PDF Studio – side-by-side PDF compare with change list" width="100%">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/drawing-tools.jpg" alt="CAD-style drawing, measurement & markup tools" width="49%">
-  <img src="docs/screenshots/annotation-tools.jpg" alt="Annotation, stamps & redaction tools" width="49%">
+  <img src="docs/screenshots/drawing-tools.jpg" alt="CAD-style drawing, measurement, and markup tools on an architectural elevation" width="100%">
+</p>
+
+## Repository activity
+
+Latest Star History overview showing the ongoing growth of this active open-source project.
+
+<p align="center">
+  <a href="https://www.star-history.com/?repos=OpenAEC-Foundation%2Fopen-pdf-studio&type=date&legend=top-left">
+    <img src="https://api.star-history.com/svg?repos=OpenAEC-Foundation%2Fopen-pdf-studio&type=date&legend=top-left" alt="Star History Chart" width="100%">
+  </a>
 </p>
 
 ## Why Open PDF Studio?
@@ -64,6 +73,28 @@ Professional annotation, markup, measurement, redaction and page management — 
 - Draggable dimension text and endpoints with live recalculation
 - Object snapping to endpoints, midpoints, centers, and edges
 - Angle snapping with configurable increments
+
+### PDF Compare
+- Compare two PDF revisions in a dedicated compare tab, without leaving your workspace
+- Side-by-side and overlay view modes with synchronized scrolling, panning, and zoom
+- Automatic change detection classifies differences as added, removed, or modified
+- Filterable change list with counts; click a change to jump straight to it
+- Manual alignment offset (dx, dy, rotation) to line up drawings that shifted between revisions
+- Page-pair navigation for multi-page documents
+
+### Symbol Palettes
+- Drag-and-drop symbol libraries onto the page for repetitive markup
+- Built-in libraries plus NEN 1414 and Dutch (NL) category sets
+- Searchable, collapsible categories; enable or disable groups per project
+- Create custom symbol groups saved with your preferences
+- Dockable to either side of the canvas or floated freely
+
+### Quantities & Object Counting
+- Count tool with named tally categories for on-drawing object counting (takeoff)
+- Live quantities schedule that aggregates counts, lengths, and areas
+- Grouping, sorting, filtering, subtotals, and grand totals
+- Configurable columns, formatting, and table appearance
+- Place the generated schedule back onto the page as a table
 
 ### Screenshot
 - Capture full page or a selected region as an image
@@ -165,8 +196,9 @@ Thumbnails, Bookmarks, Annotations, Attachments, Digital Signatures, Layers, For
 - Document properties dialog
 - File locking to prevent external writes
 
-### Ribbon Interface (7 Tabs)
-Home, Comment, View, Organize, Arrange, Format, Help
+### Ribbon Interface
+- Primary tabs: Home, Comment, Drawing, View, Organize, Help
+- Contextual tabs: Format and Arrange appear automatically when annotations are selected
 
 ### Customization
 - **5 themes:** Dark, Light, Blue, High Contrast, System (auto-detect)
