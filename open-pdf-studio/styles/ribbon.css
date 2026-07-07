@@ -229,7 +229,14 @@
   border: 1px solid transparent;
   border-radius: 2px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  /* Only animate the hover visuals. Must NOT be `all`: the adaptive ribbon
+     toggles `.ribbon-groups-icon-only`, which changes button width/min-width/
+     padding. Transitioning those made offsetWidth report the mid-animation
+     (still-wide) value during the first measure, so groups were wrongly pushed
+     into the overflow flyout on a window that was actually wide enough — and
+     because the container width never changed afterwards, that miscount stuck.
+     Animating only colour/border keeps width changes instant and measurable. */
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   min-width: 44px;
   gap: 1px;
   height: 66px;
@@ -1102,8 +1109,13 @@
 /* Groups must keep their NATURAL width — never shrink. Without this a narrow
    window squashes the groups (buttons overlapping) BEFORE AdaptiveGroups'
    width measurement can collapse them into the More-flyout: the measurement
-   then sees the squashed widths and concludes everything still fits. */
-.ribbon-groups-adaptive > .ribbon-group { flex: 0 0 auto; }
+   then sees the squashed widths and concludes everything still fits.
+   NB: the groups are wrapped in an inline host (`.ribbon-groups-inline`,
+   `display:contents`), so they are flex items of this container but NOT its
+   direct DOM children — a `>` child combinator would MISS them and let them
+   shrink. Use a descendant selector so the no-shrink rule actually lands on
+   every group (and on the directly-placed overflow button). */
+.ribbon-groups-adaptive .ribbon-group { flex: 0 0 auto; }
 .ribbon-group-overflow { min-width: 60px; position: relative; }
 .ribbon-group-overflow .ribbon-group-content { justify-content: center; }
 .ribbon-overflow-btn {
@@ -1130,10 +1142,14 @@
 .ribbon-overflow-btn-label { font-size: 11px; line-height: 1.1; }
 .ribbon-overflow-btn-chevron { display: flex; align-items: center; justify-content: center; height: 6px; }
 
+/* The flyout is positioned with `fixed` (viewport-relative) and its top/left
+   are set from JS to sit just under the overflow ("More") button. `fixed` is
+   required because the adaptive container above it uses `overflow:hidden`
+   (needed to clip horizontally collapsing groups): an absolutely-positioned
+   flyout would be clipped by that ancestor and become invisible. `fixed`
+   escapes the clip. JS keeps top/left in sync while the flyout is open. */
 .ribbon-overflow-flyout {
-  position: absolute;
-  top: 100%;
-  right: 0;
+  position: fixed;
   z-index: 1000;
   background: var(--theme-ribbon-content-bg, #fff);
   border: 1px solid var(--theme-ribbon-group-border, #d4d4d4);

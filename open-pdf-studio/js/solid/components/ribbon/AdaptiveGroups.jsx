@@ -6,8 +6,7 @@ import { useTranslation } from '../../../i18n/useTranslation.js';
  *
  * Wraps the list of <RibbonGroup> children for a ribbon tab and adaptively
  * collapses the rightmost groups into a single "More" overflow button when
- * the available horizontal space is insufficient. Mirrors Microsoft Office
- * ribbon behavior (Option A: single overflow flyout).
+ * the available horizontal space is insufficient (single overflow flyout).
  *
  * Implementation:
  * - Children are mounted normally inside the inline container.
@@ -35,8 +34,38 @@ export default function AdaptiveGroups(props) {
   let containerRef;
   let inlineHostRef;   // holds the children inline
   let flyoutHostRef;   // holds the overflowed children when flyout is open
+  let flyoutRef;       // the fixed-position flyout panel itself
   let overflowBtnRef;
   let rafId = 0;
+
+  // The flyout uses position:fixed so it escapes the adaptive container's
+  // `overflow:hidden` (which is required to clip horizontally collapsing
+  // groups — an absolutely-positioned flyout would be clipped and invisible).
+  // Because fixed is viewport-relative, we compute its top/left from the
+  // overflow button's rect and keep the flyout's right edge aligned with the
+  // button, clamped inside the viewport.
+  const positionFlyout = () => {
+    if (!flyoutRef || !overflowBtnRef) return;
+    const btn = overflowBtnRef.getBoundingClientRect();
+    // Reset any previous width clamp so we can read the natural width.
+    flyoutRef.style.left = '0px';
+    flyoutRef.style.top = '-9999px';
+    const fw = flyoutRef.offsetWidth;
+    const margin = 4;
+    // Right-align the flyout with the button's right edge.
+    let left = Math.round(btn.right - fw);
+    // Clamp inside the viewport (keep a small margin on both sides).
+    const maxLeft = window.innerWidth - fw - margin;
+    if (left > maxLeft) left = maxLeft;
+    if (left < margin) left = margin;
+    flyoutRef.style.left = left + 'px';
+    flyoutRef.style.top = Math.round(btn.bottom) + 'px';
+  };
+
+  const schedulePosition = () => {
+    if (!open()) return;
+    requestAnimationFrame(positionFlyout);
+  };
 
   // Resolve children once so we get a stable list of DOM nodes (groups)
   const resolved = resolveChildren(() => props.children);
@@ -92,7 +121,7 @@ export default function AdaptiveGroups(props) {
     for (const n of nodes) total += n.offsetWidth;
 
     // If the labelled groups don't all fit, drop to icon-only first and
-    // re-measure the (smaller) widths — Office-style "shrink, then collapse".
+    // re-measure the (smaller) widths — "shrink, then collapse".
     let useIconOnly = false;
     if (total > containerW) {
       containerRef.classList.add('ribbon-groups-icon-only');
@@ -146,22 +175,43 @@ export default function AdaptiveGroups(props) {
     if (inlineHostRef) mo.observe(inlineHostRef, { childList: true });
     document.addEventListener('mousedown', onDocClick, true);
     document.addEventListener('keydown', onKey, true);
-    // initial measure (after children mounted)
+    // Keep the fixed-position flyout under the button when the layout shifts.
+    window.addEventListener('resize', schedulePosition, true);
+    window.addEventListener('scroll', schedulePosition, true);
+    // Initial measure (after children mounted). The very first measure can run
+    // before the layout has fully settled — before the UI font is applied and
+    // before the icon-only widths have reflowed — which yields inflated group
+    // widths and can wrongly push groups into the overflow flyout. Because the
+    // container width does not change afterwards, the ResizeObserver never
+    // re-fires, so that premature result would stick. Re-measure once the DOM
+    // has painted (double rAF) and again once web fonts are ready, so any
+    // early miscount self-corrects.
+    let disposed = false;
     queueMicrotask(measure);
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (!disposed) measure(); }));
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => { if (!disposed) measure(); });
+    }
     onCleanup(() => {
+      disposed = true;
       ro.disconnect();
       mo.disconnect();
       document.removeEventListener('mousedown', onDocClick, true);
       document.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('resize', schedulePosition, true);
+      window.removeEventListener('scroll', schedulePosition, true);
       if (rafId) cancelAnimationFrame(rafId);
     });
   });
 
-  // Whenever open() / overflowStart() change, sync DOM placement.
+  // Whenever open() / overflowStart() change, sync DOM placement and (if the
+  // flyout is open) reposition it — its width depends on the groups that were
+  // just moved in, so position after the DOM settles.
   createEffect(() => {
     open();
     overflowStart();
     syncDom();
+    schedulePosition();
   });
 
   return (
@@ -193,7 +243,7 @@ export default function AdaptiveGroups(props) {
           </div>
           <div class="ribbon-group-label">{moreLabel()}</div>
           <Show when={open()}>
-            <div class="ribbon-overflow-flyout">
+            <div class="ribbon-overflow-flyout" ref={flyoutRef}>
               <div class="ribbon-overflow-flyout-inner" ref={flyoutHostRef}></div>
             </div>
           </Show>

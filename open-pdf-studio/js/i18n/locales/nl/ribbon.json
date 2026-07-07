@@ -344,7 +344,8 @@
     "h": "H:"
   },
   "common": {
-    "comingSoon": "Binnenkort beschikbaar"
+    "comingSoon": "Binnenkort beschikbaar",
+    "more": "Meer"
   },
   "drawing": {
     "selection": "Selectie",
