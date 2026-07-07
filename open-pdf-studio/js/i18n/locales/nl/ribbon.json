@@ -156,9 +156,9 @@
     "pageDisplay": "Paginaweergave",
     "singlePage": "Enkele pagina",
     "single": "Enkel",
-    "continuousTitle": "Doorlopend (binnenkort beschikbaar)",
+    "continuousTitle": "Doorlopend — alle pagina’s onder elkaar, vrij scrollen",
     "continuous": "Doorlopend",
-    "bookTitle": "Boekweergave (twee pagina’s naast elkaar, pagina 1 rechts) — binnenkort beschikbaar",
+    "bookTitle": "Boekweergave — twee pagina’s naast elkaar, pagina 1 rechts",
     "book": "Boek",
     "panels": "Panelen",
     "navigationPanel": "Navigatiepaneel (F9)",
@@ -202,7 +202,9 @@
     "added": "Toegevoegd",
     "removed": "Verwijderd",
     "modified": "Gewijzigd",
-    "noChanges": "Geen wijzigingen"
+    "noChanges": "Geen wijzigingen",
+    "fit": "Passend",
+    "reset": "100%"
   },
   "organize": {
     "pages": "Pagina's",

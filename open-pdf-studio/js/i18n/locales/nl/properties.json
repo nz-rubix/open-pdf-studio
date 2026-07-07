@@ -42,6 +42,8 @@
     "color": "Kleur",
     "opacity": "Dekking",
     "borderStyle": "Border Style",
+    "lineContinue": "Doorgaan (aaneengesloten lijnen)",
+    "lineContinueHint": "Na elke lijn begint de volgende op het vorige eindpunt. Esc of rechtsklik stopt de reeks.",
     "lineWidth": "Lijnbreedte",
     "borderWidth": "Randbreedte",
     "hatchPattern": "Hatch Pattern",

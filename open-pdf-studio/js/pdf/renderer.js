@@ -1231,6 +1231,7 @@ export async function setViewMode(mode) {
   }
   const singleContainer = document.getElementById('canvas-container');
   const continuousContainer = document.getElementById('continuous-container');
+  const pdfContainer = document.getElementById('pdf-container');
 
   if (doc.viewMode === 'single') {
     singleContainer.style.display = 'inline-block';
@@ -1239,6 +1240,15 @@ export async function setViewMode(mode) {
   } else {
     singleContainer.style.display = 'none';
     continuousContainer.style.display = doc.bookSpread ? 'grid' : 'flex';
+    // CRUCIAAL: single-/rasterweergave zet #pdf-container inline op
+    // `overflow:hidden` (het viewport-singleton bezit dan de pan/zoom).
+    // Doorlopende/boekweergave scrollt juist NATIEF via deze container
+    // (scrollTop/scrollIntoView/_continuousRezoom). Zonder deze reset blijft
+    // de inline `hidden` staan na één single-render en kan de gebruiker niet
+    // meer scrollen — alleen de eerste pagina('s) zijn zichtbaar. Terug naar
+    // '' laat de CSS-regel (.main-view > #pdf-container.visible { overflow:auto })
+    // het weer overnemen.
+    if (pdfContainer) pdfContainer.style.overflow = '';
     await renderContinuous();
     // Stay on the page the user was reading — the rebuild starts at page 1.
     const wrapper = continuousContainer.querySelector(`.page-wrapper[data-page="${doc.currentPage}"]`);

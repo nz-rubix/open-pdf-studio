@@ -83,6 +83,12 @@ export const DEFAULT_PREFERENCES: Preferences = {
   // Esc returns to select.
   keepToolActive: true,
 
+  // Line tool 'continue' mode: after placing a line, the next line starts at
+  // the previous line's endpoint (chained segments) until Esc/right-click.
+  // Off by default. Toggled by a checkbox on the line tool. Reuses the same
+  // chain mechanism as the wall tool.
+  lineContinue: false,
+
   // Appearance
   defaultAnnotationColor: '#FF0000',
   defaultLineWidth: 2,

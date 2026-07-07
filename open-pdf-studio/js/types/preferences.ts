@@ -34,6 +34,7 @@ export interface Preferences {
   objectSnapRadius: number;
   snapToPdfContent: boolean;
   keepToolActive: boolean;
+  lineContinue: boolean;
 
   // Appearance
   defaultAnnotationColor: string;
