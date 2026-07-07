@@ -150,6 +150,30 @@ function insertColumnBreaks(textItems, textDivs) {
 }
 
 /**
+ * Zorgt dat de tekstlaag een `.endOfContent`-div als laatste kind heeft.
+ * Deze div (user-select:none via CSS) wordt tijdens een sleep door
+ * text-selection.js op de start-Y geplaatst en geactiveerd, zodat een
+ * omgekeerde sleep (onder -> boven) de selectie niet naar verre tekst laat
+ * uitschieten. Zonder deze div werkt die mitigatie niet.
+ * @param {HTMLElement} textLayerDiv
+ */
+export function ensureEndOfContent(textLayerDiv) {
+  if (!textLayerDiv) return;
+  let end = textLayerDiv.querySelector('.endOfContent');
+  if (!end) {
+    end = document.createElement('div');
+    end.className = 'endOfContent';
+    // Neutraliseer de generieke tekst-transform/font-size die de
+    // .textLayer > :not(.markedContent)-regel ook op deze div zou toepassen,
+    // zodat de inset:100%-positionering (CSS) niet verschuift.
+    end.style.transform = 'none';
+    end.style.fontSize = '0';
+  }
+  // Altijd als laatste kind plaatsen (na alle spans).
+  textLayerDiv.appendChild(end);
+}
+
+/**
  * Creates a text layer for a PDF page using PDF.js built-in TextLayer
  * @param {Object} page - PDF.js page object
  * @param {Object} viewport - PDF.js viewport
@@ -241,6 +265,9 @@ export async function createTextLayer(page, viewport, container, pageNum) {
   const unscaledWidth = viewport.width / viewport.scale;
   const unscaledHeight = viewport.height / viewport.scale;
   injectSyntheticTextSpans(textLayerDiv, pageNum, unscaledWidth, unscaledHeight);
+
+  // endOfContent-marker als laatste kind (mitigatie omgekeerde sleep)
+  ensureEndOfContent(textLayerDiv);
 
   return textLayerDiv;
 }
@@ -530,6 +557,9 @@ export async function createTextLayerFromRust(container, pageNum, pageWidth, pag
       s.style.pointerEvents = needsTextAccess ? 'auto' : 'none';
       s.style.cursor = needsTextAccess ? 'text' : 'default';
     });
+
+    // endOfContent-marker als laatste kind (mitigatie omgekeerde sleep)
+    ensureEndOfContent(textLayerDiv);
 
     textLayers.set(pageNum, { element: textLayerDiv, textLayer: null });
     return true;
