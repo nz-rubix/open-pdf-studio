@@ -389,6 +389,11 @@
   border-color: var(--theme-ribbon-btn-hover-border);
 }
 
+.ribbon-row-btn.active {
+  background: var(--theme-ribbon-btn-active-bg);
+  border-color: var(--theme-ribbon-btn-active-border);
+}
+
 .ribbon-row-btn:disabled,
 .ribbon-style-item.disabled {
   opacity: 0.4;
@@ -629,6 +634,61 @@
 .ribbon-form-select:focus {
   border-color: #0066cc;
   outline: none;
+}
+
+/* Contextual "Afbeelding" tab — brightness/contrast slider rows */
+.ribbon-slider-grid {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 2px;
+}
+
+.ribbon-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+}
+
+.ribbon-slider-row label {
+  font-size: 11px;
+  color: var(--theme-ribbon-text);
+  white-space: nowrap;
+  min-width: 58px;
+}
+
+.ribbon-slider-icon {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+}
+
+.ribbon-slider-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.ribbon-slider {
+  width: 96px;
+  height: 4px;
+  margin: 0;
+  cursor: default;
+  accent-color: #0066cc;
+}
+
+.ribbon-slider:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.ribbon-slider-value {
+  font-size: 11px;
+  color: var(--theme-ribbon-text);
+  min-width: 34px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Ribbon split button (main action + dropdown arrow) */

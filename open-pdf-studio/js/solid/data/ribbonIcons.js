@@ -205,6 +205,23 @@ export const openPropertiesIcon = `<svg viewBox="0 0 16 16" fill="none"><rect x=
 
 export const hideAnnotationIcon = `<svg viewBox="0 0 16 16" fill="none"><path d="M2 8s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z" stroke="#555" stroke-width="1"/><circle cx="8" cy="8" r="2" stroke="#555" stroke-width="1"/><line x1="3" y1="13" x2="13" y2="3" stroke="#c00" stroke-width="1.2"/></svg>`;
 
+// --- Image tab (contextual "Afbeelding") ---
+
+// Crop: two overlapping L-brackets — the classic crop-tool glyph.
+export const cropIcon = `<svg viewBox="0 0 16 16" fill="none"><path d="M4 1v11h11" stroke="#555" stroke-width="1.3" stroke-linecap="round"/><path d="M1 4h11v11" stroke="#555" stroke-width="1.3" stroke-linecap="round"/></svg>`;
+
+// Grayscale: split circle, half filled.
+export const grayscaleIcon = `<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="#555" stroke-width="1.2"/><path d="M8 2a6 6 0 000 12z" fill="#555"/></svg>`;
+
+// Brightness: sun.
+export const brightnessIcon = `<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="#555" stroke-width="1.2"/><g stroke="#555" stroke-width="1.2" stroke-linecap="round"><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6L13 13M13 3l-1.4 1.4M4.4 11.6L3 13"/></g></svg>`;
+
+// Contrast: circle half-filled vertically.
+export const contrastIcon = `<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="#555" stroke-width="1.2"/><path d="M8 2v12a6 6 0 000-12z" fill="#555"/></svg>`;
+
+// Reset adjustments: circular arrow.
+export const resetAdjustIcon = `<svg viewBox="0 0 16 16" fill="none"><path d="M13 8a5 5 0 11-1.5-3.5" stroke="#555" stroke-width="1.3" fill="none"/><path d="M13 2v3h-3" stroke="#555" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+
 // --- Arrange tab: Alignment ---
 
 export const alignLeftIcon = `<svg viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="2" height="14" fill="#e6a817"/><rect x="4" y="3" width="8" height="3" fill="#e6a817" opacity="0.6"/><rect x="4" y="10" width="6" height="3" fill="#e6a817" opacity="0.6"/></svg>`;

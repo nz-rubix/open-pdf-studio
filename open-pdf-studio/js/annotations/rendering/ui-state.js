@@ -14,6 +14,21 @@ export function updateContextualTabs() {
   if (hasSelection) {
     syncFormatStore(_uiSel);
   }
+  // Contextual "Afbeelding" tab: visible only for a single image selection.
+  syncImageEditTab(_uiSel);
+}
+
+// Cache the imageEditStore module after first load so the per-redraw sync
+// doesn't pay a dynamic-import round-trip every frame.
+let _imageEditMod = null;
+function syncImageEditTab(sel) {
+  if (_imageEditMod) {
+    _imageEditMod.syncImageEditStore(sel);
+    return;
+  }
+  import('../../solid/stores/imageEditStore.js')
+    .then(m => { _imageEditMod = m; m.syncImageEditStore(sel); })
+    .catch(() => { /* store not ready yet */ });
 }
 
 // Compute grid spacing in app-pixel space, honoring measure-scale so the

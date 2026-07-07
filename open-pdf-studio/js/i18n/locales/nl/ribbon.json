@@ -9,7 +9,8 @@
     "help": "Help",
     "format": "Opmaak",
     "arrange": "Schikken",
-    "measure": "Meten"
+    "measure": "Meten",
+    "image": "Afbeelding"
   },
   "measure": {
     "scale": "SCHAAL",
@@ -427,5 +428,17 @@
     "default": "Standaard",
     "amberNavy": "Amber donker",
     "warmEmber": "Warme gloed"
+  },
+  "image": {
+    "cropGroup": "Bijsnijden",
+    "crop": "Croppen",
+    "cropHint": "Afbeelding aan alle kanten bijsnijden (klik nogmaals om te bevestigen)",
+    "adjustGroup": "Beeldbewerking",
+    "grayscale": "Grijswaarden",
+    "grayscaleHint": "Afbeelding in grijswaarden weergeven",
+    "brightness": "Helderheid",
+    "contrast": "Contrast",
+    "resetAdjust": "Herstellen",
+    "resetAdjustHint": "Grijswaarden, helderheid en contrast terugzetten"
   }
 }

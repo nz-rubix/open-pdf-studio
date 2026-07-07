@@ -8,7 +8,9 @@ import OrganizeTab from './OrganizeTab.jsx';
 import HelpTab from './HelpTab.jsx';
 import FormatTab from './FormatTab.jsx';
 import ArrangeTab from './ArrangeTab.jsx';
+import ImageTab from './ImageTab.jsx';
 import { activeTab, setActiveTab, contextualTabsVisible } from '../../stores/ribbonStore.js';
+import { imageSelected } from '../../stores/imageEditStore.js';
 import { openAppMenu } from '../../../ui/chrome/menus.js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
 
@@ -47,6 +49,14 @@ export default function Ribbon() {
             isActive={activeTab() === 'arrange'}
             onClick={() => setActiveTab('arrange')} />
         </Show>
+        <Show when={imageSelected()}>
+          <Show when={!contextualTabsVisible()}>
+            <span class="ribbon-tab-separator contextual-tabs visible" id="contextual-image-separator"></span>
+          </Show>
+          <RibbonTab label={t('tabs.image')} dataTab="image" isContextual={true} id="tab-image-btn"
+            isActive={activeTab() === 'image'}
+            onClick={() => setActiveTab('image')} />
+        </Show>
       </div>
 
       <Switch>
@@ -59,6 +69,7 @@ export default function Ribbon() {
         <Match when={activeTab() === 'help'}><HelpTab /></Match>
         <Match when={activeTab() === 'format'}><FormatTab /></Match>
         <Match when={activeTab() === 'arrange'}><ArrangeTab /></Match>
+        <Match when={activeTab() === 'image'}><ImageTab /></Match>
       </Switch>
     </>
   );

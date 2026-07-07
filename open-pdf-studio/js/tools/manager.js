@@ -63,6 +63,14 @@ function _setSelectFallthroughEnabled(enabled) {
     _selectFallthroughHandler = (e) => {
       // Bail out if select tool isn't active anymore
       if (state.currentTool !== 'select') return;
+      // Image-crop mode owns the annotation-canvas pointer events (its own
+      // overlay handlers drive the crop handles) — keep it interactive.
+      if (state.imageCropMode) {
+        const cropCanvas = document.getElementById('annotation-canvas') ||
+                           document.querySelector('.annotation-canvas');
+        if (cropCanvas && cropCanvas.style.pointerEvents !== 'auto') cropCanvas.style.pointerEvents = 'auto';
+        return;
+      }
       // Don't toggle while interacting — keep canvas interactive during drag/resize/rubber band
       if (state.isDragging || state.isResizing || state.isRubberBanding ||
           state.isPanning || state.isDrawing || state.isEditingText) return;

@@ -1203,6 +1203,18 @@ export async function savePDF(saveAsPath = null) {
               imgDictObj.OPS_CropBottom = cropB;
             }
 
+            // Word-style image adjustments (grayscale / brightness / contrast).
+            // These have no direct PDF operator, so — like the editable tint —
+            // the EMBEDDED bitmap stays pristine and the values round-trip via
+            // private OPS_ keys; the app re-applies them at render time (canvas
+            // filter). Baking into the bitmap would double-apply on reopen (the
+            // loader re-reads the embedded bitmap into ann.imageData), so we
+            // deliberately keep it unfiltered. Trade-off: third-party viewers
+            // show the unadjusted image — acceptable for V1.
+            if (ann.grayscale) imgDictObj.OPS_Grayscale = true;
+            if (ann.brightness !== undefined && ann.brightness !== 1) imgDictObj.OPS_Brightness = ann.brightness;
+            if (ann.contrast !== undefined && ann.contrast !== 1) imgDictObj.OPS_Contrast = ann.contrast;
+
             annotDict = context.obj(imgDictObj);
 
             // Embed the actual image data into the appearance stream

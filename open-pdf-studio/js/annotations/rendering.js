@@ -13,6 +13,7 @@ import { applyHatchFill, applyHatchFillPolygon } from './rendering/hatch-pattern
 import { drawWall } from './rendering/walls.js';
 import { getAnnotationType } from '../plugins/annotation-type-registry.js';
 import { drawSelectionHandles } from './rendering/selection.js';
+import { drawImageCropOverlay } from './image-crop-overlay.js';
 import { updateQuickAccessButtons, updateContextualTabs, drawGrid, snapToGrid } from './rendering/ui-state.js';
 import { drawCommentIcon } from './rendering/comment-icons.js';
 import { spatialIndex } from './spatial-index.js';
@@ -272,6 +273,20 @@ function getTintedImage(img, tint) {
   tctx.globalCompositeOperation = 'source-over';
   _tintedImageCache.set(img, { tint, canvas: c });
   return c;
+}
+
+// Build a CSS/canvas `filter` string for an image annotation's non-destructive
+// Word-style adjustments, or '' when all are neutral. brightness/contrast are
+// stored as multipliers (1 = neutral); grayscale is a boolean. Reused by the
+// PDF saver so the flattened bitmap carries the same look.
+export function imageFilterString(annotation) {
+  const parts = [];
+  if (annotation.grayscale) parts.push('grayscale(1)');
+  const b = annotation.brightness;
+  if (b !== undefined && b !== null && b !== 1) parts.push(`brightness(${b})`);
+  const c = annotation.contrast;
+  if (c !== undefined && c !== null && c !== 1) parts.push(`contrast(${c})`);
+  return parts.join(' ');
 }
 
 export function drawAnnotation(ctx, annotation) {
@@ -994,6 +1009,14 @@ export function drawAnnotation(ctx, annotation) {
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
 
+        // Non-destructive Word-style adjustments (grayscale / brightness /
+        // contrast). Stored on the annotation, applied here via the canvas
+        // `filter` property. brightness/contrast are 0-2 (1 = neutral);
+        // grayscale is a boolean. Composed into a single filter string.
+        const _imgFilters = imageFilterString(annotation);
+        const _prevFilter = ctx.filter;
+        if (_imgFilters) ctx.filter = _imgFilters;
+
         // Draw the image centered at origin, combining two independent
         // features: a compare-overlay colour tint (multiply, alpha-preserving —
         // see getTintedImage) AND non-destructive crop (#212). cropLeft/Top/
@@ -1021,6 +1044,7 @@ export function drawAnnotation(ctx, annotation) {
 
         ctx.imageSmoothingEnabled = prevSmooth;
         ctx.imageSmoothingQuality = prevQuality;
+        if (_imgFilters) ctx.filter = _prevFilter;
 
         ctx.restore();
       } else {
@@ -2121,6 +2145,10 @@ export function redrawAnnotations(lightweight = false) {
     }
   }
 
+  // Interactive image-crop overlay (contextual "Afbeelding" tab → Croppen).
+  // Drawn after selection handles so the crop rectangle sits on top.
+  drawImageCropOverlay(annotationCtx, curPage);
+
   // Blender-style 2D cursor (Shift+right-click places it; hidden until set).
   if (_renderDoc?.cursor2D && _renderDoc.cursor2D.page === curPage) {
     _draw2DCursor(annotationCtx, _renderDoc.cursor2D.x, _renderDoc.cursor2D.y, effectiveScale);
@@ -2218,6 +2246,9 @@ export function renderAnnotationsForPage(ctx, pageNum, width, height, overrideDp
   if (state.isRubberBanding && state.rubberBandPage === pageNum) {
     drawRubberBand(ctx, effectiveScale);
   }
+
+  // Interactive image-crop overlay for the page being cropped (continuous).
+  drawImageCropOverlay(ctx, pageNum);
 
   // Restore context
   ctx.restore();

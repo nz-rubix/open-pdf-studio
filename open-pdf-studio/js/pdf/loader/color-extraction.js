@@ -84,6 +84,19 @@ export async function extractAnnotationColors(pageNum, pdfDoc) {
             if (cv !== null && cv > 0 && cv < 1) colors[prop] = cv;
           }
         }
+        // Word-style image adjustments (grayscale / brightness / contrast).
+        const gsRaw = annotDict.get(PDFName.of('OPS_Grayscale'));
+        if (gsRaw) {
+          const gv = context.lookup(gsRaw) || gsRaw;
+          if (gv === true || (gv && typeof gv.value === 'boolean' && gv.value)) colors.grayscale = true;
+        }
+        for (const [pdfKey, prop] of [['OPS_Brightness', 'brightness'], ['OPS_Contrast', 'contrast']]) {
+          const aRaw = annotDict.get(PDFName.of(pdfKey));
+          if (aRaw) {
+            const av = pdfNum(context.lookup(aRaw) || aRaw);
+            if (av !== null && av >= 0 && av !== 1) colors[prop] = av;
+          }
+        }
       }
 
       // Read /OPS_Rotation (our custom rotation key) for ALL annotation types

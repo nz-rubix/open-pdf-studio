@@ -9,7 +9,8 @@
     "help": "Settings",
     "format": "Format",
     "arrange": "Arrange",
-    "measure": "Measure"
+    "measure": "Measure",
+    "image": "Image"
   },
   "measure": {
     "scale": "Scale",
@@ -425,5 +426,17 @@
     "highContrast": "High Contrast",
     "label": "Theme",
     "warmEmber": "Warm Ember"
+  },
+  "image": {
+    "cropGroup": "Crop",
+    "crop": "Crop",
+    "cropHint": "Crop the image on all sides (click again to confirm)",
+    "adjustGroup": "Image editing",
+    "grayscale": "Grayscale",
+    "grayscaleHint": "Show the image in grayscale",
+    "brightness": "Brightness",
+    "contrast": "Contrast",
+    "resetAdjust": "Reset",
+    "resetAdjustHint": "Reset grayscale, brightness and contrast"
   }
 }

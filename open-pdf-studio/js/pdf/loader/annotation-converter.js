@@ -1153,6 +1153,10 @@ export async function convertPdfAnnotation(annot, pageNum, viewport, stampImageM
         stampProps.cropTop = extraColors.cropTop || 0;
         stampProps.cropRight = extraColors.cropRight || 0;
         stampProps.cropBottom = extraColors.cropBottom || 0;
+        // Word-style adjustments round-trip (grayscale / brightness / contrast).
+        if (extraColors.grayscale) stampProps.grayscale = true;
+        if (extraColors.brightness !== undefined) stampProps.brightness = extraColors.brightness;
+        if (extraColors.contrast !== undefined) stampProps.contrast = extraColors.contrast;
       }
 
       // LINKED image: remember the source path and refresh the bitmap from
