@@ -52,9 +52,14 @@ jobs:
           }
           $conf.bundle.resources = $res
 
-          # No updater artifacts, no updater plugin in the ARM64 build.
+          # Neuter the updater rather than removing it: the plugin is
+          # registered unconditionally in lib.rs and panics at startup on a
+          # missing/null plugins.updater config (exit 101). Keep the config
+          # valid but point the endpoint at THIS repo's releases - none are
+          # published, so update checks 404 harmlessly, and upstream's pubkey
+          # can't verify anything served from here anyway.
           $conf.bundle.createUpdaterArtifacts = $false
-          $conf.plugins.PSObject.Properties.Remove('updater')
+          $conf.plugins.updater.endpoints = @("https://github.com/$env:GITHUB_REPOSITORY/releases/latest/download/latest.json")
 
           $conf | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json
           Get-Content src-tauri/tauri.conf.json | Select-String -Pattern 'win-arm64|createUpdaterArtifacts'
