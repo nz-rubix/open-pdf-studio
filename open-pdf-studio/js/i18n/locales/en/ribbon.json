@@ -202,7 +202,9 @@
     "added": "Added",
     "removed": "Removed",
     "modified": "Modified",
-    "noChanges": "No changes"
+    "noChanges": "No changes",
+    "fit": "Fit",
+    "reset": "100%"
   },
   "organize": {
     "pages": "Pages",

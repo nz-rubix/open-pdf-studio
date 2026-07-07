@@ -100,11 +100,17 @@ async function _renderPageToCanvas(filePath, pageNum, scale, targetCanvas, fillW
 }
 
 export async function renderCompareSideBySide(canvasOld, canvasNew, opts) {
-  const { oldPath, newPath, oldPage, newPage, scale = 1.5 } = opts;
+  const { oldPath, newPath, oldPage, newPage, scale = 1.5, skipDetection = false } = opts;
   await Promise.all([
     _renderPageToCanvas(oldPath, oldPage, scale, canvasOld),
     _renderPageToCanvas(newPath, newPage, scale, canvasNew),
   ]);
+  // Change detection is mode-independent: bboxes live in a fixed detection-px
+  // space regardless of whether the pages are shown overlaid or side-by-side.
+  // Kick it off here too so side-by-side gets the same red/green/yellow diff
+  // highlights and the change list. Skipped on zoom-only re-renders.
+  if (!skipDetection) scheduleChangeDetection(opts);
+  return { width: canvasNew.width, height: canvasNew.height };
 }
 
 /**
