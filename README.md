@@ -30,18 +30,18 @@ Open PDF Studio is a lightweight, native desktop application that provides profe
 
 ## Why Open PDF Studio?
 
-| | Open PDF Studio | Adobe Acrobat Pro | Foxit PDF Editor | PDF-XChange Editor |
-|---|:---:|:---:|:---:|:---:|
-| **Price** | Free | $240/year | $130/year | $62 (one-time) |
-| **License** | Open Source (LGPL-3.0) | Subscription only | Subscription or perpetual | Perpetual |
-| **Annotations & markup** | All included | Paid | Paid | Most free (watermarked) |
-| **Measurement tools** | Included | Paid | Paid | Paid |
-| **Stamps & watermarks** | Included | Paid | Paid | Paid |
-| **Redaction** | Included | Paid | Paid | Paid |
-| **Page management** | Included | Paid | Paid | Paid |
-| **Multi-tab editing** | Included | Not available | Included | Included |
-| **Telemetry** | None | Yes | Yes | Minimal |
-| **Platforms** | Win, Mac, Linux, Android | Win, Mac | Win, Mac, Linux | Windows only |
+Professional annotation, markup, measurement, redaction and page management — the tools that typical commercial PDF editors lock behind a subscription or a paid tier — are all included, free and fully open source. No subscriptions, no telemetry, no watermarks.
+
+| | Open PDF Studio | Typical commercial PDF editors |
+|---|:---:|:---:|
+| **Price** | Free & open source (LGPL-3.0) | Subscription or paid license |
+| **Annotations & markup** | All included | Often a paid tier |
+| **Measurement tools** | Included | Usually paid |
+| **Stamps, watermarks & redaction** | Included | Usually paid |
+| **Page management** | Included | Usually paid |
+| **Multi-tab editing** | Included | Varies |
+| **Telemetry** | None | Common |
+| **Platforms** | Windows, macOS, Linux, Android | Varies (often fewer) |
 
 ## Features
 
@@ -52,14 +52,16 @@ Open PDF Studio is a lightweight, native desktop application that provides profe
 - **Freehand drawing:** Pen tool with configurable color, width, and opacity
 - **Text annotations:** Text box, callout with leader line, sticky notes with popup editing
 - **Stamps:** 10 built-in stamps (Approved, Rejected, Draft, Confidential, Final, etc.)
-- **Images:** Insert from file, paste from clipboard, or drag-and-drop
+- **Images:** Insert from file, paste from clipboard, or drag-and-drop, with non-destructive cropping
 - **Signatures:** Draw multi-stroke signatures, save up to 5 for quick reuse
 - **Redaction:** Mark areas and apply to permanently remove content
 
 ### Measurement Tools
 - Distance, area, and perimeter measurement
 - Scale calibration dialog with mm, cm, m, inches, feet, and points
+- Per-line scale override, with fallback to the document scale
 - Quick scale: right-click a dimension line and type a value (e.g. "12.3m") to recalibrate
+- Draggable dimension text and endpoints with live recalculation
 - Object snapping to endpoints, midpoints, centers, and edges
 - Angle snapping with configurable increments
 
@@ -137,8 +139,10 @@ Open PDF Studio is a lightweight, native desktop application that provides profe
 - Quick access without switching ribbon tabs
 
 ### PDF Viewing & Navigation
-- High-quality rendering powered by PDF.js
-- Zoom: fit page, fit width, actual size, custom percentage
+- High-quality native rendering via a multi-process PDFium worker pool — off the UI thread and crash-isolated, so a bad page never freezes or takes down the app
+- Progressive tile rendering for very large CAD drawings: the page and its thumbnails fill in tile-by-tile across the worker pool instead of a seconds-long blank wait
+- View modes: single page, continuous scroll, and book (two-page spread, page 1 on the right)
+- Zoom: fit page, fit width, actual size, custom percentage, and cursor-anchored mouse-wheel zoom
 - Page navigation: first, previous, next, last, go to page
 - PDF/A compliance detection with read-only enforcement
 - Digital signature validation panel
@@ -276,7 +280,8 @@ npx tauri dev
 | Desktop framework | [Tauri 2](https://tauri.app/) (Rust backend) |
 | UI framework | [SolidJS](https://www.solidjs.com/) |
 | Build tool | [Vite](https://vitejs.dev/) |
-| PDF rendering | [PDF.js](https://mozilla.github.io/pdf.js/) |
+| Page rendering | Multi-process [PDFium](https://pdfium.googlesource.com/pdfium/) worker pool, with progressive tiling for large drawings |
+| Text layer & structure | [PDF.js](https://mozilla.github.io/pdf.js/) |
 | PDF manipulation | [pdf-lib](https://pdf-lib.js.org/) |
 
 ## Contributing
@@ -287,4 +292,4 @@ Contributions are welcome. Please open an issue to discuss proposed changes befo
 
 Open PDF Studio is licensed under the [GNU Lesser General Public License v3.0](LICENSE.md).
 
-PDF.js is licensed under the Apache License 2.0. pdf-lib is licensed under the MIT License.
+PDF.js is licensed under the Apache License 2.0. pdf-lib is licensed under the MIT License. PDFium is licensed under the BSD 3-Clause License.
