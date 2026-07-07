@@ -1,0 +1,92 @@
+name: Build Windows ARM64
+
+# Native Windows-on-ARM build.
+# Produces an unsigned perMachine NSIS installer for aarch64 Windows 11.
+# The upstream auto-updater is disabled in this build: it points at upstream's
+# GitHub releases, which only ship x64 - an ARM64 install must not "update"
+# itself onto an emulated x64 build.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - arm64
+    paths:
+      - 'open-pdf-studio/**'
+      - 'pdfium-worker/**'
+      - '.github/workflows/build-arm64.yml'
+
+jobs:
+  build-windows-arm64:
+    runs-on: windows-11-arm
+    defaults:
+      run:
+        working-directory: open-pdf-studio
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Install Rust stable (aarch64 host)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Configure bundle for ARM64
+        shell: pwsh
+        run: |
+          $conf = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+
+          # Swap the x64-only bundled resources for their win-arm64 twins
+          # (see src-tauri/binaries/win-arm64/README.md for provenance).
+          $res = [ordered]@{
+            'icons/file-icon.ico'                     = 'file-icon.ico'
+            'binaries/win-arm64/pdfium.dll'           = 'pdfium.dll'
+            'binaries/win-arm64/WebView2Loader.dll'   = 'WebView2Loader.dll'
+            'resources/kaders'                        = 'kaders'
+          }
+          $conf.bundle.resources = $res
+
+          # No updater artifacts, no updater plugin in the ARM64 build.
+          $conf.bundle.createUpdaterArtifacts = $false
+          $conf.plugins.PSObject.Properties.Remove('updater')
+
+          $conf | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json
+          Get-Content src-tauri/tauri.conf.json | Select-String -Pattern 'win-arm64|createUpdaterArtifacts'
+
+      # npm run tauri:build = prebuild hook (cargo build --release -p pdfium-worker)
+      # + vite build + tauri build. src-tauri/build.rs derives the sidecar's
+      # target-triple suffix from $TARGET, which on this native ARM runner is
+      # aarch64-pc-windows-msvc - no manual sidecar copy step needed.
+      - name: Build Tauri app (native ARM64)
+        run: npm run tauri:build
+
+      - name: Verify installer architecture
+        shell: pwsh
+        working-directory: .
+        run: |
+          $setup = Get-ChildItem target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          if (-not $setup) { Write-Error "No NSIS installer produced"; exit 1 }
+          Write-Output "Installer: $($setup.Name) ($([math]::Round($setup.Length/1MB,1)) MB)"
+          # The bundled main exe must be ARM64; check the build output directly
+          $exe = "target/release/open-pdf-studio.exe"
+          $bytes = [System.IO.File]::ReadAllBytes($exe)
+          $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
+          $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
+          # 0xAA64 = ARM64, 0x8664 = x64
+          Write-Output ("Machine type: 0x{0:X4}" -f $machine)
+          if ($machine -ne 0xAA64) { Write-Error "Main exe is not ARM64!"; exit 1 }
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenPDFStudio-windows-arm64-setup
+          path: |
+            target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 30
