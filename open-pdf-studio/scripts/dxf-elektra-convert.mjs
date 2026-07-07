@@ -200,6 +200,22 @@ function familyOf(name) {
   return m ? m[1].toLowerCase() : 'overig';
 }
 
+// De legenda-teksten in de DXF gebruiken afkortingen ("enkelpol schak",
+// "kinderbesc met beschermbev"). Voor nette palette-labels breiden we die
+// per heel woord uit naar de volledige NL-term.
+const ABBREV = {
+  'schak': 'schakelaar',
+  'enkelpol': 'enkelpolige',
+  'kinderbesc': 'kinderbescherming',
+  'beschermbev': 'beschermingsbegeleider',
+};
+function expandAbbrev(s) {
+  s = s.replace(/[A-Za-zÀ-ÿ]+/g, w => ABBREV[w.toLowerCase()] || w);
+  // Normaliseer "2 polige" → "2-polige" (consistent met "2-polige …").
+  s = s.replace(/\b(\d+)\s+polige\b/g, '$1-polige');
+  return s;
+}
+
 // ── Blocknaam → nette NL-label ─────────────────────────────────────────────
 // "NLRS_63_GA_stopcontact_symb - 1 stopcontact-525581-M_63_01_..." → "Stopcontact"
 function labelOf(name) {
@@ -216,6 +232,7 @@ function labelOf(name) {
   else s = s.replace(/^\s*\d+\s+/, '');          // gewoon volgnummer weg
   s = s.replace(/\s+2$/, '');                     // dubbele-set-suffix " 2" (lichtpunt)
   s = s.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+  s = expandAbbrev(s);                             // afkortingen → volledige NL-term
   // Generiek "Type N" of leeg → gebruik de nette familienaam.
   if (!s || /^type\s+\d+$/i.test(s)) {
     const fl = FAMILY_LABELS[fam];
