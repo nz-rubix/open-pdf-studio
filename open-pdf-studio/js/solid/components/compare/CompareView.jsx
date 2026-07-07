@@ -13,6 +13,7 @@ import {
   compareShowAdded,
   compareShowRemoved,
   compareShowModified,
+  compareFitRequest,
   setCompareShowAdded,
   setCompareShowRemoved,
   setCompareShowModified,
@@ -22,6 +23,8 @@ import {
   prevPagePair,
   setCompareZoom,
   setCompareOffset,
+  requestCompareFit,
+  requestCompareReset,
 } from '../../../compare/compare-store.js';
 import {
   renderCompareSideBySide,
@@ -35,6 +38,8 @@ export default function CompareView() {
   const { t } = useTranslation('ribbon');
   let oldCanvasRef;
   let newCanvasRef;
+  let oldHiCanvasRef;   // side-by-side: diff overlay on OLD page
+  let newHiCanvasRef;   // side-by-side: diff overlay on NEW page
   let overlayNewCanvasRef;
   let overlayHighlightCanvasRef;
   let bodyRef;
@@ -44,22 +49,35 @@ export default function CompareView() {
   // ingezoomd (één gedeelde scroller schoof het andere document uit beeld).
   let oldPaneRef;
   let newPaneRef;
+  let oldWrapRef;  // scaled wrapper holding OLD page + its diff overlay
+  let newWrapRef;  // scaled wrapper holding NEW page + its diff overlay
   let _scrollSyncing = false;
+  // Spiegel de scrollpositie proportioneel: de twee pagina's kunnen
+  // verschillende afmetingen hebben, dus een absolute pixel-kopie zou
+  // uiteenlopen. We rekenen met de fractie van de scrollbare ruimte zodat
+  // "midden van links" ook "midden van rechts" toont.
   const syncScroll = (src, dst) => {
     if (_scrollSyncing || !src || !dst) return;
     _scrollSyncing = true;
-    dst.scrollLeft = src.scrollLeft;
-    dst.scrollTop = src.scrollTop;
+    const sx = src.scrollWidth - src.clientWidth;
+    const sy = src.scrollHeight - src.clientHeight;
+    const dx = dst.scrollWidth - dst.clientWidth;
+    const dy = dst.scrollHeight - dst.clientHeight;
+    dst.scrollLeft = sx > 0 ? (src.scrollLeft / sx) * dx : src.scrollLeft;
+    dst.scrollTop = sy > 0 ? (src.scrollTop / sy) * dy : src.scrollTop;
     requestAnimationFrame(() => { _scrollSyncing = false; });
   };
   // Pannen door slepen in een paneel; de scroll-sync spiegelt de beweging
-  // automatisch naar het andere paneel.
+  // automatisch naar het andere paneel. Pointer-capture zorgt dat snelle
+  // sleepbewegingen buiten het element niet verloren gaan.
   const startPanDrag = (e, pane) => {
-    if (e.button !== 0 || !pane) return;
+    // Left button or middle button drags to pan.
+    if (!pane || (e.button !== 0 && e.button !== 1)) return;
     const rect = pane.getBoundingClientRect();
     // Klik op de scrollbalk zelf niet kapen.
     if (e.clientX - rect.left > pane.clientWidth || e.clientY - rect.top > pane.clientHeight) return;
     e.preventDefault();
+    try { pane.setPointerCapture?.(e.pointerId); } catch {}
     let lastX = e.clientX;
     let lastY = e.clientY;
     const move = (ev) => {
@@ -69,6 +87,7 @@ export default function CompareView() {
       lastY = ev.clientY;
     };
     const up = () => {
+      try { pane.releasePointerCapture?.(e.pointerId); } catch {}
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
     };
@@ -87,6 +106,12 @@ export default function CompareView() {
   let renderedZoom = compareZoom();
   let zoomDebounceTimer = null;
   const ZOOM_DEBOUNCE_MS = 150;
+  // Set true when a zoom already re-anchored the scroll position itself (e.g.
+  // cursor-anchored wheel, center-anchored +/− buttons). In that case the
+  // post-render f-multiply must be skipped: the scroll is already expressed in
+  // final visual terms, and the bitmap swap keeps the same visual size, so
+  // re-scaling the scroll would double-apply the zoom factor and drift.
+  let _scrollAlreadyAnchored = false;
 
   const visibleTypes = () => ({
     added: compareShowAdded(),
@@ -94,21 +119,79 @@ export default function CompareView() {
     modified: compareShowModified(),
   });
 
-  const repaintHighlights = () => {
-    if (!overlayHighlightCanvasRef || !overlayNewCanvasRef) return;
-    const visualScale = 1.5 * compareZoom();
+  // Detection-px -> bitmap-px ratio. Maps a change bbox (measured in the fixed
+  // detection raster) onto the CURRENTLY RENDERED bitmap. We use renderedZoom,
+  // not the live zoom, because the highlight canvas is sized to the bitmap and
+  // rides the same CSS `scale(cssScale)` wrapper as the page canvas — so any
+  // in-progress zoom preview is applied once, by the wrapper, to both.
+  const highlightRatio = () => {
+    const visualScale = 1.5 * renderedZoom;
     const list = compareChanges();
     const detectScale = list[0]?.detectScale || visualScale;
-    const ratio = visualScale / detectScale;
-    paintHighlights(overlayHighlightCanvasRef, list, {
-      ratio,
-      visibleTypes: visibleTypes(),
-      selected: compareFocusedChange(),
+    return visualScale / detectScale;
+  };
+
+  // Paint one highlight canvas restricted to a subset of change types. Used by
+  // both modes: overlay shows all three; side-by-side shows removed+modified on
+  // OLD and added+modified on NEW so each edit lands on the page it belongs to.
+  const paintPaneHighlights = (canvas, allow) => {
+    if (!canvas) return;
+    const v = visibleTypes();
+    const sel = compareFocusedChange();
+    // Only draw the selection accent on a pane that shows the selected type,
+    // so a "removed" selection doesn't get a border on the NEW pane.
+    const selForPane = sel && allow[sel.type] && v[sel.type] ? sel : null;
+    paintHighlights(canvas, compareChanges(), {
+      ratio: highlightRatio(),
+      visibleTypes: {
+        added: !!v.added && !!allow.added,
+        removed: !!v.removed && !!allow.removed,
+        modified: !!v.modified && !!allow.modified,
+      },
+      selected: selForPane,
+    });
+  };
+
+  // Keep every highlight canvas the same pixel size as its page canvas, then
+  // repaint. Runs after a render and whenever the change list/toggles change.
+  const repaintHighlights = () => {
+    if (compareMode() === 'overlay') {
+      if (!overlayHighlightCanvasRef || !overlayNewCanvasRef) return;
+      overlayHighlightCanvasRef.width = overlayNewCanvasRef.width;
+      overlayHighlightCanvasRef.height = overlayNewCanvasRef.height;
+      paintPaneHighlights(overlayHighlightCanvasRef, { added: true, removed: true, modified: true });
+    } else {
+      if (oldHiCanvasRef && oldCanvasRef) {
+        oldHiCanvasRef.width = oldCanvasRef.width;
+        oldHiCanvasRef.height = oldCanvasRef.height;
+        paintPaneHighlights(oldHiCanvasRef, { added: false, removed: true, modified: true });
+      }
+      if (newHiCanvasRef && newCanvasRef) {
+        newHiCanvasRef.width = newCanvasRef.width;
+        newHiCanvasRef.height = newCanvasRef.height;
+        paintPaneHighlights(newHiCanvasRef, { added: true, removed: false, modified: true });
+      }
+    }
+  };
+
+  // Scroll a single pane so the change's centre lands in the middle of the
+  // viewport. Shared by overlay (bodyRef) and side-by-side (both panes).
+  const scrollPaneToChange = (pane, wrap, c, smooth = true) => {
+    if (!pane || !wrap) return;
+    // highlightRatio() maps to bitmap-px; the wrapper's CSS scale turns that
+    // into on-screen (content) px, so fold cssScale in to hit the right spot
+    // even if a zoom preview is still in flight.
+    const ratio = highlightRatio() * cssScale();
+    const cx = wrap.offsetLeft + (c.x + c.width / 2) * ratio;
+    const cy = wrap.offsetTop + (c.y + c.height / 2) * ratio;
+    pane.scrollTo({
+      left: Math.max(0, cx - pane.clientWidth / 2),
+      top: Math.max(0, cy - pane.clientHeight / 2),
+      behavior: smooth ? 'smooth' : 'auto',
     });
   };
 
   const focusOnChange = (c) => {
-    if (!bodyRef || !overlayWrapRef) return;
     // Toggle selection if same record clicked again.
     const cur = compareFocusedChange();
     if (cur === c) {
@@ -118,26 +201,22 @@ export default function CompareView() {
     }
     setFocusedChange(c);
 
-    const visualScale = 1.5 * compareZoom();
-    const ratio = visualScale / (c.detectScale || visualScale);
-    const x = c.x * ratio;
-    const y = c.y * ratio;
-    const w = c.width * ratio;
-    const h = c.height * ratio;
-
-    const offsetLeft = overlayWrapRef.offsetLeft;
-    const offsetTop = overlayWrapRef.offsetTop;
-    const cx = offsetLeft + x + w / 2;
-    const cy = offsetTop + y + h / 2;
-    bodyRef.scrollTo({
-      left: Math.max(0, cx - bodyRef.clientWidth / 2),
-      top: Math.max(0, cy - bodyRef.clientHeight / 2),
-      behavior: 'smooth',
-    });
-
-    setHighlight({ x, y, w, h });
-    if (highlightTimer) clearTimeout(highlightTimer);
-    highlightTimer = setTimeout(() => setHighlight(null), 1000);
+    if (compareMode() === 'overlay') {
+      if (bodyRef && overlayWrapRef) {
+        scrollPaneToChange(bodyRef, overlayWrapRef, c);
+        const ratio = highlightRatio();
+        setHighlight({ x: c.x * ratio, y: c.y * ratio, w: c.width * ratio, h: c.height * ratio });
+        if (highlightTimer) clearTimeout(highlightTimer);
+        highlightTimer = setTimeout(() => setHighlight(null), 1000);
+      }
+    } else {
+      // Side-by-side: scroll BOTH panes to the same spot. Guard the sync so
+      // the two programmatic scrolls don't fight each other.
+      _scrollSyncing = true;
+      scrollPaneToChange(oldPaneRef, oldWrapRef, c);
+      scrollPaneToChange(newPaneRef, newWrapRef, c);
+      requestAnimationFrame(() => { _scrollSyncing = false; });
+    }
     repaintHighlights();
   };
 
@@ -185,6 +264,7 @@ export default function CompareView() {
       } else {
         if (oldCanvasRef && newCanvasRef) {
           await renderCompareSideBySide(oldCanvasRef, newCanvasRef, opts);
+          repaintHighlights();
         }
       }
     } catch (err) {
@@ -201,8 +281,16 @@ export default function CompareView() {
       // Zoom-anker: de content is een factor f groter/kleiner geworden —
       // schaal de scrollposities mee zodat beide panelen (en de overlay)
       // dezelfde plek blijven tonen i.p.v. naar linksboven te driften.
+      // Dit vertaalt de scrollpositie uit de CSS-preview-ruimte (bitmap nog op
+      // de oude schaal) naar de nieuwe native-bitmap-ruimte. Bij cursor-zoom
+      // is de scroll al op het cursor-punt gezet in preview-ruimte; deze factor
+      // houdt datzelfde punt vast wanneer de scherpe bitmap de preview vervangt.
       const f = prevZoom > 0 ? zoomAtRender / prevZoom : 1;
-      if (f !== 1) {
+      if (_scrollAlreadyAnchored) {
+        // Scroll was pre-set to hold a specific anchor; the visual size is
+        // unchanged by the bitmap swap, so leave scroll untouched.
+        _scrollAlreadyAnchored = false;
+      } else if (Math.abs(f - 1) > 1e-4) {
         _scrollSyncing = true;
         for (const pane of [oldPaneRef, newPaneRef, bodyRef]) {
           if (!pane) continue;
@@ -215,6 +303,8 @@ export default function CompareView() {
       // to the new baseline so the preview stays consistent.
       const cur = compareZoom();
       setCssScale(cur === renderedZoom ? 1 : cur / renderedZoom);
+      // Repaint highlights at the crisp scale (ratio changed with the bitmap).
+      repaintHighlights();
       if (pending) {
         pending = false;
         doRender();
@@ -265,16 +355,55 @@ export default function CompareView() {
   });
 
   // Repaint highlight overlay when the changes list, visibility toggles, or
-  // selection change — without re-running the full PDF render.
+  // selection change — without re-running the full PDF render. Runs in BOTH
+  // modes now (side-by-side paints per pane, overlay paints one canvas).
   createEffect(() => {
     compareChanges();
     compareShowAdded();
     compareShowRemoved();
     compareShowModified();
     compareFocusedChange();
-    if (compareActive() && compareMode() === 'overlay') {
+    compareMode();
+    if (compareActive()) {
       queueMicrotask(repaintHighlights);
     }
+  });
+
+  // Fit / reset requests from the toolbar. Compute a zoom that makes the NEW
+  // page fill the available viewport (fit) or snap to 100% (reset).
+  createEffect(() => {
+    const req = compareFitRequest();
+    if (!req.kind || !compareActive()) return;
+    // Reset scroll to the top-left so the (re)fitted page is fully framed
+    // rather than left scrolled where the previous zoom sat. Flag the upcoming
+    // render to keep this scroll instead of scaling the old one.
+    const resetScroll = () => {
+      _scrollAlreadyAnchored = true;
+      _scrollSyncing = true;
+      for (const p of [oldPaneRef, newPaneRef, bodyRef]) { if (p) { p.scrollLeft = 0; p.scrollTop = 0; } }
+      requestAnimationFrame(() => { _scrollSyncing = false; });
+    };
+    if (req.kind === 'reset') {
+      setCompareZoom(1);
+      resetScroll();
+      return;
+    }
+    // Fit: the rendered bitmap is (natural * 1.5 * renderedZoom) px. Work out
+    // the natural (scale-1.5) size, then pick a zoom so it fits the pane.
+    queueMicrotask(() => {
+      const baseCanvas = compareMode() === 'overlay' ? overlayNewCanvasRef : newCanvasRef;
+      const pane = compareMode() === 'overlay' ? bodyRef : newPaneRef;
+      if (!baseCanvas || !pane || renderedZoom <= 0) return;
+      const naturalW = baseCanvas.width / renderedZoom;   // px at zoom=1
+      const naturalH = baseCanvas.height / renderedZoom;
+      if (naturalW <= 0 || naturalH <= 0) return;
+      const padding = 28; // breathing room inside the pane
+      const availW = Math.max(1, pane.clientWidth - padding);
+      const availH = Math.max(1, pane.clientHeight - padding);
+      const z = Math.min(availW / naturalW, availH / naturalH);
+      setCompareZoom(z);
+      resetScroll();
+    });
   });
 
   onCleanup(() => {
@@ -298,12 +427,65 @@ export default function CompareView() {
     onCleanup(() => document.removeEventListener('keydown', onKey, true));
   });
 
-  const handleWheel = (e) => {
-    if (e.ctrlKey) {
-      e.preventDefault();
-      const delta = e.deltaY < 0 ? 1.1 : 1 / 1.1;
-      setCompareZoom(compareZoom() * delta);
+  // Cursor-anchored wheel zoom, matching the main viewer's feel: the point
+  // under the cursor stays put while zooming. Works without Ctrl (the previous
+  // implementation was a no-op unless Ctrl was held — the main reason zoom felt
+  // "limited"). Shift+wheel keeps native scrolling; Ctrl+wheel still zooms.
+  // Zoom by `factor`, keeping the viewport point (ax, ay) — expressed in the
+  // pane's client coordinates — fixed on screen. Immediately adjusts scroll so
+  // the anchor holds through the CSS preview; flags the render to skip its
+  // post-swap re-scale so the factor isn't double-applied.
+  const zoomAnchored = (pane, ax, ay, factor) => {
+    if (!pane) { setCompareZoom(compareZoom() * factor); return; }
+    const rect = pane.getBoundingClientRect();
+    const offX = ax - rect.left;
+    const offY = ay - rect.top;
+    // Point under the anchor, in the current rendered coordinate space.
+    const px = pane.scrollLeft + offX;
+    const py = pane.scrollTop + offY;
+    const z0 = compareZoom();
+    const z1 = Math.max(0.1, Math.min(8, z0 * factor));
+    const applied = z1 / z0;
+    if (Math.abs(applied - 1) < 1e-6) return;
+    const newLeft = Math.max(0, px * applied - offX);
+    const newTop = Math.max(0, py * applied - offY);
+    _scrollAlreadyAnchored = true;
+    setCompareZoom(z1);
+    _scrollSyncing = true;
+    pane.scrollLeft = newLeft;
+    pane.scrollTop = newTop;
+    if (compareMode() === 'side') {
+      const other = pane === oldPaneRef ? newPaneRef : oldPaneRef;
+      if (other) { other.scrollLeft = newLeft; other.scrollTop = newTop; }
     }
+    requestAnimationFrame(() => { _scrollSyncing = false; });
+  };
+
+  // The pane the cursor/interaction is currently over (side-by-side) or the
+  // overlay scroll body.
+  const activePane = (clientX) => {
+    if (compareMode() !== 'side') return bodyRef;
+    if (clientX == null || !oldPaneRef || !newPaneRef) return oldPaneRef;
+    return clientX < oldPaneRef.getBoundingClientRect().right ? oldPaneRef : newPaneRef;
+  };
+
+  const handleWheel = (e) => {
+    // Wheels over the change-list side panel scroll that list natively.
+    if (e.target?.closest?.('.compare-change-list')) return;
+    // Shift+wheel: let the browser scroll natively (horizontal), don't zoom.
+    if (e.shiftKey) return;
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+    zoomAnchored(activePane(e.clientX), e.clientX, e.clientY, factor);
+  };
+
+  // +/− buttons zoom around the centre of the (first) pane so the view doesn't
+  // lurch toward the top-left corner.
+  const zoomButton = (factor) => {
+    const pane = compareMode() === 'side' ? oldPaneRef : bodyRef;
+    if (!pane) { setCompareZoom(compareZoom() * factor); return; }
+    const rect = pane.getBoundingClientRect();
+    zoomAnchored(pane, rect.left + pane.clientWidth / 2, rect.top + pane.clientHeight / 2, factor);
   };
 
   // Click outside the change list deselects the focused change.
@@ -329,9 +511,11 @@ export default function CompareView() {
           <button class="pref-btn pref-btn-secondary" onClick={prevPagePair}>{'<'}</button>
           <button class="pref-btn pref-btn-secondary" onClick={nextPagePair}>{'>'}</button>
           <span style="margin-left:12px;">Zoom:</span>
-          <button class="pref-btn pref-btn-secondary" onClick={() => setCompareZoom(compareZoom() / 1.2)}>-</button>
+          <button class="pref-btn pref-btn-secondary" onClick={() => zoomButton(1 / 1.2)}>-</button>
           <span style="min-width:40px; text-align:center;">{Math.round(compareZoom() * 100)}%</span>
-          <button class="pref-btn pref-btn-secondary" onClick={() => setCompareZoom(compareZoom() * 1.2)}>+</button>
+          <button class="pref-btn pref-btn-secondary" onClick={() => zoomButton(1.2)}>+</button>
+          <button class="pref-btn pref-btn-secondary" title={t('compare.fit') || 'Passend'} onClick={requestCompareFit}>{t('compare.fit') || 'Passend'}</button>
+          <button class="pref-btn pref-btn-secondary" title={t('compare.reset') || '100%'} onClick={requestCompareReset}>100%</button>
           <Show when={compareMode() === 'overlay'}>
             <span style="margin-left:12px;">{t('compare.align') || 'Align'} dx:</span>
             <input
@@ -416,10 +600,21 @@ export default function CompareView() {
                   style="flex:1; overflow:auto;"
                 >
                   <div style="padding:14px; display:inline-block; line-height:0;">
-                    <canvas
-                      ref={oldCanvasRef}
-                      style={`background:#ffffff; box-shadow:0 0 0 1px #444; transform:scale(${cssScale()}); transform-origin:0 0;`}
-                    ></canvas>
+                    {/* Page + diff overlay share a scaled wrapper so the red/
+                        yellow highlights stay pixel-aligned with the render. */}
+                    <div
+                      ref={oldWrapRef}
+                      style={`position:relative; line-height:0; transform:scale(${cssScale()}); transform-origin:0 0;`}
+                    >
+                      <canvas
+                        ref={oldCanvasRef}
+                        style="display:block; background:#ffffff; box-shadow:0 0 0 1px #444;"
+                      ></canvas>
+                      <canvas
+                        ref={oldHiCanvasRef}
+                        style="position:absolute; left:0; top:0; pointer-events:none;"
+                      ></canvas>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -435,23 +630,30 @@ export default function CompareView() {
                   style="flex:1; overflow:auto;"
                 >
                   <div style="padding:14px; display:inline-block; line-height:0;">
-                    <canvas
-                      ref={newCanvasRef}
-                      style={`background:#ffffff; box-shadow:0 0 0 1px #444; transform:scale(${cssScale()}); transform-origin:0 0;`}
-                    ></canvas>
+                    <div
+                      ref={newWrapRef}
+                      style={`position:relative; line-height:0; transform:scale(${cssScale()}); transform-origin:0 0;`}
+                    >
+                      <canvas
+                        ref={newCanvasRef}
+                        style="display:block; background:#ffffff; box-shadow:0 0 0 1px #444;"
+                      ></canvas>
+                      <canvas
+                        ref={newHiCanvasRef}
+                        style="position:absolute; left:0; top:0; pointer-events:none;"
+                      ></canvas>
+                    </div>
                   </div>
                 </div>
               </div>
             </Show>
           </div>
-          <Show when={compareMode() === 'overlay'}>
-            <ChangeListPanel
-              t={t}
-              changes={compareChanges}
-              onFocus={focusOnChange}
-              focused={compareFocusedChange}
-            />
-          </Show>
+          <ChangeListPanel
+            t={t}
+            changes={compareChanges}
+            onFocus={focusOnChange}
+            focused={compareFocusedChange}
+          />
         </div>
       </div>
     </Show>
@@ -513,6 +715,7 @@ function ChangeListPanel(props) {
 
   return (
     <div
+      class="compare-change-list"
       onClick={(e) => e.stopPropagation()}
       style="width:260px; background:#f5f5f5; border-left:1px solid #d4d4d4; display:flex; flex-direction:column; color:#222; font-size:12px;"
     >
