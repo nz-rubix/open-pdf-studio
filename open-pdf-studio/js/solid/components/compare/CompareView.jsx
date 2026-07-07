@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup, onMount, For, Show } from 'solid-js';
+import { createEffect, createMemo, createSignal, onCleanup, onMount, For, Show } from 'solid-js';
 import {
   compareActive,
   compareOldPath,
@@ -33,6 +33,8 @@ import {
   clearCompareDocCache,
 } from '../../../compare/compare-viewport.js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
+import { state } from '../../../core/state.js';
+import { diffAnnotationsForPair } from '../../../compare/compare-annotations.js';
 
 export default function CompareView() {
   const { t } = useTranslation('ribbon');
@@ -131,6 +133,21 @@ export default function CompareView() {
     return visualScale / detectScale;
   };
 
+  // Structurele annotatie-verschillen — los van de pixel-diff van de PDF-inhoud.
+  // De app-annotaties zitten in een aparte overlay (doc.annotations), niet in
+  // het gerenderde PDF-raster, dus de pixel-diff ziet ze niet. Reactief op het
+  // pagina-paar én op de annotaties van beide documenten.
+  const annotationChanges = createMemo(() =>
+    compareActive()
+      ? diffAnnotationsForPair(compareOldPath(), compareOldPage(), compareNewPath(), compareNewPage())
+      : []
+  );
+  // Gecombineerde lijst voor het wijzigingen-paneel: PDF-inhoud + annotaties.
+  const allChanges = createMemo(() => [...(compareChanges() || []), ...annotationChanges()]);
+  // Navigatie/flash-ratio: annotatie-records staan in pagina-coördinaten
+  // (× visualScale), inhouds-records in detectie-px (× highlightRatio).
+  const changeRatio = (c) => (c && c.source === 'annotation') ? (1.5 * renderedZoom) : highlightRatio();
+
   // Paint one highlight canvas restricted to a subset of change types. Used by
   // both modes: overlay shows all three; side-by-side shows removed+modified on
   // OLD and added+modified on NEW so each edit lands on the page it belongs to.
@@ -181,7 +198,7 @@ export default function CompareView() {
     // highlightRatio() maps to bitmap-px; the wrapper's CSS scale turns that
     // into on-screen (content) px, so fold cssScale in to hit the right spot
     // even if a zoom preview is still in flight.
-    const ratio = highlightRatio() * cssScale();
+    const ratio = changeRatio(c) * cssScale();
     const cx = wrap.offsetLeft + (c.x + c.width / 2) * ratio;
     const cy = wrap.offsetTop + (c.y + c.height / 2) * ratio;
     pane.scrollTo({
@@ -204,7 +221,7 @@ export default function CompareView() {
     if (compareMode() === 'overlay') {
       if (bodyRef && overlayWrapRef) {
         scrollPaneToChange(bodyRef, overlayWrapRef, c);
-        const ratio = highlightRatio();
+        const ratio = changeRatio(c);
         setHighlight({ x: c.x * ratio, y: c.y * ratio, w: c.width * ratio, h: c.height * ratio });
         if (highlightTimer) clearTimeout(highlightTimer);
         highlightTimer = setTimeout(() => setHighlight(null), 1000);
@@ -650,7 +667,7 @@ export default function CompareView() {
           </div>
           <ChangeListPanel
             t={t}
-            changes={compareChanges}
+            changes={allChanges}
             onFocus={focusOnChange}
             focused={compareFocusedChange}
           />
@@ -771,10 +788,12 @@ function ChangeListPanel(props) {
                             </div>
                             <div style="flex:1; min-width:0;">
                               <div style="font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                                {item.index + 1}. {typeLabel(c.type)}
+                                {item.index + 1}. {c.source === 'annotation' ? c.label : typeLabel(c.type)}
                               </div>
                               <div style="color:#666; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                                ~{Math.round(c.width)}×{Math.round(c.height)} px @ ({Math.round(c.x)}, {Math.round(c.y)})
+                                {c.source === 'annotation'
+                                  ? `✎ ${props.t('compare.annotation') || 'Annotatie'}`
+                                  : `~${Math.round(c.width)}×${Math.round(c.height)} px @ (${Math.round(c.x)}, ${Math.round(c.y)})`}
                               </div>
                             </div>
                           </div>
