@@ -154,6 +154,9 @@ export const thinLinesIcon = `<svg fill="none" stroke="currentColor" viewBox="0 
 
 export const themeDropdownArrow = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="10" height="10"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 9l6 6 6-6"/></svg>`;
 
+// Zichtbaarheid Elementen: oog boven gestapelde lagen (annotatie-soorten).
+export const elementVisibilityIcon = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M12 5.5c-3.5 0-6.4 2.1-7.6 4.5 1.2 2.4 4.1 4.5 7.6 4.5s6.4-2.1 7.6-4.5C18.4 7.6 15.5 5.5 12 5.5z"/><circle cx="12" cy="10" r="1.7" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M5 18h14M7 21h10"/></svg>`;
+
 // --- Organize tab ---
 
 export const insertPageIcon = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>`;

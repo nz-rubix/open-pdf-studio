@@ -90,7 +90,7 @@ export const NL_CATEGORIES = [
     // aansluitpunten, bel, meterkast, bewegingsdetector). Statische SVG-stempels
     // die als stempel geplaatst worden; geometrie uit de elektra-renvooi-DXF.
     id: 'nl-elektra',
-    name: 'Elektra',
+    name: 'NL Elektra',
     color: 'var(--theme-text, #000000)',
     icon: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 1 3 9h4l-1 6 6-8H8z"/></svg>`,
     symbols: ELEKTRA_SYMBOLS,

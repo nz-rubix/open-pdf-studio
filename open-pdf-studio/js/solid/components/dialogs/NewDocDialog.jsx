@@ -1,9 +1,17 @@
 import { createSignal, createMemo, createEffect, Show, For, onMount } from 'solid-js';
+import * as pdfjsLib from 'pdfjs-dist';
 import Dialog from '../Dialog.jsx';
 import { closeDialog } from '../../stores/dialogStore.js';
 import { createBlankPDF, createDocFromTemplate } from '../../../pdf/loader.js';
 import { scanFrames, openFramesFolder } from '../../../pdf/frames.js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
+
+// Preferred defaults when the dialog opens: OpenAEC Grootformaat frame,
+// A1, landscape (liggend). These only take effect when a matching frame
+// exists on disk; otherwise the dialog falls back to a blank A4 portrait.
+const DEFAULT_STIJL = 'grootformaat';
+const DEFAULT_PAPER = 'a1';
+const DEFAULT_ORIENTATION = 'landscape';
 
 const _cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -30,8 +38,8 @@ export default function NewDocDialog() {
   const { t } = useTranslation('dialogs');
   const { t: tCommon } = useTranslation('common');
 
-  const [paperSize, setPaperSize] = createSignal('a4');
-  const [orientation, setOrientation] = createSignal('portrait');
+  const [paperSize, setPaperSize] = createSignal(DEFAULT_PAPER);
+  const [orientation, setOrientation] = createSignal(DEFAULT_ORIENTATION);
   const [numPages, setNumPages] = createSignal(1);
   const [customWidth, setCustomWidth] = createSignal(210);
   const [customHeight, setCustomHeight] = createSignal(297);
@@ -43,7 +51,14 @@ export default function NewDocDialog() {
 
   onMount(async () => {
     try {
-      setFrameIndex(await scanFrames());
+      const idx = await scanFrames();
+      setFrameIndex(idx);
+      // Default to the Grootformaat frame (A1 liggend) when it exists on
+      // disk. If that exact size/orientation isn't available the keep-valid
+      // effect below will pick the closest match for the style.
+      if (idx?.byStijl?.has(DEFAULT_STIJL)) {
+        setStijl(DEFAULT_STIJL);
+      }
     } catch (e) {
       console.warn('[new-doc] kaders niet leesbaar:', e);
     }
@@ -121,9 +136,11 @@ export default function NewDocDialog() {
     };
   });
 
-  const previewStyle = createMemo(() => {
+  // Pixel dimensions of the sheet inside the 200x250 preview box, scaled to
+  // fit with 10px breathing room. Shared by the blank-sheet <div> and the
+  // frame-preview <canvas> so both line up exactly.
+  const previewPx = createMemo(() => {
     const dims = getDimensions();
-    // Fill the 200x250 preview box (10px breathing room each side).
     const maxW = 180;
     const maxH = 230;
     const aspect = dims.widthPt / dims.heightPt;
@@ -135,7 +152,72 @@ export default function NewDocDialog() {
       h = maxH;
       w = maxH * aspect;
     }
-    return { width: Math.round(w) + 'px', height: Math.round(h) + 'px' };
+    return { w: Math.round(w), h: Math.round(h) };
+  });
+
+  const previewStyle = createMemo(() => {
+    const { w, h } = previewPx();
+    return { width: w + 'px', height: h + 'px' };
+  });
+
+  // ─── Frame (tekeningkader) thumbnail in the preview ──────────────────────
+  // When a style+size+orientation resolves to a real frame PDF, render its
+  // first page into the preview canvas so the user sees the actual drawing
+  // frame / titleblock they'll get — not just a blank sheet. Rendered via
+  // pdf.js straight from the frame bytes (no Rust/engine dependency, so it
+  // also works while the app has no document open). Falls back to the blank
+  // white sheet whenever no frame is resolved or rendering fails.
+  let previewCanvas;
+  const [frameReady, setFrameReady] = createSignal(false);
+  let renderToken = 0;
+
+  const readFrameBytes = async (path) => {
+    const fs = window.__TAURI__?.fs;
+    const core = window.__TAURI__?.core;
+    if (!fs?.readFile) throw new Error('frame preview requires the desktop app');
+    try { await core?.invoke('allow_fs_scope', { path }); } catch { /* best-effort */ }
+    return new Uint8Array(await fs.readFile(path));
+  };
+
+  createEffect(() => {
+    const frame = resolvedFrame();
+    const { w, h } = previewPx();
+    const token = ++renderToken;
+    setFrameReady(false);
+    if (!frame) return;
+
+    (async () => {
+      try {
+        const bytes = await readFrameBytes(frame.path);
+        if (token !== renderToken) return;
+        const pdf = await pdfjsLib.getDocument({
+          data: bytes,
+          isEvalSupported: false,
+          verbosity: 0,
+        }).promise;
+        if (token !== renderToken) return;
+        const page = await pdf.getPage(1);
+        // Fit the page into the w×h preview box at device resolution.
+        const base = page.getViewport({ scale: 1 });
+        const dpr = window.devicePixelRatio || 1;
+        const scale = Math.min(w / base.width, h / base.height) * dpr;
+        const viewport = page.getViewport({ scale });
+        const canvas = previewCanvas;
+        if (!canvas || token !== renderToken) return;
+        canvas.width = Math.max(1, Math.round(viewport.width));
+        canvas.height = Math.max(1, Math.round(viewport.height));
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        if (token !== renderToken) return;
+        setFrameReady(true);
+      } catch (e) {
+        if (token === renderToken) {
+          console.warn('[new-doc] kader-preview render mislukt:', e?.message ?? e);
+          setFrameReady(false);
+        }
+      }
+    })();
   });
 
   const previewText = createMemo(() => {
@@ -310,7 +392,18 @@ export default function NewDocDialog() {
       </div>
       <div class="new-doc-preview-area">
         <div class="new-doc-preview-box">
+          {/* Blank white sheet — always rendered; the frame canvas overlays
+              it once the frame PDF has been rasterised so there's no flash of
+              empty box while the kader loads. */}
           <div class="new-doc-preview-page" style={previewStyle()}></div>
+          <canvas
+            ref={previewCanvas}
+            class="new-doc-preview-frame"
+            style={{
+              ...previewStyle(),
+              display: frameReady() ? 'block' : 'none',
+            }}
+          ></canvas>
         </div>
         <div class="new-doc-preview-text">{previewText()}</div>
       </div>

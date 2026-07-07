@@ -5,6 +5,7 @@ import Ribbon from './components/ribbon/Ribbon.jsx';
 import DocumentTabs from './components/DocumentTabs.jsx';
 import CanvasScrollbars from './components/CanvasScrollbars.jsx';
 import LeftPanel from './components/left-panel/LeftPanel.jsx';
+import ElementVisibilityPanel from './components/left-panel/ElementVisibilityPanel.jsx';
 import FindBar from './components/FindBar.jsx';
 import FormFieldsBar from './components/FormFieldsBar.jsx';
 import PdfABar from './components/PdfABar.jsx';
@@ -79,6 +80,7 @@ function DesktopApp() {
 
       <div class="content">
         <LeftPanel />
+        <ElementVisibilityPanel />
         <OrderedDockedPalettes side="left" />
 
         <div class="main-view">
@@ -110,16 +112,12 @@ function DesktopApp() {
               <div id="continuous-container" class="continuous-container"></div>
             </div>
             <CanvasScrollbars />
+            <CompareView />
           </div>
         </div>
 
         <OrderedDockedPalettes side="right" />
         <PropertiesPanel />
-
-        {/* Compare lives at the .content level (position:relative) so, when its
-            tab is focused, the side-by-side view covers the FULL workspace width
-            — panels included — instead of being squeezed into the centre. */}
-        <CompareView />
       </div>
 
       <StatusBar />

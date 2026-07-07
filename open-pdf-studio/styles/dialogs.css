@@ -1461,6 +1461,7 @@
 }
 
 .new-doc-preview-box {
+  position: relative;
   width: 200px;
   height: 250px;
   box-sizing: border-box;
@@ -1473,6 +1474,20 @@
 }
 
 .new-doc-preview-page {
+  background: #ffffff;
+  border: 1px solid var(--theme-border, #999);
+  box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.15);
+  box-sizing: border-box;
+}
+
+/* Frame (tekeningkader) thumbnail — overlays the blank sheet, same size,
+   centred in the box. The white page underneath shows through until the
+   kader has rasterised. */
+.new-doc-preview-frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   background: #ffffff;
   border: 1px solid var(--theme-border, #999);
   box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.15);

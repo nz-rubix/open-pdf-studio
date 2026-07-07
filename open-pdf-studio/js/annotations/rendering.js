@@ -20,6 +20,7 @@ import { invalidateScaleRegionCache, pixelsPerUnitFor, getRegionScaleFactor } fr
 import { drawSnapIndicator } from '../tools/snap-engine.js';
 import { getTemplate } from '../symbols/registry.js';
 import { hasFill } from './fill-utils.js';
+import { hiddenTypes as evHiddenTypes, halftoneTypes as evHalftoneTypes } from '../solid/stores/elementVisibilityStore.js';
 
 // Re-export everything that external code needs
 export { drawPolygonShape, drawCloudShape, buildPolygonPath, buildCloudPath } from './rendering/shapes.js';
@@ -277,13 +278,33 @@ export function drawAnnotation(ctx, annotation) {
   // Skip hidden annotations
   if (annotation.hidden) return;
 
+  // ── Zichtbaarheid Elementen (per annotatie-SOORT) ──────────────────────
+  // Het "Zichtbaarheid Elementen"-paneel kan een hele annotatie-soort
+  // verbergen of dimmen (halftone) met een optionele kleur-tint. Dit werkt
+  // per ann.type, los van de per-annotatie `hidden`/`opacity`.
+  if (evHiddenTypes().has(annotation.type)) return;
+  const _evHalftone = evHalftoneTypes().get(annotation.type) || null;
+
   // Use annotation's opacity property
-  const baseOpacity = annotation.opacity !== undefined ? annotation.opacity :
+  let baseOpacity = annotation.opacity !== undefined ? annotation.opacity :
                      (annotation.type === 'highlight' ? 0.3 : 1);
 
   // Use strokeColor/fillColor if available, otherwise fallback to color
-  const strokeColor = annotation.strokeColor || annotation.color;
-  const fillColor = annotation.fillColor || annotation.color;
+  let strokeColor = annotation.strokeColor || annotation.color;
+  let fillColor = annotation.fillColor || annotation.color;
+
+  // Halftone-override: dim de soort en tint optioneel de kleuren. De tint
+  // vervangt stroke/fill zodat de hele soort visueel als één laag oplicht
+  // (Revit-achtige "halftone"). De opacity-factor wordt op de basisopacity
+  // toegepast (multiplicatief) zodat een reeds-transparante annotatie niet
+  // plots donkerder wordt.
+  if (_evHalftone) {
+    baseOpacity = baseOpacity * (_evHalftone.opacity ?? 0.35);
+    if (_evHalftone.color) {
+      strokeColor = _evHalftone.color;
+      fillColor = _evHalftone.color;
+    }
+  }
 
   ctx.strokeStyle = strokeColor;
   ctx.fillStyle = fillColor;

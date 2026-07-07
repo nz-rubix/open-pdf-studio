@@ -128,13 +128,13 @@ const NAMES = {
 
 // Build categories from prefix
 const CATEGORY_META = {
-  'Tb': { name: 'NEN 1414 — Brandbeveiliging', color: '#dc2626' },
-  'Tbk': { name: 'NEN 1414 — Blussystemen', color: '#b91c1c' },
-  'Td': { name: 'NEN 1414 — Deuren', color: '#92400e' },
-  'Tn': { name: 'NEN 1414 — Noodverlichting', color: '#ca8a04' },
-  'Tr': { name: 'NEN 1414 — Rook/Warmteafvoer', color: '#6b7280' },
-  'Tv': { name: 'NEN 1414 — Ventilatie', color: '#059669' },
-  'Tw': { name: 'NEN 1414 — Water/Sprinkler', color: '#2563eb' },
+  'Tb': { name: 'NL NEN 1414 — Brandbeveiliging', color: '#dc2626' },
+  'Tbk': { name: 'NL NEN 1414 — Blussystemen', color: '#b91c1c' },
+  'Td': { name: 'NL NEN 1414 — Deuren', color: '#92400e' },
+  'Tn': { name: 'NL NEN 1414 — Noodverlichting', color: '#ca8a04' },
+  'Tr': { name: 'NL NEN 1414 — Rook/Warmteafvoer', color: '#6b7280' },
+  'Tv': { name: 'NL NEN 1414 — Ventilatie', color: '#059669' },
+  'Tw': { name: 'NL NEN 1414 — Water/Sprinkler', color: '#2563eb' },
 };
 
 const ALL_IDS = Object.keys(NAMES);
@@ -157,7 +157,7 @@ export const NEN1414_CATEGORIES = (() => {
   for (const id of ALL_IDS) {
     const prefix = getPrefix(id);
     if (!catMap.has(prefix)) {
-      const meta = CATEGORY_META[prefix] || { name: `NEN 1414 — ${prefix}`, color: '#666' };
+      const meta = CATEGORY_META[prefix] || { name: `NL NEN 1414 — ${prefix}`, color: '#666' };
       catMap.set(prefix, {
         id: `nen1414-${prefix.toLowerCase()}`,
         name: meta.name,

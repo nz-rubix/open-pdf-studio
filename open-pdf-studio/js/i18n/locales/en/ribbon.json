@@ -156,9 +156,9 @@
     "pageDisplay": "Page Display",
     "singlePage": "Single Page",
     "single": "Single",
-    "continuousTitle": "Continuous — all pages stacked, free scrolling",
+    "continuousTitle": "Continuous (coming soon)",
     "continuous": "Continuous",
-    "bookTitle": "Book View — two pages side by side, page 1 on the right",
+    "bookTitle": "Book View (two pages side by side, page 1 on the right) — coming soon",
     "book": "Book",
     "panels": "Panels",
     "navigationPanel": "Navigation Panel (F9)",
@@ -179,6 +179,23 @@
     "fullscreen": "Fullscreen",
     "window": "Window",
     "display": "Display"
+  },
+  "elementVisibility": {
+    "buttonTitle": "Element Visibility — show/hide and dim annotation types",
+    "buttonLabel": "Visibility",
+    "title": "Element Visibility",
+    "reset": "Reset",
+    "close": "Close",
+    "empty": "No annotations in this document.",
+    "colType": "Type",
+    "colCount": "Count",
+    "colVisible": "Vis.",
+    "colHalftone": "Halftone",
+    "toggleVisible": "Toggle visibility for this type",
+    "toggleHalftone": "Toggle halftone (dim) for this type",
+    "tint": "Color",
+    "clearTint": "Clear color",
+    "dim": "Dim"
   },
   "compare": {
     "title": "Compare PDFs",
@@ -202,15 +219,7 @@
     "added": "Added",
     "removed": "Removed",
     "modified": "Modified",
-    "noChanges": "No changes",
-    "annotation": "Annotation",
-    "fit": "Fit",
-    "reset": "100%",
-    "marking": "Marking",
-    "box": "Box",
-    "contour": "Contour",
-    "boxHint": "Show changes as a filled box",
-    "contourHint": "Show changes with an outline"
+    "noChanges": "No changes"
   },
   "organize": {
     "pages": "Pages",
@@ -350,8 +359,7 @@
     "h": "H:"
   },
   "common": {
-    "comingSoon": "Coming soon",
-    "more": "More"
+    "comingSoon": "Coming soon"
   },
   "drawing": {
     "selection": "Selection",

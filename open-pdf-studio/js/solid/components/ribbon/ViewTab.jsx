@@ -2,7 +2,7 @@ import RibbonGroup from './RibbonGroup.jsx';
 import AdaptiveGroups from './AdaptiveGroups.jsx';
 import RibbonButton from './RibbonButton.jsx';
 import ThemePicker from './ThemePicker.jsx';
-import { singlePageIcon, continuousIcon, bookViewIcon, navigationIcon, propertiesIcon, annotationsListIcon, toolPaletteIcon, fullscreenIcon, fullscreenExitIcon } from '../../data/ribbonIcons.js';
+import { singlePageIcon, continuousIcon, bookViewIcon, navigationIcon, propertiesIcon, annotationsListIcon, toolPaletteIcon, fullscreenIcon, fullscreenExitIcon, elementVisibilityIcon } from '../../data/ribbonIcons.js';
 import { isFullscreen } from '../../stores/ribbonStore.js';
 import { toggleFullscreen } from '../../../ui/chrome/fullscreen.js';
 import { toggleSymbolPalette } from '../SymbolPalette.jsx';
@@ -14,6 +14,7 @@ import { toggleLeftPanel } from '../../../ui/panels/left-panel.js';
 import { toggleAnnotationsListPanel } from '../../../ui/panels/annotations-list.js';
 import { togglePropertiesPanel } from '../../../ui/panels/properties-panel.js';
 import { panelVisible, panelCollapsed } from '../../stores/propertiesStore.js';
+import { panelVisible as elementVisibilityPanelVisible, toggleElementVisibilityPanel } from '../../stores/elementVisibilityStore.js';
 import { collapsed as leftPanelCollapsed } from '../../stores/leftPanelStore.js';
 import { state, noPdf } from '../../../core/state.js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
@@ -68,6 +69,8 @@ export default function ViewTab() {
             onClick={togglePropertiesPanel} />
           <RibbonButton id="ribbon-annotations-list" title={t('view.annotationsList')} icon={annotationsListIcon} label={t('view.annotationsLabel')}
             disabled={noPdf()} onClick={() => toggleAnnotationsListPanel()} />
+          <RibbonButton id="ribbon-element-visibility" title={t('elementVisibility.buttonTitle')} icon={elementVisibilityIcon} label={t('elementVisibility.buttonLabel')}
+            disabled={noPdf()} active={elementVisibilityPanelVisible()} onClick={toggleElementVisibilityPanel} />
           {/* The symbol library IS the tool palette for the user — single
               button, named accordingly. The old generic Tool Palette button
               and the plugin extension-palette buttons were removed from this

@@ -156,9 +156,9 @@
     "pageDisplay": "Paginaweergave",
     "singlePage": "Enkele pagina",
     "single": "Enkel",
-    "continuousTitle": "Doorlopend — alle pagina’s onder elkaar, vrij scrollen",
+    "continuousTitle": "Doorlopend (binnenkort beschikbaar)",
     "continuous": "Doorlopend",
-    "bookTitle": "Boekweergave — twee pagina’s naast elkaar, pagina 1 rechts",
+    "bookTitle": "Boekweergave (twee pagina’s naast elkaar, pagina 1 rechts) — binnenkort beschikbaar",
     "book": "Boek",
     "panels": "Panelen",
     "navigationPanel": "Navigatiepaneel (F9)",
@@ -179,6 +179,23 @@
     "thinLines": "Dunne lijnen",
     "fullscreen": "Volledig scherm",
     "display": "Weergave"
+  },
+  "elementVisibility": {
+    "buttonTitle": "Zichtbaarheid Elementen — toon/verberg en dim annotatie-soorten",
+    "buttonLabel": "Zichtbaarheid",
+    "title": "Zichtbaarheid Elementen",
+    "reset": "Herstel",
+    "close": "Sluiten",
+    "empty": "Geen annotaties in dit document.",
+    "colType": "Soort",
+    "colCount": "Aantal",
+    "colVisible": "Zicht",
+    "colHalftone": "Halftoon",
+    "toggleVisible": "Zichtbaarheid aan/uit voor deze soort",
+    "toggleHalftone": "Halftoon (dimmen) aan/uit voor deze soort",
+    "tint": "Kleur",
+    "clearTint": "Kleur wissen",
+    "dim": "Dimmen"
   },
   "compare": {
     "title": "PDF's vergelijken",
@@ -202,15 +219,7 @@
     "added": "Toegevoegd",
     "removed": "Verwijderd",
     "modified": "Gewijzigd",
-    "noChanges": "Geen wijzigingen",
-    "annotation": "Annotatie",
-    "fit": "Passend",
-    "reset": "100%",
-    "marking": "Markering",
-    "box": "Vlak",
-    "contour": "Contour",
-    "boxHint": "Toon wijzigingen als gevuld vlak",
-    "contourHint": "Toon wijzigingen met een omtreklijn"
+    "noChanges": "Geen wijzigingen"
   },
   "organize": {
     "pages": "Pagina's",
@@ -352,8 +361,7 @@
     "h": "H:"
   },
   "common": {
-    "comingSoon": "Binnenkort beschikbaar",
-    "more": "Meer"
+    "comingSoon": "Binnenkort beschikbaar"
   },
   "drawing": {
     "selection": "Selectie",

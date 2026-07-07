@@ -45,6 +45,12 @@ export function hideAnnotationsListPanel() {
 
 // Update annotations list - pushes data to the Solid.js store
 export function updateAnnotationsList(filterValue) {
+  // Houd het "Zichtbaarheid Elementen"-paneel synchroon: dit is de canonieke
+  // "annotatie-set gewijzigd"-aanroep (add/delete/doc-wissel), niet per frame.
+  import('../../solid/stores/elementVisibilityStore.js')
+    .then(m => m.refreshElementTypes())
+    .catch(() => { /* store nog niet geladen */ });
+
   // Use provided filter or fall back to stored filter mode
   if (filterValue !== undefined) {
     setFilterMode(filterValue);
