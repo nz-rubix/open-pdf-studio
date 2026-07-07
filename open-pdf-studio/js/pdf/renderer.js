@@ -1179,6 +1179,29 @@ export async function renderContinuous(forceRebuild) {
     _continuousObserver.observe(wrapper);
   });
 
+  // Belt-and-suspenders: de IntersectionObserver mist soms zijn eerste fire als
+  // de container-layout/zichtbaarheid nog niet is uitgekristalliseerd — precies
+  // wat gebeurt vlak na een sessie-herstel/paginaherlaad of een moduswissel.
+  // Gevolg: de bovenste pagina('s) blijven blanco tot je scrollt. Render daarom
+  // expliciet wat er in beeld staat (dezelfde 200px-marge als de observer).
+  // Veilig: pagina's die de observer al deed, worden overgeslagen via
+  // _renderedPages. Twee pogingen (frame + korte timeout) dekken trage layout.
+  const _renderVisibleContinuousNow = () => {
+    if (!scrollContainer || getActiveDocument()?.pdfDoc !== pdfDoc) return;
+    const contRect = scrollContainer.getBoundingClientRect();
+    if (contRect.height === 0) return; // layout nog niet gezet
+    continuousContainer.querySelectorAll('.page-wrapper').forEach(wrapper => {
+      const pageNum = parseInt(wrapper.dataset.page, 10);
+      if (!pageNum || _renderedPages.has(pageNum)) return;
+      const r = wrapper.getBoundingClientRect();
+      if (r.bottom >= contRect.top - 200 && r.top <= contRect.bottom + 200) {
+        renderContinuousPage(pageNum);
+      }
+    });
+  };
+  requestAnimationFrame(_renderVisibleContinuousNow);
+  setTimeout(_renderVisibleContinuousNow, 150);
+
   // Keep doc.currentPage in sync with free scrolling (status bar, thumbnails).
   _bindContinuousScrollSync();
 
