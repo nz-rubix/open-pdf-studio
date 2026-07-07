@@ -78,6 +78,11 @@ export const DEFAULT_PREFERENCES: Preferences = {
   showSnapTypeLabel: true,
   objectSnapRadius: 12,
   snapToPdfContent: true,
+  // Alignment snapping for image annotations: while moving an image, its
+  // edges/centres snap to the edges/centres of OTHER images (design-tool style
+  // guide lines); while resizing, its width/height snaps to another image's
+  // width/height ("equal width"). Uses objectSnapRadius as its tolerance.
+  enableImageAlignSnap: true,
   // CAD behavior — keep drawing tool active after committing one annotation
   // so the user can place multiple in a row without re-selecting the tool.
   // Esc returns to select.

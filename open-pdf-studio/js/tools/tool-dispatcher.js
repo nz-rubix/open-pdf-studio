@@ -10,6 +10,7 @@ import { openStickyPopup } from '../bridge.js';
 import { findAnnotationAt } from '../annotations/geometry.js';
 import { startPan, startContinuousPan, handlePanEnd, handleMiddleButtonPanEnd } from './pan-handler.js';
 import { performSnap, drawSnapIndicator, drawAlignmentGuides, setPolarAnchor, clearPolarAnchor } from './snap-engine.js';
+import { collectImageAlignRefs, snapImageMove, snapImageResize, drawImageAlignGuides } from './image-align-snap.js';
 import { recordAdd, recordModify, recordBulkModify } from '../core/undo-manager.js';
 import { cloneForInsert } from './edit-ops.js';
 import { markDocumentModified } from '../ui/chrome/tabs.js';
@@ -466,12 +467,44 @@ function _handleResize(ctx, e, coords) {
 
   Object.assign(ann, cloneAnnotation(state.originalAnnotation));
   applyResize(ann, state.activeHandle, deltaX, deltaY, state.originalAnnotation, e.shiftKey, e.ctrlKey);
+
+  // Image "equal width/height" snapping: after the resize is applied, snap the
+  // resulting width/height to another image's width/height within tolerance.
+  // Skipped while aspect ratio is locked (Shift / lockAspectRatio), which owns
+  // the width↔height relationship. Only the box-style side/corner handles
+  // change size, so guard on those.
+  state._imageAlignGuides = null;
+  const _rh = state.activeHandle;
+  const _isBoxHandle = _rh === 'tl' || _rh === 'tr' || _rh === 'bl' || _rh === 'br' ||
+    _rh === 't' || _rh === 'b' || _rh === 'l' || _rh === 'r';
+  const _aspectLocked = e.shiftKey || ann.lockAspectRatio;
+  if (state.preferences.enableImageAlignSnap && ann.type === 'image' &&
+      _isBoxHandle && !_aspectLocked) {
+    const excludeIds = new Set([ann.id]);
+    const refs = collectImageAlignRefs(resizeDoc?.annotations || [], coords.pageNum, excludeIds);
+    const tol = (state.preferences.objectSnapRadius || 12) / resizeScale;
+    const box = { x: ann.x, y: ann.y, w: ann.width, h: ann.height };
+    const res = snapImageResize(box, _rh, refs, tol);
+    if (res.guides.length > 0) {
+      ann.x = res.box.x; ann.y = res.box.y;
+      ann.width = res.box.w; ann.height = res.box.h;
+      state._imageAlignGuides = res.guides;
+    }
+  }
+
   redraw();
 
   if (state.lastSnapResult) {
     canvasCtx.save();
     applyToolTransform(canvasCtx);
     drawSnapIndicator(canvasCtx, state.lastSnapResult, resizeScale);
+    canvasCtx.restore();
+  }
+
+  if (state._imageAlignGuides) {
+    canvasCtx.save();
+    applyToolTransform(canvasCtx);
+    drawImageAlignGuides(canvasCtx, state._imageAlignGuides, resizeScale);
     canvasCtx.restore();
   }
 
@@ -643,12 +676,45 @@ function _handleDrag(ctx, e, coords) {
   // Re-read after potential copy (selectedAnnotations may have changed)
   const _dSel2 = _dDoc ? _dDoc.selectedAnnotations : [];
 
+  // Image alignment snapping: when the moving selection is images only, nudge
+  // the delta so the selection's edges/centres click onto other images'
+  // edges/centres. Purely additive to the raw drag delta; falls through to the
+  // unmodified delta when nothing is within tolerance.
+  let adjDX = deltaX, adjDY = deltaY;
+  state._imageAlignGuides = null;
+  if (state.preferences.enableImageAlignSnap && _dSel2.length > 0 &&
+      _dSel2.every(a => a.type === 'image') && !e.shiftKey) {
+    // Origin (pre-move) union bbox of the selection, from the captured originals.
+    const origs = _dSel2.length === 1
+      ? [state.originalAnnotation || state.originalAnnotations[0]]
+      : state.originalAnnotations;
+    const validOrigs = origs.filter(Boolean);
+    if (validOrigs.length === _dSel2.length) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const o of validOrigs) {
+        if (o.x < minX) minX = o.x;
+        if (o.y < minY) minY = o.y;
+        if (o.x + o.width > maxX) maxX = o.x + o.width;
+        if (o.y + o.height > maxY) maxY = o.y + o.height;
+      }
+      const movingBox = { x: minX + deltaX, y: minY + deltaY, w: maxX - minX, h: maxY - minY };
+      const excludeIds = new Set(_dSel2.map(a => a.id));
+      const refs = collectImageAlignRefs(_dDoc?.annotations || [], coords.pageNum, excludeIds);
+      const alignScale = getActiveDocument()?.scale || 1.5;
+      const tol = (state.preferences.objectSnapRadius || 12) / alignScale;
+      const snap = snapImageMove(movingBox, refs, tol);
+      adjDX += snap.dx;
+      adjDY += snap.dy;
+      if (snap.guides.length > 0) state._imageAlignGuides = snap.guides;
+    }
+  }
+
   // Apply move to all selected annotations
   if (_dSel2.length > 1 && state.originalAnnotations.length > 0) {
     for (let i = 0; i < _dSel2.length; i++) {
       if (state.originalAnnotations[i]) {
         Object.assign(_dSel2[i], cloneAnnotation(state.originalAnnotations[i]));
-        applyMove(_dSel2[i], deltaX, deltaY);
+        applyMove(_dSel2[i], adjDX, adjDY);
       }
     }
   } else if (_dSel2.length === 1) {
@@ -656,11 +722,21 @@ function _handleDrag(ctx, e, coords) {
     const orig = state.originalAnnotation || state.originalAnnotations[0];
     if (ann && orig) {
       Object.assign(ann, cloneAnnotation(orig));
-      applyMove(ann, deltaX, deltaY);
+      applyMove(ann, adjDX, adjDY);
     }
   }
 
   redraw();
+
+  // Overlay the alignment guides after the redraw (same pattern as the resize
+  // grip line — drawn straight onto the page canvas in app-space).
+  if (state._imageAlignGuides && coords.canvasCtx) {
+    const gScale = getEffectiveScale();
+    coords.canvasCtx.save();
+    applyToolTransform(coords.canvasCtx);
+    drawImageAlignGuides(coords.canvasCtx, state._imageAlignGuides, gScale);
+    coords.canvasCtx.restore();
+  }
 }
 
 function _annotationChanged(oldState, newState) {
@@ -721,6 +797,7 @@ function _finishDragResize(ctx, e, coords) {
   state._ctrlCopiesCreated = false;
   state._editContourBefore = null;
   state.lastSnapResult = null;
+  state._imageAlignGuides = null;
   state.dragCursor = null;
   // Cursor is reactive — clearing the drag flags above causes the cursor
   // module to recompute and revert to the appropriate hover/tool cursor.
