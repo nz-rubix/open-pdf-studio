@@ -531,6 +531,13 @@ body.pdf-cursor-override #canvas-container * {
 
 .continuous-container canvas {
   display: block;
+}
+
+/* Alleen de PAGINA-canvas krijgt de witte paginakleur + schaduw. De overlay-
+   canvassen (annotatie, tekst-highlight) MOETEN transparant blijven, anders
+   dekken ze de gerenderde pagina af met wit — dat was de oorzaak van het
+   blanco/witte scherm in doorlopende weergave. */
+.continuous-container .pdf-canvas {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   background: white;
 }
@@ -539,6 +546,7 @@ body.pdf-cursor-override #canvas-container * {
   position: absolute;
   top: 0;
   left: 0;
+  background: transparent;
 }
 
 /* PDF Text Edit Tool */
