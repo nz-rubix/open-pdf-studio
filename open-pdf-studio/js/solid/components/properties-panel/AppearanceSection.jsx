@@ -4,6 +4,8 @@ import CollapsibleSection from './CollapsibleSection.jsx';
 import ColorPalettePicker from './ColorPalettePicker.jsx';
 import PrefComboBox from '../preferences/PrefComboBox.jsx';
 import { useTranslation } from '../../../i18n/useTranslation.js';
+import { state } from '../../../core/state.js';
+import { savePreferences } from '../../../core/preferences.js';
 
 export default function AppearanceSection() {
   const { t } = useTranslation('properties');
@@ -112,6 +114,20 @@ export default function AppearanceSection() {
               <option value="long-dash-dot">{tCommon('longDashDot')}</option>
               <option value="long-dash-dot-dot">{tCommon('longDashDotDot')}</option>
             </select>
+          </div>
+        </Show>
+
+        {/* 'Continue': aaneengesloten lijnen tekenen. Alleen tonen terwijl het
+            lijn-gereedschap actief is (dus niet bij een geselecteerde lijn). */}
+        <Show when={state.currentTool === 'line'}>
+          <div class="property-group">
+            <label style={{ display: 'flex', 'align-items': 'center', gap: '6px', cursor: 'pointer' }}
+              title={t('appearance.lineContinueHint')}>
+              <input type="checkbox"
+                checked={state.preferences?.lineContinue === true}
+                onChange={(e) => { state.preferences.lineContinue = e.target.checked; savePreferences(); }} />
+              {t('appearance.lineContinue')}
+            </label>
           </div>
         </Show>
 

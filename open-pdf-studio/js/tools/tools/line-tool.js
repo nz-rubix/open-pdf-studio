@@ -200,11 +200,17 @@ function _commitLineAt(ctx, e, endX, endY) {
   exitTypeLengthMode();
   state._typeLengthCommit = null;
 
-  // WALLS draw in a CHAIN: the committed endpoint immediately becomes the
-  // start of the next segment (the renderer miters the shared corner), so
-  // you trace a plattegrond in one continuous flow. Right-click ends the
-  // chain (the cancel path in onPointerDown / onDeactivate).
-  if (tool === 'wall' && ann) {
+  // CHAIN-tekenen: het zojuist vastgelegde eindpunt wordt meteen het beginpunt
+  // van het volgende segment, zodat je in één doorlopende flow doortekent.
+  // - WALLS doen dit altijd (de renderer verstekt de gedeelde hoek).
+  // - LIJNEN doen dit wanneer de voorkeur 'doorgaan' (aaneengesloten lijnen)
+  //   aanstaat — het 'continue'-vinkje bij het lijn-gereedschap.
+  // Rechtsklik / Esc / tool-wissel beëindigt de reeks (de cancel-paden in
+  // onPointerDown / onDeactivate).
+  const chainThisSegment =
+    tool === 'wall' ||
+    (tool === 'line' && state.preferences?.lineContinue === true);
+  if (chainThisSegment && ann) {
     _lineState.startX = endX;
     _lineState.startY = endY;
     _lineState.lastCursorX = endX;

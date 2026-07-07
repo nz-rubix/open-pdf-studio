@@ -44,6 +44,8 @@
     "lineWidth": "Line Width",
     "borderWidth": "Border Width",
     "borderStyle": "Border Style",
+    "lineContinue": "Continue (chained lines)",
+    "lineContinueHint": "Each new line starts at the previous endpoint. Esc or right-click stops the chain.",
     "rotation": "Rotation",
     "hatchPattern": "Hatch Pattern",
     "hatchColor": "Hatch Color",
