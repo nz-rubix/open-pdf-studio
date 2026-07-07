@@ -163,6 +163,11 @@ export function ensureEndOfContent(textLayerDiv) {
   if (!end) {
     end = document.createElement('div');
     end.className = 'endOfContent';
+    // Neutraliseer de generieke tekst-transform/font-size die de
+    // .textLayer > :not(.markedContent)-regel ook op deze div zou toepassen,
+    // zodat de inset:100%-positionering (CSS) niet verschuift.
+    end.style.transform = 'none';
+    end.style.fontSize = '0';
   }
   // Altijd als laatste kind plaatsen (na alle spans).
   textLayerDiv.appendChild(end);
