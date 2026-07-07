@@ -603,7 +603,53 @@ async function renderThumbnailToDataURL(pdfDoc, pageNum) {
           console.log(`[thumb] p${pageNum} uit prog-bitmap (${w}x${h}, zonder overlay)`);
           return { dataURL, width: w, height: h };
         }
-        console.log(`[thumb] p${pageNum} zwaar — wacht op progressieve bitmap`);
+        // Nog geen prog-bitmap (pagina niet in beeld geweest) → render een
+        // KLEINE whole-page bitmap via de worker-pool (snel, off-thread, geen
+        // dubbele in-proc parse). Zo verschijnen ALLE thumbnails binnen enkele
+        // seconden i.p.v. pas na een bezoek aan elke pagina.
+        try {
+          const widthPt = doc.pageDims?.[pageNum]?.widthPt || 2000;
+          // Render op ~2x thumbnailbreedte (scherpe AA op dun lijnwerk), daarna
+          // downschalen naar 140 px.
+          const renderW = 280;
+          const thumbScale = Math.max(0.008, Math.min(0.5, renderW / widthPt));
+          const { renderPdfPage } = await import('../../pdf/engine-router.js');
+          const raw = await renderPdfPage({ path: doc.filePath, pageIndex: pageNum - 1, scale: thumbScale, rotation });
+          const bytes = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
+          if (bytes && bytes.length > 8) {
+            const dv = new DataView(bytes.buffer, bytes.byteOffset, 8);
+            const rw = dv.getUint32(0, true), rh = dv.getUint32(4, true);
+            if (rw > 0 && rh > 0 && rw * rh * 4 === bytes.length - 8) {
+              const rgba = new Uint8ClampedArray(bytes.buffer, bytes.byteOffset + 8, rw * rh * 4);
+              const src = document.createElement('canvas');
+              src.width = rw; src.height = rh;
+              src.getContext('2d').putImageData(new ImageData(rgba, rw, rh), 0, 0);
+              const targetW = 140;
+              const s = targetW / rw;
+              const w = Math.max(1, Math.round(rw * s));
+              const h = Math.max(1, Math.round(rh * s));
+              const canvas = document.createElement('canvas');
+              canvas.width = w; canvas.height = h;
+              const ctx = canvas.getContext('2d');
+              ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
+              ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+              ctx.drawImage(src, 0, 0, w, h);
+              const dataURL = canvas.toDataURL('image/jpeg', 0.7);
+              const oScale = doc.pageDims?.[pageNum]?.widthPt ? w / doc.pageDims[pageNum].widthPt : null;
+              if (oScale) {
+                try {
+                  const composited = await overlayAnnotationsOnDataURL(dataURL, pageNum, w, h, oScale);
+                  console.log(`[thumb] p${pageNum} via pool-render (${w}x${h})`);
+                  return { dataURL: composited, width: w, height: h };
+                } catch { /* val terug op kale bitmap */ }
+              }
+              console.log(`[thumb] p${pageNum} via pool-render (${w}x${h}, zonder overlay)`);
+              return { dataURL, width: w, height: h };
+            }
+          }
+        } catch (e) {
+          console.log(`[thumb] p${pageNum} pool-thumb faalde: ${String(e).slice(0, 80)}`);
+        }
         return null;
       }
     }
