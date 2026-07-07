@@ -80,6 +80,20 @@
   background: transparent;
 }
 
+/* Spook-selectie tegengaan: lege en witruimte-only spans (PDF.js zendt die uit
+   voor grote positiesprongen — trailing spaties aan regeleindes, inspring- en
+   kolomgaten) mogen GEEN selectie-achtergrond krijgen. Anders verschijnen bij
+   het slepen losse blauwe streepjes/kolommen in de marge en tussen kolommen,
+   los van de eigenlijke tekst. Echte spaties tussen woorden zitten IN de
+   woord-span zelf en blijven dus gewoon oplichten. */
+.textLayer span[data-ws]::-moz-selection {
+  background: transparent;
+}
+
+.textLayer span[data-ws]::selection {
+  background: transparent;
+}
+
 /* Search highlight styles */
 .textLayer .highlight {
   margin: -1px;

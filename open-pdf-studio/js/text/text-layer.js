@@ -150,6 +150,32 @@ function insertColumnBreaks(textItems, textDivs) {
 }
 
 /**
+ * Markeert lege en witruimte-only spans in een tekstlaag met `data-ws`, zodat
+ * de CSS hun selectie-achtergrond kan neutraliseren.
+ *
+ * ACHTERGROND: PDF.js zendt voor grote horizontale positiesprongen aparte
+ * spans uit die alleen witruimte bevatten (trailing spaties aan regeleindes,
+ * inspring-spaties, kolomgaten). Bij een tekstselectie kleuren die apart op als
+ * losse blauwe streepjes — o.a. een kolom in de linkermarge en slierten tussen
+ * kolommen ("spook-selectie"). Deze spans dragen geen leesbare inhoud: echte
+ * spaties tussen twee woorden zitten IN de woord-span zelf en blijven dus wel
+ * oplichten. Het markeren raakt de DOM-volgorde, tekst en kopieer-inhoud niet.
+ * @param {HTMLElement} textLayerDiv
+ */
+export function tagWhitespaceSpans(textLayerDiv) {
+  if (!textLayerDiv) return;
+  const spans = textLayerDiv.querySelectorAll('span:not(.markedContent)');
+  spans.forEach(span => {
+    const text = span.textContent;
+    if (text === '' || text.trim() === '') {
+      span.dataset.ws = '1';
+    } else if (span.dataset.ws) {
+      delete span.dataset.ws;
+    }
+  });
+}
+
+/**
  * Zorgt dat de tekstlaag een `.endOfContent`-div als laatste kind heeft.
  * Deze div (user-select:none via CSS) wordt tijdens een sleep door
  * text-selection.js op de start-Y geplaatst en geactiveerd, zodat een
@@ -247,6 +273,10 @@ export async function createTextLayer(page, viewport, container, pageNum) {
   // browser doesn't merge separate columns/labels into one selection range
   // (prevents over-broad "weird" selections on drawings with scattered text).
   insertColumnBreaks(textItems, textDivs);
+
+  // Neutraliseer selectie-achtergrond op lege/witruimte-only spans (spook-
+  // selectie: losse streepjes in de marge en tussen kolommen).
+  tagWhitespaceSpans(textLayerDiv);
 
   textLayers.set(pageNum, { element: textLayerDiv, textLayer });
 
