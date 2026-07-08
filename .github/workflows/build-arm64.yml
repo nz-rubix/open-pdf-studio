@@ -83,6 +83,14 @@ jobs:
           $conf | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json
           Get-Content src-tauri/tauri.conf.json | Select-String -Pattern 'win-arm64|createUpdaterArtifacts|connect-src'
 
+          # Lean build: the virtual-printer feature is compiled out of the app
+          # (OPS_FEATURE_VPRINTER=false), so skip its installer wizard page too.
+          # An immediate Abort in a page-create function makes NSIS skip the page.
+          $hooks = Get-Content src-tauri/nsis/hooks.nsh -Raw
+          $hooks = $hooks -replace 'Function VPrinterPageCreate', "Function VPrinterPageCreate`n  Abort ; lean build: virtual printer not offered"
+          Set-Content src-tauri/nsis/hooks.nsh $hooks
+          Select-String -Path src-tauri/nsis/hooks.nsh -Pattern 'lean build: virtual printer'
+
       # npm run tauri:build = prebuild hook (cargo build --release -p pdfium-worker)
       # + vite build + tauri build. src-tauri/build.rs derives the sidecar's
       # target-triple suffix from $TARGET, which matches the native host on
