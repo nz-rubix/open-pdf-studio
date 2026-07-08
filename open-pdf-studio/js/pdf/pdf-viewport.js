@@ -287,6 +287,73 @@ export function stopPanMomentum() {
 
 // ─── Render Loop ────────────────────────────────────────────────────────────
 
+// ─── Marching-ants redaction animation driver ──────────────────────────────
+// A dedicated, self-terminating RAF loop that advances state.redactAntsOffset
+// while a redaction is being drawn or a pending redaction mark exists, then
+// triggers the correct annotation redraw for the current view mode. Kept
+// separate from the main viewport loop so it works in ALL view modes
+// (single / continuous / book) regardless of whether the viewport render loop
+// is currently active — and so it can spin down to ZERO cost the moment no
+// redaction remains (e.g. after "Apply" turns marks into black boxes).
+
+// Lazily-cached continuous-mode annotation redraw. Imported on demand to keep
+// this module free of a static dependency on the rendering module (avoids any
+// import-cycle risk).
+let _redrawContinuousFn = null;
+let _redrawAnnotationsFn = null;
+import('../annotations/rendering.js')
+  .then(m => { _redrawContinuousFn = m.redrawContinuous; _redrawAnnotationsFn = m.redrawAnnotations; })
+  .catch(() => {});
+
+let _redactAntsRafId = 0;
+
+// TRUE only while a redaction is actively being drawn, or while at least one
+// pending redaction mark (still type 'redaction') exists on the active
+// document. Once "Apply" converts them to black boxes (type 'box'), no
+// redaction remains and this returns false — the loop stops on its own.
+function _redactionAnimationActive() {
+  if (state.isDrawing && state.currentTool === 'redaction') return true;
+  const doc = getActiveDocument();
+  const anns = doc && doc.annotations;
+  if (!anns || anns.length === 0) return false;
+  for (let i = 0; i < anns.length; i++) {
+    if (anns[i].type === 'redaction') return true;
+  }
+  return false;
+}
+
+function _redactAntsTick() {
+  if (!_redactionAnimationActive()) {
+    // Nothing left to animate — stop the loop (no perpetual repaint).
+    _redactAntsRafId = 0;
+    return;
+  }
+  // Advance the dash phase; rendering reads state.redactAntsOffset as a
+  // negative lineDashOffset so the dashes appear to "march" outward.
+  state.redactAntsOffset += 0.6;
+  if (state.redactAntsOffset > 1e6) state.redactAntsOffset = 0; // avoid unbounded growth
+
+  if (getActiveDocument()?.viewMode === 'continuous') {
+    // Continuous/book: redraw all visible page overlays directly.
+    if (_redrawContinuousFn) { try { _redrawContinuousFn(); } catch {} }
+  } else if (viewport.active) {
+    // Single-page with the vector viewport: let the main render loop repaint.
+    viewport.dirty = true;
+  } else if (_redrawAnnotationsFn) {
+    // Single-page fallback (blank/legacy docs without the vector viewport).
+    try { _redrawAnnotationsFn(); } catch {}
+  }
+  _redactAntsRafId = requestAnimationFrame(_redactAntsTick);
+}
+
+// Start the marching-ants loop if it isn't already running. Idempotent and
+// cheap: call it whenever a redaction gesture starts or a redaction mark is
+// created. The loop self-terminates once no redaction remains pending.
+export function kickRedactAnts() {
+  if (_redactAntsRafId || typeof requestAnimationFrame === 'undefined') return;
+  _redactAntsRafId = requestAnimationFrame(_redactAntsTick);
+}
+
 function _startLoop() {
   function tick() {
     if (viewport.active) {

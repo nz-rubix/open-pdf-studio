@@ -681,6 +681,19 @@ function ThumbnailMenuContent() {
   const pages = () => getSelectedPagesArray();
   const count = () => pages().length;
   const isMulti = () => count() > 1;
+  const numPages = () => state.documents[state.activeDocumentIndex]?.pdfDoc?.numPages || 1;
+  // Build a reorderPages() permutation that swaps the target page with its
+  // neighbour (dir -1 = up, +1 = down). Returns null at the ends.
+  const swapOrder = (p, dir) => {
+    const N = numPages();
+    const a = p - 1, b = a + dir;
+    if (b < 0 || b >= N) return null;
+    const order = Array.from({ length: N }, (_, i) => i + 1);
+    [order[a], order[b]] = [order[b], order[a]];
+    return order;
+  };
+  const moveUpIcon = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M7.5 13a.5.5 0 0 0 1 0V4.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L7.5 4.707V13z"/></svg>';
+  const moveDownIcon = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8.5 3a.5.5 0 0 0-1 0v8.293L4.354 8.146a.5.5 0 1 0-.708.708l4 4a.5.5 0 0 0 .708 0l4-4a.5.5 0 0 0-.708-.708L8.5 11.293V3z"/></svg>';
 
   const thumbnailCutIcon = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5a2.5 2.5 0 1 1 3.164 2.414L8.5 7.25l1.336-2.336a2.5 2.5 0 1 1 1.414 0L9.914 7.25 13 12.5V14H3v-1.5L6.086 7.25 4.75 4.914A2.5 2.5 0 0 1 4 2.5zm2.5 1a1 1 0 1 0-2 0 1 1 0 0 0 2 0zm5 0a1 1 0 1 0-2 0 1 1 0 0 0 2 0z"/></svg>';
   const thumbnailCopyIcon = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H6z"/><path d="M2 5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1v1a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1v1H2z"/></svg>';
@@ -735,6 +748,25 @@ function ThumbnailMenuContent() {
         onClick={async () => {
           const { rotatePage } = await import('../../pdf/renderer.js');
           for (const p of pages()) await rotatePage(90, p);
+        }} />
+
+      <Separator />
+
+      <MenuItem icon={moveUpIcon}
+        label={t('thumbnail.moveUp')}
+        disabled={isMulti() || pageNum() <= 1}
+        onClick={async () => {
+          const { reorderPages } = await import('../../pdf/page-manager.js');
+          const order = swapOrder(pageNum(), -1);
+          if (order) await reorderPages(order);
+        }} />
+      <MenuItem icon={moveDownIcon}
+        label={t('thumbnail.moveDown')}
+        disabled={isMulti() || pageNum() >= numPages()}
+        onClick={async () => {
+          const { reorderPages } = await import('../../pdf/page-manager.js');
+          const order = swapOrder(pageNum(), 1);
+          if (order) await reorderPages(order);
         }} />
 
       <Separator />

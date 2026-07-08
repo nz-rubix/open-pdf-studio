@@ -45,6 +45,11 @@ import { useTranslation } from '../../../i18n/useTranslation.js';
 import { state } from '../../../core/state.js';
 import { diffAnnotationsForPair } from '../../../compare/compare-annotations.js';
 
+// Verticale scheidingslijn tussen toolbar-groepen — Windows/Visual-Studio-stijl.
+function Sep() {
+  return <span style="width:1px; align-self:stretch; margin:2px 4px; background:#d4d4d4;"></span>;
+}
+
 export default function CompareView() {
   const { t } = useTranslation('ribbon');
   let oldCanvasRef;
@@ -571,53 +576,71 @@ export default function CompareView() {
       >
         <div
           class="compare-toolbar"
-          style="display:flex; align-items:center; gap:8px; padding:6px 10px; background:linear-gradient(#ffffff, #f5f5f5); border-bottom:1px solid #d4d4d4; color:#222; font-size:12px;"
+          style="display:flex; align-items:center; gap:6px; padding:5px 10px; background:linear-gradient(#ffffff, #f5f5f5); border-bottom:1px solid #d4d4d4; color:#222; font-size:12px;"
         >
+          {/* Titel + weergavemodus */}
           <strong>{t('compare.title') || 'Compare PDFs'}</strong>
-          <span>·</span>
-          <span>{compareMode() === 'overlay' ? (t('compare.overlay') || 'Overlay') : (t('compare.sideBySide') || 'Side-by-side')}</span>
-          <span style="margin-left:12px;">{t('compare.page') || 'Page'}: {compareOldPage()}/{compareOldPageCount()} · {compareNewPage()}/{compareNewPageCount()}</span>
-          <button class="pref-btn pref-btn-secondary" disabled={!canPrevPagePair()} onClick={prevPagePair}>{'<'}</button>
-          <button class="pref-btn pref-btn-secondary" disabled={!canNextPagePair()} onClick={nextPagePair}>{'>'}</button>
-          <span style="margin-left:12px;">Zoom:</span>
-          <button class="pref-btn pref-btn-secondary" onClick={() => zoomButton(1 / 1.2)}>-</button>
-          <span style="min-width:40px; text-align:center;">{Math.round(compareZoom() * 100)}%</span>
-          <button class="pref-btn pref-btn-secondary" onClick={() => zoomButton(1.2)}>+</button>
+          <span style="color:#666;">{compareMode() === 'overlay' ? (t('compare.overlay') || 'Overlay') : (t('compare.sideBySide') || 'Side-by-side')}</span>
+
+          <Sep />
+
+          {/* Paginanavigatie */}
+          <span style="color:#555;">{t('compare.page') || 'Page'}</span>
+          <button class="pref-btn pref-btn-secondary" disabled={!canPrevPagePair()} title={t('compare.page') || 'Page'} onClick={prevPagePair}>{'‹'}</button>
+          <span style="min-width:58px; text-align:center; font-variant-numeric:tabular-nums;">{compareOldPage()}/{compareOldPageCount()} · {compareNewPage()}/{compareNewPageCount()}</span>
+          <button class="pref-btn pref-btn-secondary" disabled={!canNextPagePair()} title={t('compare.page') || 'Page'} onClick={nextPagePair}>{'›'}</button>
+
+          <Sep />
+
+          {/* Zoom */}
+          <span style="color:#555;">{t('compare.zoom') || 'Zoom'}</span>
+          <button class="pref-btn pref-btn-secondary" title="-" onClick={() => zoomButton(1 / 1.2)}>−</button>
+          <span style="min-width:42px; text-align:center; font-variant-numeric:tabular-nums;">{Math.round(compareZoom() * 100)}%</span>
+          <button class="pref-btn pref-btn-secondary" title="+" onClick={() => zoomButton(1.2)}>+</button>
           <button class="pref-btn pref-btn-secondary" title={t('compare.fit') || 'Passend'} onClick={requestCompareFit}>{t('compare.fit') || 'Passend'}</button>
-          <button class="pref-btn pref-btn-secondary" title={t('compare.reset') || '100%'} onClick={requestCompareReset}>100%</button>
-          <span style="margin-left:12px;">{t('compare.marking') || 'Markering'}:</span>
-          <label style="display:inline-flex; align-items:center; gap:3px; cursor:pointer;" title={t('compare.boxHint') || 'Toon wijzigingen als gevuld vlak'}>
+          <button class="pref-btn pref-btn-secondary" title={t('compare.reset') || '100%'} onClick={requestCompareReset}>{t('compare.reset') || '100%'}</button>
+
+          <Sep />
+
+          {/* Markering */}
+          <span style="color:#555;">{t('compare.marking') || 'Markering'}</span>
+          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer;" title={t('compare.boxHint') || 'Toon wijzigingen als gevuld vlak'}>
             <input type="checkbox" checked={compareShowBox()} onChange={(e) => setCompareShowBox(e.currentTarget.checked)} />
             {t('compare.box') || 'Vlak'}
           </label>
-          <label style="display:inline-flex; align-items:center; gap:3px; cursor:pointer;" title={t('compare.contourHint') || 'Toon wijzigingen met een omtreklijn'}>
+          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer;" title={t('compare.contourHint') || 'Toon wijzigingen met een omtreklijn'}>
             <input type="checkbox" checked={compareShowContour()} onChange={(e) => setCompareShowContour(e.currentTarget.checked)} />
             {t('compare.contour') || 'Contour'}
           </label>
+
+          {/* Uitlijnen (alleen overlay) */}
           <Show when={compareMode() === 'overlay'}>
-            <span style="margin-left:12px;">{t('compare.align') || 'Align'} dx:</span>
+            <Sep />
+            <span style="color:#555;">{t('compare.align') || 'Align'}</span>
+            <span style="color:#777;">dx</span>
             <input
               type="number"
-              style="width:60px;"
+              style="width:56px;"
               value={compareOffset().dx}
               onInput={(e) => setCompareOffset({ dx: parseFloat(e.target.value) || 0 })}
             />
-            <span>dy:</span>
+            <span style="color:#777;">dy</span>
             <input
               type="number"
-              style="width:60px;"
+              style="width:56px;"
               value={compareOffset().dy}
               onInput={(e) => setCompareOffset({ dy: parseFloat(e.target.value) || 0 })}
             />
-            <span>rot:</span>
+            <span style="color:#777;">rot</span>
             <input
               type="number"
               step="0.1"
-              style="width:60px;"
+              style="width:56px;"
               value={compareOffset().rotation}
               onInput={(e) => setCompareOffset({ rotation: parseFloat(e.target.value) || 0 })}
             />
           </Show>
+
           <span style="flex:1;"></span>
           <button
             onClick={exitCompare}

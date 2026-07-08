@@ -10,6 +10,13 @@ export const shapeTool = {
     if (e.button !== 0) return;
     const { state } = ctx;
     state.isDrawing = true;
+    // Start the marching-ants animation as soon as a redaction drag begins so
+    // the live preview border animates while dragging (and keeps animating for
+    // the resulting pending mark). The loop self-terminates when no redaction
+    // remains pending.
+    if (state.currentTool === 'redaction') {
+      import('../../pdf/pdf-viewport.js').then(m => m.kickRedactAnts && m.kickRedactAnts());
+    }
   },
 
   onPointerMove(ctx, e) {

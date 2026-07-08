@@ -1,9 +1,11 @@
+import { Show } from 'solid-js';
 import RibbonGroup from './RibbonGroup.jsx';
 import AdaptiveGroups from './AdaptiveGroups.jsx';
 import RibbonButton from './RibbonButton.jsx';
 import RibbonButtonStack from './RibbonButtonStack.jsx';
 import { setTool } from '../../../tools/manager.js';
 import { state, getActiveDocument, noPdf } from '../../../core/state.js';
+import { savePreferences } from '../../../core/preferences.js';
 import { isPdfAReadOnly } from '../../../pdf/loader.js';
 import { clearSelection, selectAllOnPage } from '../../../core/stores/selection-helpers.js';
 import { toggleFindBar } from '../../../search/find-bar.js';
@@ -154,6 +156,23 @@ export default function DrawingTab() {
           <RibbonButton size="small" id="dr-image" title={t('drawing.image')} icon={imageIcon}
             disabled={ro()} active={state.currentTool === 'image'} onClick={() => setTool('image')} />
         </RibbonGroup>
+
+        {/* LIJN-OPTIES — alleen zichtbaar bij het lijn-gereedschap. Bevat het
+            'Doorlopend'-vinkje dat de doorlopende (keten) tekenmodus schakelt.
+            Deelt exact dezelfde preference (state.preferences.lineContinue) als
+            het vinkje in het eigenschappen-paneel — één bron van waarheid. */}
+        <Show when={state.currentTool === 'line'}>
+          <RibbonGroup label={t('comment.line') || 'Lijn'}>
+            <label class="ribbon-checkbox-option" title={t('drawing.lineContinueTip') || 'Elke klik verbindt het volgende segment met het vorige'}>
+              <input
+                type="checkbox"
+                checked={state.preferences.lineContinue === true}
+                onChange={(e) => { state.preferences.lineContinue = e.currentTarget.checked; savePreferences(); }}
+              />
+              <span>{t('drawing.lineContinue') || 'Doorlopend'}</span>
+            </label>
+          </RibbonGroup>
+        </Show>
 
         {/* SCHAAL — moved here from the Opmerkingen tab: full labelled buttons
             for Schaalgebied + Schaalgebied op pagina. */}

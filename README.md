@@ -318,7 +318,17 @@ npx tauri dev
 
 ## Contributing
 
-Contributions are welcome. Please open an issue to discuss proposed changes before submitting a pull request.
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guidelines.
+
+In short: because the codebase moves quickly, a clear, well-described **issue** is usually more valuable than a code pull request — a precise description can be implemented against the *current* code before a branch would go stale.
+
+### Symbol libraries and content — pull requests very welcome
+
+Content is the exception to "prefer issues over PRs". **We want every symbol library in the world.** Symbol sets, hatch patterns, and other reusable content don't go stale the way code does, so **content pull requests are actively encouraged** — bring the standards and libraries from your country, industry, and discipline. Symbols are organised by industry (e.g. AEC) and country (e.g. NL), and localisation will keep expanding, so libraries for any region are welcome.
+
+### We're looking for a content & extensions maintainer
+
+We are looking for someone to **own and maintain the extensions and the content repository** — curating incoming symbol libraries and content contributions, and keeping the ecosystem organised as it grows. If that sounds like you, please open an issue to introduce yourself.
 
 ## License
 

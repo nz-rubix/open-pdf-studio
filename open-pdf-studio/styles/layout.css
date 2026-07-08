@@ -695,6 +695,11 @@ body.pdf-cursor-override #canvas-container * {
   position: absolute;
   top: 0;
   left: 0;
+  /* The overlay must be transparent so the rendered page (the .pdf-canvas
+     below it) shows through. Without this it inherits `background: white`
+     from the broad `.continuous-container canvas` rule above and covers the
+     page — a full white screen in continuous/book view. */
+  background: transparent;
 }
 
 /* PDF Text Edit Tool */

@@ -799,6 +799,25 @@ export function invalidateThumbnail(pageNum) {
   startProcessor();
 }
 
+// Invalidate several pages' thumbnails at once (e.g. after "Clear All" or a
+// bulk annotation edit spanning multiple pages). Cheaper than N single calls:
+// one processor restart at the end instead of per page.
+export function invalidateThumbnails(pageNums) {
+  const activeDoc = getActiveDocument();
+  if (!activeDoc || !pageNums) return;
+  const docCache = thumbnailCache.get(activeDoc.id);
+  let any = false;
+  for (const pageNum of pageNums) {
+    if (!Number.isInteger(pageNum) || pageNum < 1) continue;
+    if (docCache) docCache.delete(pageNum);
+    bumpPageGen(activeDoc.id, pageNum);
+    removeThumbnailImage(pageNum);
+    priorityPages.add(pageNum);
+    any = true;
+  }
+  if (any) startProcessor();
+}
+
 // Clear thumbnail cache for a specific document
 export function clearThumbnailCache(docId) {
   if (docId) {

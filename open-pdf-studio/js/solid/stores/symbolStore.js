@@ -3,6 +3,7 @@ import { BUILT_IN_CATEGORIES } from '../data/symbolLibrary.js';
 import { NEN1414_CATEGORIES } from '../data/nen1414Library.js';
 import { NL_CATEGORIES } from '../data/nlSymbolLibrary.js';
 import { INB_CATEGORIES } from '../data/inbSymbolLibrary.js';
+import { matchesLocale, DEFAULT_INDUSTRY, DEFAULT_COUNTRY } from '../data/symbolLocales.js';
 import { state } from '../../core/state.js';
 import { savePreferences } from '../../core/preferences.js';
 import { registerPaletteDock } from './paletteOrder.js';
@@ -15,6 +16,20 @@ const [symbolPaletteMode, setSymbolPaletteModeRaw] = createSignal('docked-right'
 const [symbolFloatPos, setSymbolFloatPos] = createSignal({ x: 300, y: 150 });
 const [settingsOpen, setSettingsOpen] = createSignal(false);
 const [disabledGroups, setDisabledGroupsRaw] = createSignal(new Set());
+const [selectedIndustry, setSelectedIndustryRaw] = createSignal(DEFAULT_INDUSTRY);
+const [selectedCountry, setSelectedCountryRaw] = createSignal(DEFAULT_COUNTRY);
+
+function setSelectedIndustry(id) {
+  setSelectedIndustryRaw(id);
+  state.preferences.symbolLibraryIndustry = id;
+  savePreferences();
+}
+
+function setSelectedCountry(id) {
+  setSelectedCountryRaw(id);
+  state.preferences.symbolLibraryCountry = id;
+  savePreferences();
+}
 
 function setDisabledGroups(groups) {
   const s = groups instanceof Set ? groups : new Set(groups);
@@ -31,6 +46,47 @@ function toggleGroupEnabled(id) {
 
 function isGroupEnabled(id) {
   return !disabledGroups().has(id);
+}
+
+// --- Symbol type overrides (user-edited geometry) ---
+// Palette stamps carry no stable symbolId — a placed type is identified by its
+// source SVG string. We key overrides by a short deterministic hash of that
+// original SVG so the same type always resolves to the same edited geometry.
+function symbolTypeKey(svg) {
+  if (!svg) return null;
+  // Normalize insignificant whitespace so cosmetically-different but identical
+  // sources hash the same.
+  const s = String(svg).replace(/\s+/g, ' ').trim();
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  }
+  return 'sym_' + (h >>> 0).toString(36);
+}
+
+function getSymbolTypeOverrides() {
+  return state.preferences.symbolTypeOverrides || {};
+}
+
+// Resolve the effective SVG for a symbol type: returns the user override when
+// one exists for this source SVG, otherwise the original SVG unchanged.
+function resolveSymbolSvg(originalSvg) {
+  const key = symbolTypeKey(originalSvg);
+  if (!key) return originalSvg;
+  const ov = getSymbolTypeOverrides()[key];
+  return ov && ov.svg ? ov.svg : originalSvg;
+}
+
+// Persist an edited type. baseSvg is the ORIGINAL source SVG (used for the key)
+// so future edits of an already-edited stamp still map back to the same type.
+function setSymbolTypeOverride(baseSvg, svg, name) {
+  const key = symbolTypeKey(baseSvg);
+  if (!key) return null;
+  const overrides = { ...getSymbolTypeOverrides() };
+  overrides[key] = { svg, name: name || overrides[key]?.name || 'Symbol' };
+  state.preferences.symbolTypeOverrides = overrides;
+  savePreferences();
+  return key;
 }
 
 // --- Custom groups stored in preferences ---
@@ -59,11 +115,15 @@ const allCategories = createMemo(() => {
   ];
 });
 
-// --- Filtered categories based on search + enabled state ---
+// --- Filtered categories based on search + enabled state + locale ---
 const filteredCategories = createMemo(() => {
   const q = searchQuery().toLowerCase().trim();
   const disabled = disabledGroups();
-  let cats = allCategories().filter(c => !disabled.has(c.id));
+  const industry = selectedIndustry();
+  const country = selectedCountry();
+  let cats = allCategories()
+    .filter(c => !disabled.has(c.id))
+    .filter(c => matchesLocale(c, industry, country));
   if (q) {
     cats = cats
       .map(cat => ({
@@ -94,7 +154,7 @@ function isCategoryExpanded(id) {
 // --- Custom group CRUD ---
 function addCustomGroup(name) {
   const id = 'custom-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '');
-  const groups = [...getCustomGroups(), { id, name, symbols: [] }];
+  const groups = [...getCustomGroups(), { id, name, industry: selectedIndustry(), country: selectedCountry(), symbols: [] }];
   setCustomGroups(groups);
   // Auto-expand new group
   setExpandedCategories(prev => {
@@ -152,6 +212,8 @@ function initSymbolPalette() {
   const prefs = state.preferences;
   if (prefs.symbolPaletteVisible != null) setSymbolPaletteVisibleRaw(prefs.symbolPaletteVisible);
   if (prefs.disabledSymbolGroups) setDisabledGroupsRaw(new Set(prefs.disabledSymbolGroups));
+  if (prefs.symbolLibraryIndustry != null) setSelectedIndustryRaw(prefs.symbolLibraryIndustry);
+  if (prefs.symbolLibraryCountry != null) setSelectedCountryRaw(prefs.symbolLibraryCountry);
   const mode = prefs.symbolPaletteMode || 'docked-right';
   setSymbolPaletteModeRaw(mode);
   if (prefs.symbolPaletteFloatX != null) {
@@ -172,8 +234,11 @@ export {
   symbolFloatPos, setSymbolFloatPos,
   saveSymbolPaletteState, initSymbolPalette,
   settingsOpen, setSettingsOpen,
+  selectedIndustry, setSelectedIndustry,
+  selectedCountry, setSelectedCountry,
   toggleGroupEnabled, isGroupEnabled,
   addCustomGroup, removeCustomGroup,
   addSymbolToGroup, removeSymbolFromGroup,
   getCustomGroups,
+  symbolTypeKey, getSymbolTypeOverrides, resolveSymbolSvg, setSymbolTypeOverride,
 };

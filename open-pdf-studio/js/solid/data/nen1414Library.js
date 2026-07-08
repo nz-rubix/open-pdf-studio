@@ -161,6 +161,8 @@ export const NEN1414_CATEGORIES = (() => {
       catMap.set(prefix, {
         id: `nen1414-${prefix.toLowerCase()}`,
         name: meta.name,
+        industry: 'aec',
+        country: 'nl',
         color: meta.color,
         icon: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1"/><text x="8" y="11" font-size="7" font-weight="bold" fill="currentColor" stroke="none" text-anchor="middle" font-family="sans-serif">N</text></svg>`,
         builtin: true,

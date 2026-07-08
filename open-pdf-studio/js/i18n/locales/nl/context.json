@@ -94,6 +94,8 @@
   "thumbnail": {
     "rotateLeft": "Linksom draaien",
     "rotateRight": "Rechtsom draaien",
+    "moveUp": "Naar boven",
+    "moveDown": "Naar beneden",
     "insertPages": "Pagina's invoegen...",
     "extractPages": "Pagina's extraheren...",
     "replacePages": "Pagina's vervangen...",

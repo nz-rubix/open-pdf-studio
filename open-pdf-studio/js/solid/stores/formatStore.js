@@ -18,6 +18,9 @@ const [hasFill, setHasFill] = createSignal(false);
 const [hasSelection, setHasSelection] = createSignal(false);
 const [isLocked, setIsLocked] = createSignal(false);
 const [annotationType, setAnnotationType] = createSignal('');
+// True when exactly one editable symbol-stamp (carries stampSvg) is selected —
+// drives the contextual "Edit Type" affordance in the Format tab.
+const [isSingleSymbolStamp, setIsSingleSymbolStamp] = createSignal(false);
 
 // Style gallery definitions
 export const STYLE_DEFS = {
@@ -94,11 +97,17 @@ const OPACITY_OPTIONS = ['100', '90', '75', '50', '25', '10'];
 export function syncFormatStore(selectedAnnotations) {
   if (!selectedAnnotations || selectedAnnotations.length === 0) {
     setHasSelection(false);
+    setIsSingleSymbolStamp(false);
     return;
   }
 
   setHasSelection(true);
   const ann = selectedAnnotations[0];
+  setIsSingleSymbolStamp(
+    selectedAnnotations.length === 1 &&
+    ann.type === 'stamp' &&
+    !!(ann.stampSvg || ann.stampBaseSvg)
+  );
   const locked = selectedAnnotations.some(a => a.locked);
   setIsLocked(locked);
   setAnnotationType(ann.type || '');
@@ -137,5 +146,6 @@ export {
   hasFill, setHasFill,
   hasSelection, setHasSelection,
   isLocked, setIsLocked,
-  annotationType, setAnnotationType
+  annotationType, setAnnotationType,
+  isSingleSymbolStamp, setIsSingleSymbolStamp
 };

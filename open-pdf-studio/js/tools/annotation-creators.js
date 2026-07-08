@@ -9,6 +9,7 @@ import { getTemplate, defaultParams } from '../symbols/registry.js';
 import { pxPerMmAt } from '../symbols/real-size.js';
 import { pendingSymbolId } from '../solid/stores/parametricSymbolStore.js';
 import { activeCountCategory as _activeCountCategory, nextCountNumber as _nextCountNumber } from '../solid/stores/countStore.js';
+import { ifcCategoryForParametric } from '../solid/data/ifcCategoryMap.js';
 
 /**
  * Build raw annotation properties from tool + coordinates.
@@ -345,6 +346,8 @@ export function buildAnnotationProps(tool, startX, startY, endX, endY, e) {
         ...b,
         symbolId,
         params: template ? defaultParams(template) : {},
+        // IFC-categorie afgeleid van het template-id (mapping-laag) → hoeveelheden.
+        ifcCategory: ifcCategoryForParametric(symbolId),
         color: '#000000',
         strokeColor: '#000000',
         lineWidth: getLineWidthValue() || 1,

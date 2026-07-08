@@ -8,12 +8,17 @@ const [currentTheme, setCurrentTheme] = createSignal('dark');
 const [calibrationPixelDistance, setCalibrationPixelDistance] = createSignal(null);
 const [isFullscreen, setIsFullscreen] = createSignal(false);
 
-// Fall back to 'home' when contextual tabs hide while a contextual tab is active
+// Safety net: if the contextual tabs hide (selection cleared) while a
+// contextual tab is still active, fall back to 'home'. The primary
+// tab-restoration on selection change lives in updateContextualTabs()
+// (js/annotations/rendering/ui-state.js), which restores the *previous*
+// non-contextual tab; this effect only catches paths that clear the selection
+// without going through that code (so the user never stays on a vanished tab).
 createRoot(() => {
   createEffect(() => {
     if (!contextualTabsVisible()) {
       const current = activeTab();
-      if (current === 'format' || current === 'arrange') {
+      if (current === 'format' || current === 'arrange' || current === 'image') {
         setActiveTab('home');
       }
     }

@@ -19,6 +19,7 @@ import { drawCommentIcon } from './rendering/comment-icons.js';
 import { spatialIndex } from './spatial-index.js';
 import { invalidateScaleRegionCache, pixelsPerUnitFor, getRegionScaleFactor } from './scale-region.js';
 import { drawSnapIndicator } from '../tools/snap-engine.js';
+import { drawImageAlignGuides } from '../tools/image-align-snap.js';
 import { getTemplate } from '../symbols/registry.js';
 import { hasFill } from './fill-utils.js';
 import { hiddenTypes as evHiddenTypes, halftoneTypes as evHalftoneTypes } from '../solid/stores/elementVisibilityStore.js';
@@ -1498,11 +1499,14 @@ export function drawAnnotation(ctx, annotation) {
       // Semi-transparent red fill
       ctx.fillStyle = 'rgba(255, 0, 0, 0.25)';
       ctx.fillRect(annotation.x, annotation.y, rw, rh);
-      // Red border
+      // Animated marching-ants border (signals an active/pending redaction area)
       ctx.strokeStyle = '#ff0000';
       ctx.lineWidth = 2;
-      ctx.setLineDash([]);
+      ctx.setLineDash([6, 4]);
+      ctx.lineDashOffset = -(state.redactAntsOffset || 0);
       ctx.strokeRect(annotation.x, annotation.y, rw, rh);
+      ctx.setLineDash([]);
+      ctx.lineDashOffset = 0;
       // Diagonal hatch lines
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -2135,6 +2139,17 @@ export function redrawAnnotations(lightweight = false) {
     drawSnapIndicator(annotationCtx, state.lastSnapResult, effectiveScale);
   }
 
+  // Image alignment guides (edge/centre snap while moving, equal-width/height
+  // while resizing). State-driven — same principle as the rubber-band and the
+  // snap indicator above: drawn INSIDE the redraw so a viewport re-render can't
+  // wipe them. The one-shot overlay in tool-dispatcher gives instant feedback
+  // within a single mousemove; this pass keeps them visible across the
+  // viewport's RAF re-renders. Guides are in app-space, matching the transform
+  // already applied to annotationCtx.
+  if (state._imageAlignGuides && state._imageAlignGuides.length > 0) {
+    drawImageAlignGuides(annotationCtx, state._imageAlignGuides, effectiveScale);
+  }
+
   // Draw selection highlight and handles (use selectedAnnotations array as source of truth)
   const _renderDoc = getActiveDocument();
   const selected = _renderDoc ? _renderDoc.selectedAnnotations : [];
@@ -2245,6 +2260,14 @@ export function renderAnnotationsForPage(ctx, pageNum, width, height, overrideDp
   // Rubber-band selection marquee on the page the drag started on (continuous).
   if (state.isRubberBanding && state.rubberBandPage === pageNum) {
     drawRubberBand(ctx, effectiveScale);
+  }
+
+  // Image alignment guides on the page being edited (continuous). Same
+  // state-driven principle as single-page mode: drawn here so the viewport's
+  // RAF re-render can't wipe them.
+  if (state._imageAlignGuides && state._imageAlignGuides.length > 0 &&
+      state._imageAlignGuidesPage === pageNum) {
+    drawImageAlignGuides(ctx, state._imageAlignGuides, effectiveScale);
   }
 
   // Interactive image-crop overlay for the page being cropped (continuous).

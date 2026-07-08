@@ -119,6 +119,9 @@ export interface AppState {
   measureHoles: Point[][];
   calibrationPoints: Point[];
   lastSnapResult: any;
+  // Marching-ants animation phase for pending redaction marks. Advanced by the
+  // viewport RAF driver only while a redaction is being drawn or pending.
+  redactAntsOffset: number;
 
   // Backward compat — clipboard-store
   clipboardAnnotation: Annotation | null;
@@ -188,6 +191,9 @@ export const state = createMutable<AppState>({
     highlightAll: true,
     isSearching: false
   },
+
+  // Marching-ants animation phase for pending redaction marks (see AppState).
+  redactAntsOffset: 0,
 
   // Backward compat — interaction-store
   get isDrawing() { return interactionState.isDrawing; },

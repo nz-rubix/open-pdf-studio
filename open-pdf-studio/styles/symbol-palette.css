@@ -111,7 +111,7 @@
   width: 100%;
   height: 24px;
   font-size: 11px;
-  background: var(--theme-input-bg, #333);
+  background: var(--theme-surface, #fff);
   color: var(--theme-text);
   border: 1px solid var(--theme-border);
   border-radius: 3px;
@@ -264,6 +264,59 @@
   color: var(--theme-text);
 }
 
+.sp-settings-locale {
+  display: flex;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--theme-border);
+}
+
+.sp-settings-locale-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.sp-settings-locale-field > span {
+  font-size: 10px;
+  color: var(--theme-text-muted, #999);
+}
+
+.sp-settings-locale-field select {
+  height: 26px;
+  font-size: 12px;
+  color: var(--theme-text, inherit);
+  background-color: var(--theme-surface, #fff);
+  border: 1px solid var(--theme-border, #acacac);
+  border-radius: 0;
+  padding: 0 22px 0 6px;
+  cursor: pointer;
+  /* Chromium/WebView2 ignores background-color/color on a native <select> and
+     falls back to the OS widget — which breaks the dark theme. Force custom
+     rendering with appearance:none plus a hand-drawn dropdown arrow, exactly
+     like the dialog selects (.new-doc-select). */
+  appearance: none;
+  -webkit-appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--theme-text, #333) 50%),
+    linear-gradient(135deg, var(--theme-text, #333) 50%, transparent 50%);
+  background-position: calc(100% - 12px) center, calc(100% - 8px) center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.sp-settings-locale-field select option,
+.sp-settings-locale-field select optgroup {
+  background-color: var(--theme-surface, #fff);
+  color: var(--theme-text, inherit);
+}
+
+.sp-settings-locale-field select:focus {
+  border-color: var(--theme-accent);
+  outline: none;
+}
+
 .sp-settings-body {
   flex: 1;
   overflow-y: auto;
@@ -325,7 +378,7 @@
   flex: 1;
   height: 28px;
   font-size: 12px;
-  background: var(--theme-input-bg, #333);
+  background: var(--theme-surface, #fff);
   color: var(--theme-text);
   border: 1px solid var(--theme-border);
   border-radius: 3px;
@@ -370,4 +423,178 @@
 }
 .sp-categories::-webkit-scrollbar-thumb:hover {
   background: rgba(128,128,128,0.5);
+}
+
+/* ================= Symbol Type Editor ("Edit Type") ================= */
+/* A dedicated full-cover environment, Windows-style (square corners). */
+.ste-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 11000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+}
+
+.ste-window {
+  background: var(--theme-surface, #2a2a2a);
+  border: 1px solid #d4d4d4;
+  border-radius: 0; /* squared corners per app style */
+  width: 760px;
+  max-width: 95vw;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.ste-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  /* Windows-style title bar gradient */
+  background: linear-gradient(#ffffff, #f5f5f5);
+  border-bottom: 1px solid #d4d4d4;
+  color: #1a1a1a;
+}
+.ste-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+.ste-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: #444;
+  cursor: pointer;
+}
+.ste-close:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+.ste-body {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  background: var(--theme-bg, #1f1f1f);
+  overflow: auto;
+}
+
+.ste-canvas-wrap {
+  flex: 0 0 auto;
+  background: #ffffff;
+  border: 1px solid #d4d4d4;
+  padding: 4px;
+}
+.ste-canvas {
+  display: block;
+  touch-action: none;
+}
+.ste-vertex {
+  cursor: grab;
+}
+.ste-vertex:active {
+  cursor: grabbing;
+}
+.ste-mid {
+  cursor: copy;
+}
+
+.ste-sidebar {
+  flex: 1 1 auto;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--theme-text, #e0e0e0);
+}
+.ste-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+}
+.ste-field > span {
+  color: var(--theme-text-secondary, #aaa);
+}
+.ste-field input[type="text"],
+.ste-field select {
+  height: 24px;
+  background: var(--theme-surface, #fff);
+  color: var(--theme-text, #e0e0e0);
+  border: 1px solid var(--theme-border, #555);
+  border-radius: 0;
+  padding: 0 6px;
+  font-size: 12px;
+}
+/* Native <select> ignores background/color on Chromium/WebView2 and falls back
+   to the OS widget (breaks dark theme). Force custom rendering with a
+   hand-drawn arrow so the "Line width" dropdown follows the theme. */
+.ste-field select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 22px;
+  cursor: pointer;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--theme-text, #333) 50%),
+    linear-gradient(135deg, var(--theme-text, #333) 50%, transparent 50%);
+  background-position: calc(100% - 12px) center, calc(100% - 8px) center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+.ste-field select option {
+  background-color: var(--theme-surface, #fff);
+  color: var(--theme-text, inherit);
+}
+.ste-field input[type="color"] {
+  width: 40px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--theme-border, #555);
+  background: transparent;
+  cursor: pointer;
+}
+.ste-hint {
+  margin-top: auto;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--theme-text-secondary, #999);
+}
+
+.ste-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--theme-surface, #2a2a2a);
+  border-top: 1px solid var(--theme-border, #444);
+}
+.ste-btn {
+  min-width: 78px;
+  height: 26px;
+  border: 1px solid var(--theme-border, #acacac);
+  background: var(--theme-bg, #f0f0f0);
+  color: var(--theme-text, #1a1a1a);
+  border-radius: 0;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ste-btn:hover {
+  background: var(--theme-hover, #454545);
+}
+.ste-btn-primary {
+  background: #0067c0;
+  border-color: #0067c0;
+  color: #fff;
+}
+.ste-btn-primary:hover {
+  background: #0078d4;
 }

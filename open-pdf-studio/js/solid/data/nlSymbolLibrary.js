@@ -57,6 +57,8 @@ export const NL_CATEGORIES = [
     // dikte kies je daarna in het eigenschappenvenster.
     id: 'nl-ifc-bouw',
     name: 'NL IFC Bouw',
+    industry: 'aec',
+    country: 'nl',
     color: 'var(--theme-text, #000000)',
     icon: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 5.5 8 2l6 3.5v5L8 14l-6-3.5z"/><path d="M8 8v6M2 5.5 8 8l6-2.5"/></svg>`,
     symbols: [

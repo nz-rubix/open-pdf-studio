@@ -203,6 +203,10 @@ export async function placeOverrideStamp(x, y) {
     stampName: overrides.stampName || 'Custom',
     stampText: '',
     stampSvg: overrides.stampSvg || null,
+    // Original (unedited) source SVG for this symbol type. Kept so the
+    // "Edit Type" editor can resolve/update the correct type override even
+    // after the stamp's rendered geometry has been replaced.
+    stampBaseSvg: overrides.stampBaseSvg || overrides.stampSvg || null,
     stampSvgBuilder: overrides.stampSvgBuilder || null,
     imageId: imageId,
     imageData: dataUrl,
@@ -211,7 +215,9 @@ export async function placeOverrideStamp(x, y) {
     color: '#000000',
     opacity: 1,
     rotation: 0,
-    lockAspectRatio: overrides.lockAspectRatio !== false
+    lockAspectRatio: overrides.lockAspectRatio !== false,
+    // IFC-categorie uit de symbool-metadata (mapping-laag) → hoeveelheden.
+    ifcCategory: overrides.ifcCategory || undefined,
   });
 
   // Store image reference directly on annotation for rendering

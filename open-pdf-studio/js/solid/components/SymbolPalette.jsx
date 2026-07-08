@@ -10,10 +10,15 @@ import {
   symbolFloatPos, setSymbolFloatPos,
   saveSymbolPaletteState,
   settingsOpen, setSettingsOpen,
+  selectedIndustry, setSelectedIndustry,
+  selectedCountry, setSelectedCountry,
   toggleGroupEnabled, isGroupEnabled,
   addCustomGroup, removeCustomGroup, addSymbolToGroup, getCustomGroups,
+  resolveSymbolSvg,
 } from '../stores/symbolStore.js';
+import { INDUSTRIES, COUNTRIES, matchesLocale } from '../data/symbolLocales.js';
 import { registerPaletteDock, unregisterPaletteDock } from '../stores/paletteOrder.js';
+import { ifcCategoryForSymbol } from '../data/ifcCategoryMap.js';
 
 const DOCK_SNAP = 60;
 
@@ -96,20 +101,27 @@ function selectSymbol(symbol) {
     state.toolOverrides = {
       wallPattern: symbol.wall.pattern,
       wallDikteMm: symbol.wall.dikteMm || 100,
+      ifcCategory: ifcCategoryForSymbol(symbol),
     };
     setTool('wall');
     return;
   }
+  // Resolve any user-edited geometry for this type. effectiveSvg is what gets
+  // rasterized/placed; stampBaseSvg keeps the original source so a later
+  // "Edit Type" on the placed stamp maps back to the same override key.
+  const effectiveSvg = resolveSymbolSvg(symbol.svg);
   // Set overrides BEFORE setTool — manager.js preserves them for stamp tool
   state.toolOverrides = {
-    stampSvg: symbol.svg,
+    stampSvg: effectiveSvg,
+    stampBaseSvg: symbol.svg,
     stampName: symbol.name,
     stampWidth: 40,
     stampHeight: 40,
     lockAspectRatio: true,
+    ifcCategory: ifcCategoryForSymbol(symbol),
   };
   // Pre-cache rasterized preview image for cursor preview
-  const blob = new Blob([symbol.svg], { type: 'image/svg+xml' });
+  const blob = new Blob([effectiveSvg], { type: 'image/svg+xml' });
   const url = URL.createObjectURL(blob);
   const img = new Image();
   img.onload = () => {
@@ -346,8 +358,26 @@ export function SymbolSettingsDialog() {
             <h3>Symbol Library Settings</h3>
             <button class="sp-float-close" onClick={() => setSettingsOpen(false)} innerHTML={closeSvg} />
           </div>
+          <div class="sp-settings-locale">
+            <label class="sp-settings-locale-field">
+              <span>Industrie</span>
+              <select value={selectedIndustry()} onChange={(e) => setSelectedIndustry(e.target.value)}>
+                <For each={INDUSTRIES}>
+                  {(ind) => <option value={ind.id}>{ind.name}</option>}
+                </For>
+              </select>
+            </label>
+            <label class="sp-settings-locale-field">
+              <span>Land</span>
+              <select value={selectedCountry()} onChange={(e) => setSelectedCountry(e.target.value)}>
+                <For each={COUNTRIES}>
+                  {(c) => <option value={c.id}>{c.flag ? c.flag + ' ' : ''}{c.name}</option>}
+                </For>
+              </select>
+            </label>
+          </div>
           <div class="sp-settings-body">
-            <For each={allCategories()}>
+            <For each={allCategories().filter(c => matchesLocale(c, selectedIndustry(), selectedCountry()))}>
               {(cat) => (
                 <div class="sp-settings-group" style={{ opacity: isGroupEnabled(cat.id) ? 1 : 0.5 }}>
                   <div class="sp-settings-group-header">

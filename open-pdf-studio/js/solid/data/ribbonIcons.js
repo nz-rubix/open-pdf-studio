@@ -221,6 +221,8 @@ export const contrastIcon = `<svg viewBox="0 0 16 16" fill="none"><circle cx="8"
 
 // Reset adjustments: circular arrow.
 export const resetAdjustIcon = `<svg viewBox="0 0 16 16" fill="none"><path d="M13 8a5 5 0 11-1.5-3.5" stroke="#555" stroke-width="1.3" fill="none"/><path d="M13 2v3h-3" stroke="#555" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+// Edit-type: a poly-line with editable node handles (reshape the lines of a symbol type)
+export const editTypeIcon = `<svg viewBox="0 0 16 16" fill="none"><polyline points="2,12 6,5 10,9 14,3" stroke="#4a86e8" stroke-width="1.2"/><circle cx="2" cy="12" r="1.6" fill="#ff3b30"/><circle cx="6" cy="5" r="1.6" fill="#ff3b30"/><circle cx="10" cy="9" r="1.6" fill="#ff3b30"/><circle cx="14" cy="3" r="1.6" fill="#ff3b30"/></svg>`;
 
 // --- Arrange tab: Alignment ---
 

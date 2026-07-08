@@ -120,9 +120,15 @@ export function snapImageMove(movingBox, refs, tol) {
 //   - l/r: width only ;  t/b: height only
 // The anchor edge (the one opposite the dragged handle) stays fixed, matching
 // applyResize semantics, so we adjust x/y when the left/top edge moves.
+//
+// opts.lockRatio — images resize proportionally by default (lockAspectRatio).
+//   When set, only ONE dimension is snapped to a reference and the other is
+//   derived from opts.aspectRatio, so the aspect lock is preserved. The primary
+//   axis is width for the horizontal/corner handles and height for t/b.
+//
 // Returns { box:{x,y,w,h}, guides } — box is the snapped geometry (or the
 // input unchanged), guides describe the equal-size indicator(s).
-export function snapImageResize(box, handleType, refs, tol) {
+export function snapImageResize(box, handleType, refs, tol, opts = {}) {
   const guides = [];
   const h = handleType;
   const affectsW = h === 'l' || h === 'r' || h === 'tl' || h === 'tr' || h === 'bl' || h === 'br';
@@ -130,8 +136,46 @@ export function snapImageResize(box, handleType, refs, tol) {
   // Which edge is anchored (fixed) — the opposite of the moving edge.
   const leftMoves = h === 'l' || h === 'tl' || h === 'bl';
   const topMoves = h === 't' || h === 'tl' || h === 'tr';
+  // t/b resize the box symmetrically about its horizontal centre under lock
+  // (matches applyResize), and l/r about its vertical centre.
+  const centreX = h === 't' || h === 'b';
+  const centreY = h === 'l' || h === 'r';
 
   let out = { x: box.x, y: box.y, w: box.w, h: box.h };
+
+  const lockRatio = !!opts.lockRatio;
+  const aspect = lockRatio
+    ? (opts.aspectRatio || (box.h !== 0 ? box.w / box.h : 1))
+    : 1;
+
+  if (lockRatio) {
+    // Proportional snap: pick the primary axis, snap it to a reference of the
+    // same axis, then derive the other axis from the aspect ratio.
+    const primaryIsWidth = affectsW; // corners + l/r → width; t/b → height
+    let best = null;
+    for (const ref of refs) {
+      const refDim = primaryIsWidth ? ref.width : ref.height;
+      const curDim = primaryIsWidth ? out.w : out.h;
+      const d = refDim - curDim;
+      if (Math.abs(d) <= tol && (!best || Math.abs(d) < Math.abs(best.delta))) {
+        best = { delta: d, refDim, refBox: _bbox(ref) };
+      }
+    }
+    if (best) {
+      let newW, newH;
+      if (primaryIsWidth) { newW = best.refDim; newH = newW / aspect; }
+      else { newH = best.refDim; newW = newH * aspect; }
+      // Re-anchor the fixed edge(s) so the snapped box grows/shrinks from the
+      // same corner/centre applyResize used.
+      if (centreX) out.x = out.x + (out.w - newW) / 2;
+      else if (leftMoves) out.x = out.x + out.w - newW;
+      if (centreY) out.y = out.y + (out.h - newH) / 2;
+      else if (topMoves) out.y = out.y + out.h - newH;
+      out.w = newW; out.h = newH;
+      guides.push({ type: primaryIsWidth ? 'equalW' : 'equalH', box: { ...out }, refBox: best.refBox });
+    }
+    return { box: out, guides };
+  }
 
   // Equal WIDTH
   if (affectsW) {

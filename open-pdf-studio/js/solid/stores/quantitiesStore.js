@@ -3,8 +3,37 @@
 import { createSignal, createMemo } from 'solid-js';
 import { getActiveDocument } from '../../core/state.js';
 import { buildSchedule } from '../../quantities/engine.js';
+import { getMeasureScale } from '../../annotations/measurement.js';
 import { countTallies } from './countStore.js';
 import { scheduleVisible, setScheduleVisible, toggleSchedule } from './scheduleStore.js';
+
+// Lijnvormige annotatietypes zónder eigen measureValue: hun lengte moet uit de
+// geometrie + document-schaal komen (net als de meet-tools). measureDistance/
+// measurePerimeter dragen hun waarde al zelf, dus die verrijken we niet.
+const LENGTH_TYPES = new Set(['line', 'arrow', 'polyline', 'wall', 'spline', 'arc', 'draw']);
+
+// Representatief punt van een lijnvormig element voor schaal-lookup
+// (scaleRegion/scaleBar zijn positie-afhankelijk).
+function lengthMidpoint(a) {
+  if (typeof a.startX === 'number' && typeof a.endX === 'number') {
+    return { x: (a.startX + a.endX) / 2, y: (a.startY + a.endY) / 2 };
+  }
+  const pts = Array.isArray(a.points) ? a.points : (Array.isArray(a.path) ? a.path : null);
+  if (pts && pts.length) {
+    const cx = pts.reduce((s, p) => s + (p.x ?? 0), 0) / pts.length;
+    const cy = pts.reduce((s, p) => s + (p.y ?? 0), 0) / pts.length;
+    return { x: cx, y: cy };
+  }
+  return { x: 0, y: 0 };
+}
+
+// Verrijk een lijn-annotatie met de opgeloste px-per-eenheid schaal zodat de
+// pure categories.js-lengteberekening pixels → meter kan omrekenen.
+function withLengthScale(a) {
+  const mid = lengthMidpoint(a);
+  const scale = getMeasureScale(a.page || 1, mid.x, mid.y);
+  return { ...a, __pxPerUnit: scale.pixelsPerUnit, __unit: scale.unit };
+}
 
 // --- Config signals ---
 const [selectedCategories, setSelectedCategories] = createSignal(['area', 'line-based', 'count']);
@@ -30,9 +59,13 @@ function countCatName(categoryId) {
 /** Alle elementen: annotaties (count verrijkt met telcategorie-naam) + native tekst. */
 function collectElements() {
   const doc = getActiveDocument();
-  const anns = (doc?.annotations || []).map(a =>
-    a.type === 'count' ? { ...a, __countCatName: countCatName(a.categoryId) } : a
-  );
+  const anns = (doc?.annotations || []).map(a => {
+    if (a.type === 'count') return { ...a, __countCatName: countCatName(a.categoryId) };
+    // Lijnen/pijlen zonder eigen measureValue: schaal meegeven zodat de
+    // LENGTE-kolom een werkelijke lengte in meter kan tonen.
+    if (LENGTH_TYPES.has(a.type) && typeof a.measureValue !== 'number') return withLengthScale(a);
+    return a;
+  });
   const bi = selectedCategories().includes('text-built-in') ? builtInText() : [];
   return [...anns, ...bi];
 }

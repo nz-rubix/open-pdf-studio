@@ -47,6 +47,80 @@ function clearRedo() {
 // No-op: TitleBar.jsx now derives undo/redo enabled from reactive state
 function updateButtons() {}
 
+// ---- Thumbnail refresh on annotation change ----
+// Every committed annotation mutation (add/delete/modify/clear/bulk) flows
+// through execute()/undo()/redo(). Page thumbnails composite the live
+// annotations on top of the page bitmap (see overlayAnnotationsOnDataURL in
+// left-panel.js), so a mutation must re-render the affected page's thumbnail.
+// We debounce to coalesce rapid edits (drag-resize, property sliders, repeated
+// deletes) into a single refresh, and we only invalidate the pages the command
+// actually touched — never a full sweep.
+
+// Extract the page number(s) a command affects. Tolerant: pulls .page from any
+// annotation-shaped field and pageNum from rotate/clear commands. Unknown
+// shapes fall back to the current page so the visible thumbnail still updates.
+function pagesForCommand(cmd) {
+  const pages = new Set();
+  if (!cmd) return pages;
+  const addPage = (p) => { if (Number.isInteger(p) && p >= 1) pages.add(p); };
+  const addFrom = (obj) => { if (obj && typeof obj === 'object') addPage(obj.page); };
+
+  if (Number.isInteger(cmd.pageNum)) addPage(cmd.pageNum);
+  addFrom(cmd.annotation);
+  addFrom(cmd.oldState);
+  addFrom(cmd.newState);
+  addFrom(cmd.textEdit);
+  addFrom(cmd.oldTextEdit);
+  addFrom(cmd.newTextEdit);
+  if (Array.isArray(cmd.annotations)) cmd.annotations.forEach(addFrom);
+  if (Array.isArray(cmd.items)) {
+    cmd.items.forEach(it => {
+      addFrom(it);
+      addFrom(it.annotation);
+      addFrom(it.oldState);
+      addFrom(it.newState);
+    });
+  }
+
+  // Watermark/bookmark commands don't carry a page and don't affect the page
+  // thumbnail composite — skip them entirely (empty set = no refresh).
+  const skipTypes = new Set([
+    'addWatermark', 'removeWatermark', 'modifyWatermark',
+    'addBookmark', 'removeBookmark', 'modifyBookmark',
+    // pageStructure (insert/delete/reorder pages) shifts page numbers and is
+    // handled by restorePageState → clearThumbnailCache + generateThumbnails,
+    // which regenerates every thumbnail. A per-page hook here would be wrong.
+    'pageStructure',
+  ]);
+  if (pages.size === 0 && !skipTypes.has(cmd.type)) {
+    const doc = getActiveDocument();
+    if (doc && Number.isInteger(doc.currentPage)) addPage(doc.currentPage);
+  }
+  return pages;
+}
+
+const _pendingThumbPages = new Set();
+let _thumbRefreshTimer = null;
+
+function scheduleThumbnailRefresh(cmd) {
+  const pages = pagesForCommand(cmd);
+  if (pages.size === 0) return;
+  for (const p of pages) _pendingThumbPages.add(p);
+  if (_thumbRefreshTimer) clearTimeout(_thumbRefreshTimer);
+  _thumbRefreshTimer = setTimeout(async () => {
+    _thumbRefreshTimer = null;
+    const batch = Array.from(_pendingThumbPages);
+    _pendingThumbPages.clear();
+    if (batch.length === 0) return;
+    try {
+      const { invalidateThumbnails } = await import('../ui/panels/left-panel.js');
+      invalidateThumbnails(batch);
+    } catch (e) {
+      console.warn('[undo] thumbnail refresh failed:', e);
+    }
+  }, 250);
+}
+
 // Execute a command: push to undo, clear redo, sync modified state
 export function execute(cmd) {
   const doc = getActiveDocument();
@@ -58,6 +132,7 @@ export function execute(cmd) {
   clearRedo();
   syncModifiedState();
   updateButtons();
+  scheduleThumbnailRefresh(cmd);
 }
 
 // Undo
@@ -68,6 +143,7 @@ export async function undo() {
   const cmd = undoStack.pop();
   const redoStack = getRedoStack();
   redoStack.push(cmd);
+  scheduleThumbnailRefresh(cmd);
 
   if (cmd.type === 'pageStructure') {
     const { restorePageState } = await import('../pdf/page-manager.js');
@@ -114,6 +190,7 @@ export async function redo() {
   const cmd = redoStack.pop();
   const undoStack = getUndoStack();
   undoStack.push(cmd);
+  scheduleThumbnailRefresh(cmd);
 
   if (cmd.type === 'pageStructure') {
     const { restorePageState } = await import('../pdf/page-manager.js');

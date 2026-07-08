@@ -1,11 +1,19 @@
 // Dev-time converter: elektra-legenda DXF (NLRS-blokken) → SVG-stempels in
 // js/solid/data/elektraSymbols.js
 //
-// Leest de lokale elektra-renvooi-DXF, groepeert de BLOCK-definities (elk blok
-// = één symbool), zet LINE / ARC / CIRCLE / HATCH-randen om naar genormaliseerde
-// SVG-paden (viewBox 0 0 64 64, y-flip want DXF is y-up), en schrijft één
-// compacte JS-datamodule met per symbool { id, name, svg }. De palette-categorie
-// "Elektra" (nlSymbolLibrary.js) plaatst deze als statische stempels.
+// De elektra-renvooi bevat twee soorten legenda-entries:
+//   1. Grafische symbolen — BLOCK-definities (elk blok = één symbool). LINE /
+//      ARC / CIRCLE / HATCH-randen worden omgezet naar genormaliseerde SVG-paden
+//      (viewBox 0 0 64 64, y-flip want DXF is y-up).
+//   2. Tekst-aansluitpunten — de AFKORTINGEN-tabel: apparaat-codes (WM, VW, KT,
+//      B, MV, ZW, …) met hun volledige omschrijving. In de renvooi worden die
+//      als tekst-code geplaatst; wij maken er tekst-stempels van (code in een
+//      kader, viewBox 0 0 64 64). Zo dekt de bibliotheek ook boiler, kookplaat,
+//      wasmachine, mechanische ventilatie, zonwering enz.
+//
+// Schrijft één compacte JS-datamodule met per symbool { id, name, svg }. De
+// palette-categorie "NL Elektra" (nlSymbolLibrary.js) plaatst deze als
+// statische stempels.
 //
 // Gebruik:  node scripts/dxf-elektra-convert.mjs "<pad naar .dxf of map>"
 
@@ -164,13 +172,17 @@ function entToPaths(e) {
     case 'CIRCLE': {
       const cx = first(g, '10'), cy = first(g, '20'), r = first(g, '40');
       if ([cx, cy, r].some(v => v === undefined)) return [];
-      return [{ closed: true, fill: false, pts: arcPts(cx, cy, r, 0, 360) }];
+      // Bewaar de echte cirkel-parameters; de gesampelde punten dienen enkel
+      // voor de bounding-box. toSvg() emit hier een <circle> uit (geen segmenten).
+      return [{ kind: 'circle', closed: true, fill: false, cx, cy, r, pts: arcPts(cx, cy, r, 0, 360) }];
     }
     case 'ARC': {
       const cx = first(g, '10'), cy = first(g, '20'), r = first(g, '40');
       const a0 = first(g, '50'), a1 = first(g, '51');
       if ([cx, cy, r].some(v => v === undefined)) return [];
-      return [{ closed: false, fill: false, pts: arcPts(cx, cy, r, a0, a1) }];
+      // Bewaar de echte boog-parameters (DXF: y-up, tegen de klok in). toSvg()
+      // emit een <path> met een A-boog-commando (geen uitgeschreven lijnstukjes).
+      return [{ kind: 'arc', closed: false, fill: false, cx, cy, r, a0: a0 ?? 0, a1: a1 ?? 360, pts: arcPts(cx, cy, r, a0, a1) }];
     }
     case 'LWPOLYLINE': {
       const xs = g['10'] || [], ys = g['20'] || [];
@@ -244,6 +256,101 @@ function labelOf(name) {
 
 const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
+// ── AFKORTINGEN-tabel → tekst-aansluitpunten ───────────────────────────────
+// De renvooi bevat naast de grafische symbolen een tabel met apparaat-
+// afkortingen (twee kolommen: korte code + volledige omschrijving). We lezen
+// alle MTEXT uit de ENTITIES-sectie, koppelen elke korte all-caps-code aan de
+// omschrijving die op dezelfde tekstregel (gelijke y) rechts ervan staat, en
+// maken er een tekst-stempel van. De tabel komt meerdere keren voor in de DXF;
+// we dedupliceren op code.
+
+// Verzamel MTEXT-entiteiten uit de ENTITIES-sectie: { x, y, text }.
+function parseMTexts(pairs) {
+  const out = [];
+  let sec = null;
+  let ent = null;      // huidige MTEXT
+  let inMText = false;
+  const push = () => { if (inMText && ent && ent.text) out.push(ent); ent = null; inMText = false; };
+  for (let i = 0; i < pairs.length; i++) {
+    const [code, rawVal] = pairs[i];
+    const val = (rawVal ?? '').trim();
+    if (code === '2' && (val === 'ENTITIES' || val === 'BLOCKS' || val === 'OBJECTS' ||
+        val === 'HEADER' || val === 'TABLES' || val === 'CLASSES')) { push(); sec = val; continue; }
+    if (code === '0' && val === 'ENDSEC') { push(); sec = null; continue; }
+    if (sec !== 'ENTITIES') continue;
+    if (code === '0') {
+      push();
+      if (val === 'MTEXT') { inMText = true; ent = { x: 0, y: 0, text: '' }; }
+      continue;
+    }
+    if (!inMText || !ent) continue;
+    if (code === '10') ent.x = num(val);
+    else if (code === '20') ent.y = num(val);
+    else if (code === '1' || code === '3') ent.text += val;   // 3 = continuatie
+  }
+  push();
+  return out;
+}
+
+// Ruim MTEXT-opmaakcodes op (\A1;, {\f…}, \P → spatie enz.) en trim.
+function cleanMText(s) {
+  return s
+    .replace(/\\[A-Za-z][^;]*;/g, '')     // \A1;  \f…;  \H…;  \C…;
+    .replace(/[{}]/g, '')                  // groep-haken
+    .replace(/\\P/g, ' ').replace(/\\~/g, ' ')
+    .replace(/\^I/g, ' ')                  // tab-teken
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Volledige NL-namen voor codes die in de DXF-omschrijving generiek/ontbrekend
+// zijn of net iets netter kunnen (behoud verder de DXF-omschrijving).
+const CODE_LABELS = {
+  B: 'Boiler', WPB: 'Warmtepomp / boiler', KT: 'Kooktoestel', KK: 'Koelkast',
+  VK: 'Vrieskast', VW: 'Vaatwasser', WM: 'Wasmachine', WD: 'Wasdroger',
+  AFZ: 'Afzuigkap', MAGN: 'Magnetron', MV: 'Mechanische ventilatie',
+  CV: 'Centrale verwarming', TH: 'Thermostaat', ZW: 'Zonwering',
+  EG: 'Elektrische bediening gordijnen', RM: 'Rookmelder',
+  BMC: 'Brandmeldcentrale', BEL: 'Deurbel', IC: 'Intercom',
+  TEL: 'Telecom-aansluiting', DATA: 'Data-aansluiting', D: 'Data-aansluiting',
+  CAI: 'Centrale antenne-installatie', CAP: 'Centraal aardpunt',
+};
+
+// Koppel korte all-caps-codes aan de omschrijving rechts ervan (gelijke y).
+function extractAbbrev(mtexts) {
+  // Normaliseer teksten éénmaal.
+  const rows = mtexts.map(m => ({ x: m.x, y: m.y, t: cleanMText(m.text) }))
+                     .filter(r => r.t);
+  const isCode = t => /^[A-Z]{1,4}$/.test(t);
+  const isName = t => /[a-z]/.test(t) && !isCode(t) && t.length > 3 &&
+    !/^(zie|installateur|inbouw)\b/i.test(t);
+  const pairsByCode = new Map();
+  for (const c of rows) {
+    if (!isCode(c.t)) continue;
+    // Zoek de dichtstbijzijnde naam-tekst op dezelfde regel, rechts ervan.
+    let best = null, bd = Infinity;
+    for (const n of rows) {
+      if (n === c) continue;
+      if (Math.abs(n.y - c.y) > 3) continue;
+      const dx = n.x - c.x;
+      if (dx > 150 && dx < 900 && isName(n.t) && dx < bd) { bd = dx; best = n; }
+    }
+    if (best && !pairsByCode.has(c.t)) pairsByCode.set(c.t, best.t);
+  }
+  return pairsByCode;
+}
+
+// Tekst-stempel-SVG: apparaat-code in een kader (geen ronde hoeken), zwart,
+// consistent met de grafische stempels (viewBox 0 0 64 64).
+function abbrevSvg(code) {
+  const fs = code.length <= 2 ? 22 : code.length === 3 ? 17 : 13;
+  return `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">` +
+    `<rect x="6" y="18" width="52" height="28" fill="none" stroke="#000" stroke-width="2"/>` +
+    `<text x="32" y="32" font-family="Arial, sans-serif" font-size="${fs}" font-weight="bold" ` +
+    `text-anchor="middle" dominant-baseline="central" fill="#000">${code}</text>` +
+    `</svg>`;
+}
+
 // ── SVG-generatie ──────────────────────────────────────────────────────────
 function toSvg(paths) {
   // Bounding box over alle punten.
@@ -262,10 +369,34 @@ function toSvg(paths) {
   const offY = PAD + (VB - 2 * PAD - h * s) / 2;
   const tx = x => +(offX + (x - minX) * s).toFixed(2);
   const ty = y => +(offY + (maxY - y) * s).toFixed(2);
+  const scaleR = r => +(r * s).toFixed(2);
 
   const strokeParts = [];
   const fillParts = [];
   for (const p of paths) {
+    // Echte cirkel → <circle> (geen segmenten). De transform is uniform in x/y,
+    // dus een cirkel blijft een cirkel; y-flip verplaatst alleen het centrum.
+    if (p.kind === 'circle') {
+      const el = `<circle cx="${tx(p.cx)}" cy="${ty(p.cy)}" r="${scaleR(p.r)}"/>`;
+      if (p.fill) fillParts.push(el); else strokeParts.push(el);
+      continue;
+    }
+    // Echte boog → <path> met A-commando. DXF-hoeken lopen tegen de klok in in
+    // een y-up-stelsel; na de y-flip naar SVG (y-down) keert de draairichting
+    // om, dus de sweep-flag wordt 0. De large-arc-flag volgt uit de booghoek.
+    if (p.kind === 'arc') {
+      const a0 = (p.a0 || 0) * Math.PI / 180;
+      let a1 = (p.a1 ?? 360) * Math.PI / 180;
+      if (a1 <= a0) a1 += 2 * Math.PI;
+      const x0 = p.cx + p.r * Math.cos(a0), y0 = p.cy + p.r * Math.sin(a0);
+      const x1 = p.cx + p.r * Math.cos(a1), y1 = p.cy + p.r * Math.sin(a1);
+      const large = (a1 - a0) > Math.PI ? 1 : 0;
+      const R = scaleR(p.r);
+      const d = `M${tx(x0)} ${ty(y0)}A${R} ${R} 0 ${large} 0 ${tx(x1)} ${ty(y1)}`;
+      if (p.fill) fillParts.push(`<path d="${d}"/>`);
+      else strokeParts.push(`<path d="${d}"/>`);
+      continue;
+    }
     if (p.pts.length < 2) continue;
     let d = `M${tx(p.pts[0].x)} ${ty(p.pts[0].y)}`;
     for (let i = 1; i < p.pts.length; i++) d += `L${tx(p.pts[i].x)} ${ty(p.pts[i].y)}`;
@@ -295,10 +426,12 @@ function dxfFilesUnder(dir) {
 const symbols = [];
 const usedIds = new Set();
 const usedLabels = new Set();
-let skipped = 0, deduped = 0;
+let skipped = 0, deduped = 0, abbrevCount = 0;
+const abbrevSeen = new Map();   // code → naam, over alle files gededupliceerd
 const files = dxfFilesUnder(ROOT);
 for (const file of files) {
-  const blocks = parseBlocks(parsePairs(readFileSync(file, 'latin1')));
+  const pairs = parsePairs(readFileSync(file, 'latin1'));
+  const blocks = parseBlocks(pairs);
   for (const b of blocks) {
     if (!b.name || b.name.startsWith('*')) continue;           // layout-blokken
     if (!/NLRS/i.test(b.name)) continue;                       // alleen renvooi-symbolen
@@ -317,10 +450,31 @@ for (const file of files) {
     usedIds.add(id);
     symbols.push({ id, name: label, family: familyOf(b.name), svg });
   }
+  // AFKORTINGEN-tabel: apparaat-aansluitpunten als tekst-stempel.
+  const abbrev = extractAbbrev(parseMTexts(pairs));
+  for (const [code, dxfName] of abbrev) {
+    if (abbrevSeen.has(code)) continue;
+    abbrevSeen.set(code, dxfName);
+  }
+}
+
+// Voeg de afkorting-aansluitpunten toe als tekst-stempels.
+for (const [code, dxfName] of [...abbrevSeen].sort((a, b) => a[0].localeCompare(b[0]))) {
+  const raw = CODE_LABELS[code] || dxfName;
+  const label = raw.charAt(0).toUpperCase() + raw.slice(1);
+  const name = `${label} (${code})`;
+  if (usedLabels.has(name.toLowerCase())) { deduped++; continue; }
+  usedLabels.add(name.toLowerCase());
+  let id = 'elektra-aansluitpunt-' + slug(code);
+  let k = 2;
+  while (usedIds.has(id)) id = 'elektra-aansluitpunt-' + slug(code) + '-' + (k++);
+  usedIds.add(id);
+  symbols.push({ id, name, family: 'apparaat', svg: abbrevSvg(code) });
+  abbrevCount++;
 }
 
 // Sorteer op familie + label voor een nette palette-volgorde.
-const FAM_ORDER = ['stopcontact', 'schakelaar', 'lichtpunt', 'aansluitpunt', 'bel', 'meterkast', 'bewegingsdetector'];
+const FAM_ORDER = ['stopcontact', 'schakelaar', 'lichtpunt', 'aansluitpunt', 'bel', 'meterkast', 'bewegingsdetector', 'apparaat'];
 symbols.sort((a, b) => {
   const fa = FAM_ORDER.indexOf(a.family), fb = FAM_ORDER.indexOf(b.family);
   const oa = fa < 0 ? 99 : fa, ob = fb < 0 ? 99 : fb;
@@ -336,5 +490,5 @@ const header = `// AUTO-GEGENEREERD door scripts/dxf-elektra-convert.mjs — nie
 
 `;
 writeFileSync(OUT, header + 'export const ELEKTRA_SYMBOLS = ' + JSON.stringify(out, null, 0) + ';\n');
-console.log(`Wrote ${out.length} elektra-symbolen naar`, OUT.pathname, `(geen geometrie: ${skipped}, dubbel: ${deduped})`);
+console.log(`Wrote ${out.length} elektra-symbolen naar`, OUT.pathname, `(waarvan ${abbrevCount} tekst-aansluitpunten; geen geometrie: ${skipped}, dubbel: ${deduped})`);
 for (const s of out) console.log('  ', s.id, '—', s.name);

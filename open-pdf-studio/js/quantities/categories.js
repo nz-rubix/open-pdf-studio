@@ -50,9 +50,45 @@ const F = (key, label, kind, get, unit = '', dec) => ({ key, label, kind, unit, 
 function areaValue(el) {
   return (el.type === 'measureArea' && typeof el.measureValue === 'number') ? el.measureValue : null;
 }
+
+// Som van de pixel-lengtes van de segmenten van een element. Ondersteunt zowel
+// start/eind-geometrie (line/arrow) als een points-array (polyline/wand/spline/
+// arc/pen). Retourneert null als er geen bruikbare geometrie is.
+function pixelLength(el) {
+  if (typeof el.startX === 'number' && typeof el.endX === 'number'
+      && typeof el.startY === 'number' && typeof el.endY === 'number') {
+    return Math.hypot(el.endX - el.startX, el.endY - el.startY);
+  }
+  const pts = Array.isArray(el.points) ? el.points
+    : (Array.isArray(el.path) ? el.path : null);
+  if (pts && pts.length >= 2) {
+    let total = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i], b = pts[i + 1];
+      if (!a || !b) continue;
+      total += Math.hypot((b.x ?? 0) - (a.x ?? 0), (b.y ?? 0) - (a.y ?? 0));
+    }
+    return total;
+  }
+  return null;
+}
+
+// Lengte in meter (schaal-eenheid) voor een lijnvormig element.
+// Meet-annotaties dragen hun waarde al in `measureValue`. Gewone lijnen/pijlen
+// (en points-lijnen) hebben die niet: bereken de pixel-lengte uit de coördinaten
+// en reken om via de meegegeven schaal (`__pxPerUnit`, in px per schaal-eenheid).
+// De store verrijkt elementen met deze schaal, net zoals de meet-tools dat doen
+// (zie annotations/measurement.js getMeasureScale). Zonder schaal (bv. in tests
+// die 1 px = 1 unit aannemen) valt `__pxPerUnit` terug op 1.
 function lengthValue(el) {
-  return ((el.type === 'measureDistance' || el.type === 'measurePerimeter') && typeof el.measureValue === 'number')
-    ? el.measureValue : null;
+  if ((el.type === 'measureDistance' || el.type === 'measurePerimeter')
+      && typeof el.measureValue === 'number') {
+    return el.measureValue;
+  }
+  const px = pixelLength(el);
+  if (px == null) return null;
+  const ppu = (typeof el.__pxPerUnit === 'number' && el.__pxPerUnit > 0) ? el.__pxPerUnit : 1;
+  return px / ppu;
 }
 function realArea(el) {
   const a = areaValue(el);
@@ -69,6 +105,7 @@ const COMMON = [
   F('page', 'Pagina', 'number', el => el.page || 1, '', 0),
   F('label', 'Label', 'text', el => el.label || el.subject || ''),
   F('color', 'Kleur', 'text', el => el.color || el.strokeColor || el.fillColor || ''),
+  F('ifcCategory', 'IFC-categorie', 'text', el => el.ifcCategory || ''),
   F('count', 'Aantal', 'number', () => 1, '', 0),
 ];
 

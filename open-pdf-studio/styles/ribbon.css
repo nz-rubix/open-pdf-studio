@@ -1230,3 +1230,27 @@
   height: 86px;
 }
 .ribbon-overflow-flyout-inner > .ribbon-group:last-child { border-right: none; }
+
+/* Ribbon in-line checkbox option (Windows/Visual-Studio-stijl: vierkant,
+   compact). Gebruikt bv. voor het 'Doorlopend'-vinkje bij het lijn-tool. */
+.ribbon-checkbox-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  align-self: center;
+  font-size: 11px;
+  color: var(--theme-ribbon-group-label, #333);
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+}
+.ribbon-checkbox-option input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  border-radius: 0;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.ribbon-checkbox-option span { cursor: pointer; }

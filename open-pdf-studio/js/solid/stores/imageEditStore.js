@@ -3,7 +3,6 @@ import { state, getActiveDocument } from '../../core/state.js';
 import { recordPropertyChange } from '../../core/undo-manager.js';
 import { redrawAnnotations, redrawContinuous } from '../../annotations/rendering.js';
 import { showProperties } from '../../ui/panels/properties-panel.js';
-import { activeTab, setActiveTab } from './ribbonStore.js';
 
 // ============================================================================
 // Image-edit store — drives the contextual "Afbeelding" ribbon tab.
@@ -129,12 +128,13 @@ export async function stopCropMode(commit = true) {
 }
 
 // Leaving the image selection (or deselecting) must cancel any live crop mode
-// so the overlay handlers don't linger, and fall back off the "Afbeelding" tab.
+// so the overlay handlers don't linger. The tab fallback itself is handled
+// centrally in updateContextualTabs() (restores the previous non-contextual
+// tab) with a safety net in ribbonStore, so we don't force 'home' here.
 createRoot(() => {
   createEffect(() => {
     if (!imageSelected()) {
       if (cropModeActive()) stopCropMode(false);
-      if (activeTab() === 'image') setActiveTab('home');
     }
   });
 });

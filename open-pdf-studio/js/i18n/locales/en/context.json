@@ -94,6 +94,8 @@
   "thumbnail": {
     "rotateLeft": "Rotate Left",
     "rotateRight": "Rotate Right",
+    "moveUp": "Move Up",
+    "moveDown": "Move Down",
     "insertPages": "Insert Pages...",
     "extractPages": "Extract Pages...",
     "replacePages": "Replace Pages...",

@@ -160,11 +160,16 @@ function onPointerUp(e) {
 }
 
 function onKeyDown(e) {
-  if (e.key === 'Escape' || e.key === 'Enter') {
+  // Enter commits the crop (bakes it into the geometry); Escape cancels it and
+  // restores the pre-edit fractions. Both leave crop mode via the ribbon store,
+  // which calls back into stopImageCrop() — so we don't stop here directly.
+  if (e.key === 'Enter') {
     e.preventDefault();
-    stopImageCrop(true);
-    // Sync the ribbon store's cropModeActive flag.
     import('../solid/stores/imageEditStore.js').then(m => m.stopCropMode(true)).catch(() => {});
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    if (_cropAnn && _snapshot) Object.assign(_cropAnn, _snapshot); // revert crop
+    import('../solid/stores/imageEditStore.js').then(m => m.stopCropMode(false)).catch(() => {});
   }
 }
 
@@ -202,7 +207,43 @@ export function startImageCrop(ann) {
   return true;
 }
 
-export function stopImageCrop() {
+// Bake the current crop into the annotation geometry: shrink width/height (and
+// reposition x/y) to the on-page crop rectangle so the visible image is
+// genuinely smaller and stays that way after saving.
+//
+// The crop FRACTIONS are preserved on purpose. They describe which window of
+// the *source* image is shown; the render path (rendering.js) slices that
+// window and maps it onto the full annotation rect. Because the new rect equals
+// the window's current on-page box, the same source window now maps onto the
+// smaller rect at the same position → identical pixels, but the annotation's
+// dimensions have actually shrunk. Trimmed-away source stays available, so a
+// later crop pass can drag handles back outward to reveal it.
+//
+// A single undo step (recordPropertyChange) captures the whole geometry commit.
+function commitCrop(ann) {
+  if (!ann) return;
+  const cl = clampFrac(ann.cropLeft), ct = clampFrac(ann.cropTop);
+  const cr = clampFrac(ann.cropRight), cb = clampFrac(ann.cropBottom);
+  if (!(cl || ct || cr || cb)) return; // nothing cropped
+  const r = cropRect(ann);
+  if (r.w <= 0 || r.h <= 0) return;
+
+  recordPropertyChange(ann);
+  ann.x = r.x; ann.y = r.y;
+  ann.width = r.w; ann.height = r.h;
+  ann.modifiedAt = new Date().toISOString();
+  showProperties(ann);
+
+  // Refresh the pre-edit snapshot so a subsequent commit in the same session
+  // diffs against the new baked geometry.
+  _snapshot = {
+    cropLeft: ann.cropLeft || 0, cropTop: ann.cropTop || 0,
+    cropRight: ann.cropRight || 0, cropBottom: ann.cropBottom || 0,
+  };
+}
+
+export function stopImageCrop(commit = true) {
+  if (commit && _cropAnn && !_cropAnn.locked) commitCrop(_cropAnn);
   uninstall();
   _cropAnn = null;
   _snapshot = null;
@@ -257,12 +298,14 @@ export function drawImageCropOverlay(ctx, curPage) {
   }
   ctx.stroke();
 
-  // Handles.
+  // Handles — Windows-style solid black squares (~8 screen px) on the 4 corners
+  // and 4 edge midpoints, matching the selection/resize grips. A thin white
+  // outline keeps them visible over dark image content.
   const hs = 8 / sc;
   const pts = handlePoints(ann);
-  ctx.fillStyle = '#ffffff';
-  ctx.strokeStyle = '#0066cc';
-  ctx.lineWidth = 1.5 / sc;
+  ctx.fillStyle = '#000000';
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1 / sc;
   for (const key of ['tl', 'tr', 'bl', 'br', 't', 'b', 'l', 'r']) {
     const p = pts[key];
     ctx.fillRect(p.x - hs / 2, p.y - hs / 2, hs, hs);

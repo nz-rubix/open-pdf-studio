@@ -470,25 +470,30 @@ function _handleResize(ctx, e, coords) {
 
   // Image "equal width/height" snapping: after the resize is applied, snap the
   // resulting width/height to another image's width/height within tolerance.
-  // Skipped while aspect ratio is locked (Shift / lockAspectRatio), which owns
-  // the width↔height relationship. Only the box-style side/corner handles
-  // change size, so guard on those.
+  // Only the box-style side/corner handles change size, so guard on those.
+  // When the aspect ratio is locked (images do this by default), snapImageResize
+  // snaps a single axis and derives the other from the ratio, so the lock is
+  // preserved — hence we no longer skip locked images here. Shift is a caller
+  // override that we keep respecting via lockRatio below.
   state._imageAlignGuides = null;
   const _rh = state.activeHandle;
   const _isBoxHandle = _rh === 'tl' || _rh === 'tr' || _rh === 'bl' || _rh === 'br' ||
     _rh === 't' || _rh === 'b' || _rh === 'l' || _rh === 'r';
-  const _aspectLocked = e.shiftKey || ann.lockAspectRatio;
-  if (state.preferences.enableImageAlignSnap && ann.type === 'image' &&
-      _isBoxHandle && !_aspectLocked) {
+  const _lockRatio = e.shiftKey || ann.lockAspectRatio;
+  if (state.preferences.enableImageAlignSnap && ann.type === 'image' && _isBoxHandle) {
     const excludeIds = new Set([ann.id]);
     const refs = collectImageAlignRefs(resizeDoc?.annotations || [], coords.pageNum, excludeIds);
     const tol = (state.preferences.objectSnapRadius || 12) / resizeScale;
     const box = { x: ann.x, y: ann.y, w: ann.width, h: ann.height };
-    const res = snapImageResize(box, _rh, refs, tol);
+    const _aspectRatio = state.originalAnnotation.originalWidth && state.originalAnnotation.originalHeight
+      ? state.originalAnnotation.originalWidth / state.originalAnnotation.originalHeight
+      : (state.originalAnnotation.height ? state.originalAnnotation.width / state.originalAnnotation.height : 1);
+    const res = snapImageResize(box, _rh, refs, tol, { lockRatio: _lockRatio, aspectRatio: _aspectRatio });
     if (res.guides.length > 0) {
       ann.x = res.box.x; ann.y = res.box.y;
       ann.width = res.box.w; ann.height = res.box.h;
       state._imageAlignGuides = res.guides;
+      state._imageAlignGuidesPage = coords.pageNum;
     }
   }
 
@@ -705,7 +710,10 @@ function _handleDrag(ctx, e, coords) {
       const snap = snapImageMove(movingBox, refs, tol);
       adjDX += snap.dx;
       adjDY += snap.dy;
-      if (snap.guides.length > 0) state._imageAlignGuides = snap.guides;
+      if (snap.guides.length > 0) {
+        state._imageAlignGuides = snap.guides;
+        state._imageAlignGuidesPage = coords.pageNum;
+      }
     }
   }
 
@@ -798,9 +806,15 @@ function _finishDragResize(ctx, e, coords) {
   state._editContourBefore = null;
   state.lastSnapResult = null;
   state._imageAlignGuides = null;
+  state._imageAlignGuidesPage = null;
   state.dragCursor = null;
   // Cursor is reactive — clearing the drag flags above causes the cursor
   // module to recompute and revert to the appropriate hover/tool cursor.
+
+  // Repaint once so any image-alignment guides that were showing during the
+  // drag are cleared now that state._imageAlignGuides is null (the redraw pass
+  // is what draws them, so it is also what removes them).
+  redraw();
 
   if (_fSel.length === 1) showProperties(_fSel[0]);
   else if (_fSel.length > 1) showMultiSelectionProperties();

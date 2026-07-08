@@ -70,6 +70,20 @@ it against the current code rather than merging the branch directly, and the PR
 may then be closed with a note once its useful parts are incorporated. If you do
 open a PR, please add the description above so the intent is crystal clear.
 
+## Symbol libraries and content — the exception where PRs are encouraged
+
+The "prefer a description over a PR" advice is about **code**. **Content is different.**
+Symbol libraries, hatch patterns, and similar reusable content don't go stale the
+way code does, so **content pull requests are actively welcome**. We want every
+symbol library in the world — bring the standards and libraries from your country,
+industry, and discipline. Symbols are organised by industry (e.g. AEC) and country
+(e.g. NL), and localisation keeps expanding, so contributions for any region are
+welcome.
+
+We are also looking for someone to **own and maintain the extensions and the
+content repository** — curating incoming libraries and keeping the ecosystem
+organised as it grows. If you're interested, open an issue to introduce yourself.
+
 ## Ground rules
 
 - **Be respectful and constructive.** Assume good intent and keep the discussion

@@ -1,17 +1,18 @@
-import { For } from 'solid-js';
+import { For, Show } from 'solid-js';
 import RibbonGroup from './RibbonGroup.jsx';
 import AdaptiveGroups from './AdaptiveGroups.jsx';
 import ColorPickerButton from './ColorPickerButton.jsx';
 import {
   fillColor, strokeColor, fmtLineWidth, opacity, borderStyle, blendMode,
-  arrowStart, arrowEnd, isLocked,
+  arrowStart, arrowEnd, isLocked, isSingleSymbolStamp,
   STYLE_DEFS, applyToSelected, syncFormatStore
 } from '../../stores/formatStore.js';
+import { openSymbolTypeEditor } from '../../stores/symbolEditStore.js';
 import { state, getActiveDocument } from '../../../core/state.js';
 import { showProperties, showMultiSelectionProperties, closePropertiesPanel } from '../../../ui/panels/properties-panel.js';
 import { setPanelVisible } from '../../stores/propertiesStore.js';
 import {
-  styleToolsIcon, resetLocationIcon, openPropertiesIcon, hideAnnotationIcon
+  styleToolsIcon, resetLocationIcon, openPropertiesIcon, hideAnnotationIcon, editTypeIcon
 } from '../../data/ribbonIcons.js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
 
@@ -57,6 +58,21 @@ export default function FormatTab() {
   return (
     <div class="ribbon-content active" id="tab-format">
       <AdaptiveGroups>
+        <Show when={isSingleSymbolStamp()}>
+          <RibbonGroup label={t('format.symbolTypeGroup')}>
+            <div class="ribbon-grid-col">
+              <button class="ribbon-row-btn" id="fmt-edit-type" title={t('format.editTypeHint')}
+                onClick={() => {
+                  const sel = getActiveDocument()?.selectedAnnotations || [];
+                  if (sel.length === 1) openSymbolTypeEditor(sel[0]);
+                }}>
+                <span ref={el => { el.innerHTML = editTypeIcon; }} />
+                <span>{t('format.editType')}</span>
+              </button>
+            </div>
+          </RibbonGroup>
+        </Show>
+
         <RibbonGroup label="" wide={true}>
           <div class="ribbon-style-gallery" id="fmt-style-gallery">
             <For each={STYLE_GALLERY}>

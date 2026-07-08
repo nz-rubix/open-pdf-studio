@@ -1,9 +1,32 @@
 import { state, getActiveDocument } from '../../core/state.js';
-import { setContextualTabsVisible, syncFormatStore } from '../../bridge.js';
+import {
+  setContextualTabsVisible, syncFormatStore,
+  ribbonActiveTab, setRibbonActiveTab,
+} from '../../bridge.js';
 import { getMeasureScale } from '../measurement.js';
 
 // No-op: TitleBar.jsx now derives button states from reactive state
 export function updateQuickAccessButtons() {}
+
+// The contextual ribbon tabs ('format', 'arrange' and 'image') are shown only
+// while something is selected. These are never counted as the "tab to return
+// to" after deselecting.
+const CONTEXTUAL_TABS = new Set(['format', 'arrange', 'image']);
+
+// Remembered non-contextual tab to restore on deselection (e.g. 'home').
+let _lastNormalTab = 'home';
+
+// Signature of the previous selection, so tab auto-activation only fires on a
+// real selection change — updateContextualTabs() runs on every redraw, and
+// re-activating the tab each frame would trap the user on a contextual tab and
+// fight any manual tab switch. null = "no selection".
+let _prevSelSig = null;
+
+function selectionSignature(sel) {
+  if (!sel || sel.length === 0) return null;
+  // id + type of every selected annotation, order-independent per redraw.
+  return sel.map(a => `${a.id ?? ''}:${a.type ?? ''}`).join('|');
+}
 
 // Show/hide Format and Arrange contextual ribbon tabs
 export function updateContextualTabs() {
@@ -16,6 +39,40 @@ export function updateContextualTabs() {
   }
   // Contextual "Afbeelding" tab: visible only for a single image selection.
   syncImageEditTab(_uiSel);
+
+  // Auto-activate the right contextual tab on a *real* selection change only.
+  autoActivateContextualTab(_uiSel);
+}
+
+// Automatically switch to the contextual tab that matches the current
+// selection: 'image' for exactly one image annotation, 'format' for any other
+// selection, and back to the last non-contextual tab when nothing is selected.
+// Only acts when the selection actually changed since the last call so it never
+// overrides a manual tab switch on subsequent redraws.
+function autoActivateContextualTab(sel) {
+  const sig = selectionSignature(sel);
+  if (sig === _prevSelSig) return; // no real selection change → leave tabs alone
+  _prevSelSig = sig;
+
+  const cur = ribbonActiveTab();
+
+  if (sig === null) {
+    // Deselected: if we're stranded on a contextual tab, return to the last
+    // normal tab the user was on (falls back to 'home').
+    if (CONTEXTUAL_TABS.has(cur)) {
+      setRibbonActiveTab(_lastNormalTab || 'home');
+    }
+    return;
+  }
+
+  // A selection exists — remember the tab we came FROM if it was a normal one,
+  // so deselecting later can restore it.
+  if (!CONTEXTUAL_TABS.has(cur)) {
+    _lastNormalTab = cur;
+  }
+
+  const isSingleImage = sel.length === 1 && sel[0].type === 'image';
+  setRibbonActiveTab(isSingleImage ? 'image' : 'format');
 }
 
 // Cache the imageEditStore module after first load so the per-redraw sync
