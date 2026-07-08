@@ -22,7 +22,7 @@ const TAB_IDS = [
   { id: 'behavior', key: 'tabs.behavior' },
   { id: 'pageDisplay', key: 'tabs.pageDisplay' },
   { id: 'fileassoc', key: 'tabs.fileAssociation' },
-  { id: 'vprinter', key: 'tabs.virtualPrinter' },
+  ...(__FEATURE_VPRINTER__ ? [{ id: 'vprinter', key: 'tabs.virtualPrinter' }] : []),
 ];
 
 const TAB_ICONS = {

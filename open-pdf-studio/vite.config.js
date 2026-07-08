@@ -4,10 +4,25 @@ import { readFileSync } from 'fs';
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
 
+// Build-time feature flags. Every flag defaults ON so a plain build behaves
+// exactly like before; set OPS_FEATURE_<NAME>=false in the environment to
+// compile a leaner build with that subsystem's UI and startup work removed
+// (the disabled branch is a compile-time constant, so Vite tree-shakes it
+// and its import graph out of the bundle).
+const featureFlag = (name) => JSON.stringify((process.env[`OPS_FEATURE_${name}`] ?? 'true') !== 'false');
+
 export default defineConfig({
   plugins: [solidPlugin()],
   define: {
     '__APP_VERSION__': JSON.stringify(pkg.version),
+    '__FEATURE_ASSISTANT__': featureFlag('ASSISTANT'),
+    '__FEATURE_ACCOUNTS__': featureFlag('ACCOUNTS'),
+    '__FEATURE_FEEDBACK__': featureFlag('FEEDBACK'),
+    '__FEATURE_PLUGINS__': featureFlag('PLUGINS'),
+    '__FEATURE_MCP__': featureFlag('MCP'),
+    '__FEATURE_UPDATER__': featureFlag('UPDATER'),
+    '__FEATURE_WHATSNEW__': featureFlag('WHATSNEW'),
+    '__FEATURE_VPRINTER__': featureFlag('VPRINTER'),
   },
   server: {
     port: 3041,

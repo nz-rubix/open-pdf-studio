@@ -163,9 +163,9 @@ export default function TitleBar() {
       </div>
 
       <div class="window-controls">
-        <button class="send-feedback-btn" onClick={() => openDialog('feedback')}>
+        {__FEATURE_FEEDBACK__ && <button class="send-feedback-btn" onClick={() => openDialog('feedback')}>
           {tCommon('sendFeedback')}
-        </button>
+        </button>}
         {isTauri() && <>
           <button class="window-btn" title={tCommon('minimize')} disabled={hasDialogs()}
             onClick={() => import('../../core/platform.js').then(m => m.minimizeWindow())}>
