@@ -231,7 +231,7 @@ async function init() {
   initSteelCatalogs();
 
   // Load installed plugins (extension palettes, custom annotation types, etc.)
-  initPlugins();
+  if (__FEATURE_PLUGINS__) initPlugins();
 
   // Screenshot-annotate mode: wire the PrtScn hotkey event and apply the
   // (opt-in) preference. No-op outside Tauri. Lazy so it never blocks startup.
@@ -244,14 +244,16 @@ async function init() {
   // the window to be visible or DOM-ready. Wiring it here means the in-process
   // MCP server's `app_*` tools are available during the remaining startup.
   // Inert outside Tauri.
-  initMcpBridge().catch(e => console.warn('initMcpBridge failed:', e));
+  if (__FEATURE_MCP__) initMcpBridge().catch(e => console.warn('initMcpBridge failed:', e));
 
   // "Open PDF Printer" job queue: watch the spool so prints from ANY
   // application pop the in-app sort/merge dialog. No-op when the virtual
   // printer isn't installed.
-  import('./solid/stores/printQueueStore.js')
-    .then(m => m.startPrintQueueWatcher())
-    .catch(() => {});
+  if (__FEATURE_VPRINTER__) {
+    import('./solid/stores/printQueueStore.js')
+      .then(m => m.startPrintQueueWatcher())
+      .catch(() => {});
+  }
 
   // Lazy-load printer enumeration so the print dialog shows the OS default
   // printer instantly (Ctrl+P) instead of waiting on PowerShell/lpstat.
@@ -278,7 +280,9 @@ async function init() {
     initBookmarks();
     initLeftPanel();
     initFindBar();
-    initFontDropdowns();
+    // Font detection probes ~170 fonts with synchronous measureText calls;
+    // run it at idle so it never competes with first interaction.
+    (window.requestIdleCallback || ((cb) => setTimeout(cb, 200)))(() => initFontDropdowns());
   }
 
   // Initialize text selection
@@ -384,11 +388,13 @@ async function init() {
     // verscheen ongevraagd. Updaten kan nog handmatig via Help → Controleren op
     // updates (checkForUpdates(false)).
     // What's New dialog — fire-and-forget, never blocks startup.
-    setTimeout(() => {
-      import('./help/whats-new-trigger.js')
-        .then(m => m.checkForNewReleaseOnStartup())
-        .catch(() => { /* offline / network error — silently skip */ });
-    }, 1500);
+    if (__FEATURE_WHATSNEW__) {
+      setTimeout(() => {
+        import('./help/whats-new-trigger.js')
+          .then(m => m.checkForNewReleaseOnStartup())
+          .catch(() => { /* offline / network error — silently skip */ });
+      }, 1500);
+    }
   }
 
   recordStartupDiagnostic('frontend-ready');
