@@ -1,10 +1,10 @@
-name: Build Windows ARM64
+name: Build Windows installers
 
-# Native Windows-on-ARM build.
-# Produces an unsigned perMachine NSIS installer for aarch64 Windows 11.
-# The upstream auto-updater is disabled in this build: it points at upstream's
-# GitHub releases, which only ship x64 - an ARM64 install must not "update"
-# itself onto an emulated x64 build.
+# Native Windows builds for arm64 and x64.
+# Produces unsigned perMachine NSIS installers.
+# The upstream auto-updater is neutered in these builds: its endpoint points
+# at this repo's (empty) releases, so update checks fail harmlessly and an
+# install can never "update" itself onto a mismatched-architecture build.
 
 on:
   workflow_dispatch:
@@ -17,8 +17,18 @@ on:
       - '.github/workflows/build-arm64.yml'
 
 jobs:
-  build-windows-arm64:
-    runs-on: windows-11-arm
+  build-windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: windows-11-arm
+            machine: 'AA64'
+          - arch: x64
+            runner: windows-latest
+            machine: '8664'
+    runs-on: ${{ matrix.runner }}
     defaults:
       run:
         working-directory: open-pdf-studio
@@ -31,26 +41,35 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install Rust stable (aarch64 host)
+      - name: Install Rust stable (native host)
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install frontend dependencies
         run: npm install
 
-      - name: Configure bundle for ARM64
+      - name: Configure bundle
         shell: pwsh
+        env:
+          BUILD_ARCH: ${{ matrix.arch }}
         run: |
           $conf = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
 
-          # Swap the x64-only bundled resources for their win-arm64 twins
-          # (see src-tauri/binaries/win-arm64/README.md for provenance).
-          $res = [ordered]@{
-            'icons/file-icon.ico'                     = 'file-icon.ico'
-            'binaries/win-arm64/pdfium.dll'           = 'pdfium.dll'
-            'binaries/win-arm64/WebView2Loader.dll'   = 'WebView2Loader.dll'
-            'resources/kaders'                        = 'kaders'
+          if ($env:BUILD_ARCH -eq 'arm64') {
+            # Swap the x64-only bundled resources for their win-arm64 twins
+            # (see src-tauri/binaries/win-arm64/README.md for provenance).
+            $res = [ordered]@{
+              'icons/file-icon.ico'                     = 'file-icon.ico'
+              'binaries/win-arm64/pdfium.dll'           = 'pdfium.dll'
+              'binaries/win-arm64/WebView2Loader.dll'   = 'WebView2Loader.dll'
+              'resources/kaders'                        = 'kaders'
+            }
+            $conf.bundle.resources = $res
           }
-          $conf.bundle.resources = $res
+
+          # Focused build: no in-app fetches remain (updater check, release
+          # notes, assistant, feedback are all compiled out below), so drop
+          # the blanket https: from connect-src.
+          $conf.app.security.csp = $conf.app.security.csp -replace 'connect-src ([^;]*?) https:', 'connect-src $1'
 
           # Neuter the updater rather than removing it: the plugin is
           # registered unconditionally in lib.rs and panics at startup on a
@@ -61,19 +80,14 @@ jobs:
           $conf.bundle.createUpdaterArtifacts = $false
           $conf.plugins.updater.endpoints = @("https://github.com/$env:GITHUB_REPOSITORY/releases/latest/download/latest.json")
 
-          # Focused build: no in-app fetches remain (updater check, release
-          # notes, assistant, feedback are all compiled out below), so drop
-          # the blanket https: from connect-src.
-          $conf.app.security.csp = $conf.app.security.csp -replace 'connect-src ([^;]*?) https:', 'connect-src $1'
-
           $conf | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json
           Get-Content src-tauri/tauri.conf.json | Select-String -Pattern 'win-arm64|createUpdaterArtifacts|connect-src'
 
       # npm run tauri:build = prebuild hook (cargo build --release -p pdfium-worker)
       # + vite build + tauri build. src-tauri/build.rs derives the sidecar's
-      # target-triple suffix from $TARGET, which on this native ARM runner is
-      # aarch64-pc-windows-msvc - no manual sidecar copy step needed.
-      - name: Build Tauri app (native ARM64)
+      # target-triple suffix from $TARGET, which matches the native host on
+      # both runners - no manual sidecar copy step needed.
+      - name: Build Tauri app
         env:
           # Lean, focused build: compile out non-core subsystems (they stay
           # in the source, gated behind build-time flags that default ON).
@@ -90,23 +104,24 @@ jobs:
       - name: Verify installer architecture
         shell: pwsh
         working-directory: .
+        env:
+          EXPECTED_MACHINE: ${{ matrix.machine }}
         run: |
           $setup = Get-ChildItem target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
           if (-not $setup) { Write-Error "No NSIS installer produced"; exit 1 }
           Write-Output "Installer: $($setup.Name) ($([math]::Round($setup.Length/1MB,1)) MB)"
-          # The bundled main exe must be ARM64; check the build output directly
           $exe = "target/release/open-pdf-studio.exe"
           $bytes = [System.IO.File]::ReadAllBytes($exe)
           $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
           $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
-          # 0xAA64 = ARM64, 0x8664 = x64
-          Write-Output ("Machine type: 0x{0:X4}" -f $machine)
-          if ($machine -ne 0xAA64) { Write-Error "Main exe is not ARM64!"; exit 1 }
+          $expected = [Convert]::ToUInt16($env:EXPECTED_MACHINE, 16)
+          Write-Output ("Machine type: 0x{0:X4} (expected 0x{1:X4})" -f $machine, $expected)
+          if ($machine -ne $expected) { Write-Error "Main exe architecture mismatch!"; exit 1 }
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OpenPDFStudio-windows-arm64-setup
+          name: OpenPDFStudio-windows-${{ matrix.arch }}-setup
           path: |
             target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
