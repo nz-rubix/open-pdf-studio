@@ -165,3 +165,41 @@ export function ifcCategoryForParametric(parametricId) {
   if (PARAMETRIC_ID_DEFAULT[id]) return PARAMETRIC_ID_DEFAULT[id];
   return keywordMatch(id.toLowerCase()) || IFC_DEFAULT;
 }
+
+// --- Leesbare NL-omschrijving per IFC-categorie, alleen voor weergave.
+// De OPGESLAGEN waarde blijft de IFC-entiteitsnaam (interoperabel voor BIM/IFC-
+// export); dit is puur de menstaal ernaast, zodat "IfcOutlet" ook als
+// "Stopcontact / wandcontactdoos" leesbaar is. ---
+export const IFC_LABELS = {
+  IfcOutlet: 'Stopcontact / wandcontactdoos',
+  IfcSwitchingDevice: 'Schakelaar / dimmer',
+  IfcLightFixture: 'Verlichtingsarmatuur',
+  IfcCommunicationsAppliance: 'Data / telecom',
+  IfcElectricDistributionBoard: 'Meterkast / verdeelkast',
+  IfcSensor: 'Sensor / melder / detector',
+  IfcAlarm: 'Alarm / signaalgever / bel',
+  IfcFireSuppressionTerminal: 'Blusinstallatie / sprinkler',
+  IfcDoor: 'Deur',
+  IfcWindow: 'Raam',
+  IfcAirTerminal: 'Ventilatie / luchtrooster',
+  IfcStair: 'Trap',
+  IfcSpace: 'Ruimte',
+  IfcMember: 'Staalprofiel / staafelement',
+  IfcBeam: 'Balk / ligger',
+  IfcPile: 'Paal / fundering',
+  IfcMechanicalFastener: 'Bout / anker / bevestiging',
+  IfcSlab: 'Vloer / plaat',
+  IfcWall: 'Wand / muur',
+  IfcElectricAppliance: 'Elektrisch toestel / apparaat',
+  IfcShadingDevice: 'Zonwering',
+  IfcGrid: 'Stramien / raster',
+  IfcAnnotation: 'Annotatie / maatvoering',
+  IfcReinforcingBar: 'Wapening',
+  IfcBuildingElementProxy: 'Overig bouwelement',
+};
+
+/** Leesbare NL-omschrijving voor een IFC-categorie (lege string als onbekend). */
+export function ifcCategoryLabel(cat) {
+  if (!cat) return '';
+  return IFC_LABELS[cat] || '';
+}

@@ -1,5 +1,6 @@
-import { Show } from 'solid-js';
+import { Show, For } from 'solid-js';
 import { annotProps, sectionVis, updateAnnotProp, cycleSelectNext } from '../../stores/propertiesStore.js';
+import { ifcCategoryLabel, IFC_LABELS } from '../../data/ifcCategoryMap.js';
 import CollapsibleSection from './CollapsibleSection.jsx';
 import { useTranslation } from '../../../i18n/useTranslation.js';
 
@@ -32,12 +33,15 @@ export default function GeneralSection() {
             placeholder={annotProps.ifcCategory === 'mixed' ? tCommon('mixed') : 'IfcBuildingElementProxy'}
             disabled={isLocked()}
             onChange={(e) => updateAnnotProp('ifcCategory', e.target.value)} />
+          <Show when={ifcCategoryLabel(annotProps.ifcCategory)}>
+            <small style="display:block; margin-top:2px; font-size:11px; color: var(--theme-text-secondary, #888);">
+              {ifcCategoryLabel(annotProps.ifcCategory)}
+            </small>
+          </Show>
           <datalist id="ifc-category-list">
-            <option value="IfcOutlet" /><option value="IfcSwitchingDevice" /><option value="IfcLightFixture" />
-            <option value="IfcCommunicationsAppliance" /><option value="IfcElectricDistributionBoard" />
-            <option value="IfcSensor" /><option value="IfcAlarm" /><option value="IfcFireSuppressionTerminal" />
-            <option value="IfcDoor" /><option value="IfcWall" /><option value="IfcSlab" /><option value="IfcSpace" />
-            <option value="IfcMember" /><option value="IfcBuildingElementProxy" />
+            <For each={Object.entries(IFC_LABELS)}>
+              {([code, label]) => <option value={code}>{label}</option>}
+            </For>
           </datalist>
         </div>
 
