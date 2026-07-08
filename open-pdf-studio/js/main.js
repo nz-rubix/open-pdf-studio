@@ -280,9 +280,9 @@ async function init() {
     initBookmarks();
     initLeftPanel();
     initFindBar();
-    // Font detection probes ~170 fonts with synchronous measureText calls;
-    // run it at idle so it never competes with first interaction.
-    (window.requestIdleCallback || ((cb) => setTimeout(cb, 200)))(() => initFontDropdowns());
+    // Font detection self-paces across idle slices (see detectAvailableFonts)
+    // so it never blocks interaction; fire and forget.
+    initFontDropdowns();
   }
 
   // Initialize text selection
