@@ -4,6 +4,7 @@
     "title": "General",
     "type": "Type",
     "subject": "Subject",
+    "ifcCategory": "IFC category",
     "subjectPlaceholder": "Enter subject...",
     "author": "Author",
     "created": "Created",

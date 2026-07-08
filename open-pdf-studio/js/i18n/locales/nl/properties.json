@@ -4,6 +4,7 @@
     "title": "Algemeen",
     "type": "Type",
     "subject": "Onderwerp",
+    "ifcCategory": "IFC-categorie",
     "subjectPlaceholder": "Voer onderwerp in...",
     "author": "Auteur",
     "created": "Aangemaakt",

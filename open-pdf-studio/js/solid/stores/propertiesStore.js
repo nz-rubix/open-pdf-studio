@@ -47,6 +47,7 @@ const [annotProps, setAnnotProps] = createStore({
   type: '',
   typeDisplay: '',
   subject: '',
+  ifcCategory: '',
   author: '',
   created: '',
   modified: '',
@@ -249,6 +250,7 @@ export function storeShowProperties(annotation) {
     marked: annotation.marked || false,
     altText: annotation.altText || '',
     status: annotation.status || 'none',
+    ifcCategory: annotation.ifcCategory || '',
     color: annotation.color || '#000000',
     fillColor: annotation.fillColor || null,
     strokeColor: annotation.strokeColor || annotation.color || '#000000',
@@ -405,6 +407,7 @@ export function storeShowMultiSelection(selected) {
   const sharedAuthor = sharedValue(selected, a => a.author || state.defaultAuthor, '');
   const sharedSubject = sharedValue(selected, a => a.subject || '', '');
   const sharedStatus = sharedValue(selected, a => a.status || 'none', 'mixed');
+  const sharedIfc = sharedValue(selected, a => a.ifcCategory || '', 'mixed');
   const sharedAltText = sharedValue(selected, a => a.altText || '', '');
   const sharedMarked = (() => {
     const allMarked = selected.every(a => a.marked);
@@ -441,6 +444,7 @@ export function storeShowMultiSelection(selected) {
       : i18next.t('multiSelect', { count: selected.length, ns: 'properties' }),
     subject: sharedSubject,
     author: sharedAuthor,
+    ifcCategory: sharedIfc,
     created: '',
     modified: '',
     locked: sharedLocked,
@@ -688,6 +692,7 @@ function applyPropToAnnotation(ann, key, value) {
     case 'marked': ann.marked = value; break;
     case 'altText': ann.altText = value; break;
     case 'status': ann.status = value === 'none' ? undefined : value; break;
+    case 'ifcCategory': ann.ifcCategory = value || undefined; break;
     case 'color': ann.color = value; break;
     case 'fillColor': ann.fillColor = value; break;
     case 'strokeColor': ann.strokeColor = value; break;
@@ -888,6 +893,7 @@ export function updateAnnotProp(key, value) {
     case 'marked': currentAnnotation.marked = value; break;
     case 'altText': currentAnnotation.altText = value; break;
     case 'status': currentAnnotation.status = value === 'none' ? undefined : value; break;
+    case 'ifcCategory': currentAnnotation.ifcCategory = value || undefined; break;
     case 'color':
       currentAnnotation.color = value;
       // Stroke-rendered types resolve their colour as `strokeColor || color`

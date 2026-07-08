@@ -26,6 +26,22 @@ export default function GeneralSection() {
         </Show>
 
         <div class="property-group">
+          <label>{t('general.ifcCategory')}</label>
+          <input type="text" list="ifc-category-list"
+            value={annotProps.ifcCategory === 'mixed' ? '' : annotProps.ifcCategory}
+            placeholder={annotProps.ifcCategory === 'mixed' ? tCommon('mixed') : 'IfcBuildingElementProxy'}
+            disabled={isLocked()}
+            onChange={(e) => updateAnnotProp('ifcCategory', e.target.value)} />
+          <datalist id="ifc-category-list">
+            <option value="IfcOutlet" /><option value="IfcSwitchingDevice" /><option value="IfcLightFixture" />
+            <option value="IfcCommunicationsAppliance" /><option value="IfcElectricDistributionBoard" />
+            <option value="IfcSensor" /><option value="IfcAlarm" /><option value="IfcFireSuppressionTerminal" />
+            <option value="IfcDoor" /><option value="IfcWall" /><option value="IfcSlab" /><option value="IfcSpace" />
+            <option value="IfcMember" /><option value="IfcBuildingElementProxy" />
+          </datalist>
+        </div>
+
+        <div class="property-group">
           <label>{t('general.subject')}</label>
           <input type="text" value={annotProps.subject} placeholder={t('general.subjectPlaceholder')}
             disabled={isLocked()}
