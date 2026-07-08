@@ -9,10 +9,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/OpenAEC-Foundation/OpenPDFStudio/releases/latest"><img src="https://img.shields.io/github/v/release/OpenAEC-Foundation/OpenPDFStudio?style=flat-square" alt="Latest Release"></a>
+  <a href="https://github.com/OpenAEC-Foundation/open-pdf-studio/releases/latest"><img src="https://img.shields.io/github/v/release/OpenAEC-Foundation/open-pdf-studio?style=flat-square" alt="Latest Release"></a>
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-LGPL--3.0-blue?style=flat-square" alt="License"></a>
   <a href="https://snapcraft.io/open-pdf-studio"><img src="https://img.shields.io/badge/snap-open--pdf--studio-green?style=flat-square&logo=snapcraft" alt="Snap Store"></a>
-  <a href="https://github.com/OpenAEC-Foundation/OpenPDFStudio/releases"><img src="https://img.shields.io/github/downloads/OpenAEC-Foundation/OpenPDFStudio/total?style=flat-square" alt="Downloads"></a>
+  <a href="https://github.com/OpenAEC-Foundation/open-pdf-studio/releases"><img src="https://img.shields.io/github/downloads/OpenAEC-Foundation/open-pdf-studio/total?style=flat-square" alt="Total downloads"></a>
+  <a href="https://github.com/OpenAEC-Foundation/open-pdf-studio/commits"><img src="https://img.shields.io/github/commit-activity/m/OpenAEC-Foundation/open-pdf-studio?style=flat-square" alt="Commit activity"></a>
+  <a href="https://github.com/OpenAEC-Foundation/open-pdf-studio/commits"><img src="https://img.shields.io/github/last-commit/OpenAEC-Foundation/open-pdf-studio?style=flat-square" alt="Last commit"></a>
+  <a href="https://github.com/OpenAEC-Foundation/open-pdf-studio/stargazers"><img src="https://img.shields.io/github/stars/OpenAEC-Foundation/open-pdf-studio?style=flat-square" alt="Stars"></a>
 </p>
 
 ---
@@ -29,13 +32,28 @@ Open PDF Studio is a lightweight, native desktop application that provides profe
 
 ## Repository activity
 
-Latest Star History overview showing the ongoing growth of this active open-source project.
+Downloads, commit activity, and star growth for this active open-source project.
+
+<p align="center">
+  <a href="https://github.com/OpenAEC-Foundation/open-pdf-studio/releases"><img src="https://img.shields.io/github/downloads/OpenAEC-Foundation/open-pdf-studio/total?style=for-the-badge&label=Total%20downloads&color=2563eb" alt="Total downloads"></a>
+  &nbsp;
+  <a href="https://github.com/OpenAEC-Foundation/open-pdf-studio/releases/latest"><img src="https://img.shields.io/github/downloads/OpenAEC-Foundation/open-pdf-studio/latest/total?style=for-the-badge&label=Latest%20release&color=059669" alt="Latest release downloads"></a>
+  &nbsp;
+  <a href="https://github.com/OpenAEC-Foundation/open-pdf-studio/commits"><img src="https://img.shields.io/github/commit-activity/m/OpenAEC-Foundation/open-pdf-studio?style=for-the-badge&label=Commits%2Fmonth&color=7c3aed" alt="Commits per month"></a>
+</p>
+
+**Star history**
 
 <p align="center">
   <a href="https://www.star-history.com/?repos=OpenAEC-Foundation%2Fopen-pdf-studio&type=date&legend=top-left">
     <img src="https://api.star-history.com/svg?repos=OpenAEC-Foundation%2Fopen-pdf-studio&type=date&legend=top-left" alt="Star History Chart" width="100%">
   </a>
 </p>
+
+<!-- Commit & contributor activity chart: register this repo once at
+     https://repobeats.axiom.co, then paste the generated embed here for a
+     live commit-history graph:
+     ![Activity](https://repobeats.axiom.co/api/embed/<hash>.svg) -->
 
 ## Why Open PDF Studio?
 
