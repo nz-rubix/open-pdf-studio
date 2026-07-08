@@ -135,7 +135,7 @@ function DesktopApp() {
       <SymbolSettingsDialog />
       <SymbolTypeEditor />
       <SchedulePanel />
-      <AssistantPanel />
+      {__FEATURE_ASSISTANT__ && <AssistantPanel />}
       {/* MiniLog floating engine-log overlay removed per user request. */}
       <LoadingOverlay />
       <TypeLengthHUD />
