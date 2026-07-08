@@ -61,14 +61,30 @@ jobs:
           $conf.bundle.createUpdaterArtifacts = $false
           $conf.plugins.updater.endpoints = @("https://github.com/$env:GITHUB_REPOSITORY/releases/latest/download/latest.json")
 
+          # Focused build: no in-app fetches remain (updater check, release
+          # notes, assistant, feedback are all compiled out below), so drop
+          # the blanket https: from connect-src.
+          $conf.app.security.csp = $conf.app.security.csp -replace 'connect-src ([^;]*?) https:', 'connect-src $1'
+
           $conf | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json
-          Get-Content src-tauri/tauri.conf.json | Select-String -Pattern 'win-arm64|createUpdaterArtifacts'
+          Get-Content src-tauri/tauri.conf.json | Select-String -Pattern 'win-arm64|createUpdaterArtifacts|connect-src'
 
       # npm run tauri:build = prebuild hook (cargo build --release -p pdfium-worker)
       # + vite build + tauri build. src-tauri/build.rs derives the sidecar's
       # target-triple suffix from $TARGET, which on this native ARM runner is
       # aarch64-pc-windows-msvc - no manual sidecar copy step needed.
       - name: Build Tauri app (native ARM64)
+        env:
+          # Lean, focused build: compile out non-core subsystems (they stay
+          # in the source, gated behind build-time flags that default ON).
+          OPS_FEATURE_ASSISTANT: 'false'
+          OPS_FEATURE_ACCOUNTS: 'false'
+          OPS_FEATURE_FEEDBACK: 'false'
+          OPS_FEATURE_PLUGINS: 'false'
+          OPS_FEATURE_MCP: 'false'
+          OPS_FEATURE_UPDATER: 'false'
+          OPS_FEATURE_WHATSNEW: 'false'
+          OPS_FEATURE_VPRINTER: 'false'
         run: npm run tauri:build
 
       - name: Verify installer architecture

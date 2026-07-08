@@ -17,7 +17,11 @@ import ts from 'typescript';
 const hier = path.dirname(fileURLToPath(import.meta.url));
 
 // Door de build ingevuld (vite.config.js define).
-const BUILD_CONSTANTEN = new Set(['__APP_VERSION__']);
+const BUILD_CONSTANTEN = new Set([
+  '__APP_VERSION__',
+  '__FEATURE_ASSISTANT__', '__FEATURE_ACCOUNTS__', '__FEATURE_FEEDBACK__', '__FEATURE_PLUGINS__',
+  '__FEATURE_MCP__', '__FEATURE_UPDATER__', '__FEATURE_WHATSNEW__', '__FEATURE_VPRINTER__',
+]);
 
 function bronbestanden(map) {
   const uit = [];
