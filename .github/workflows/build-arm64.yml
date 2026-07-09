@@ -16,6 +16,12 @@ on:
       - 'pdfium-worker/**'
       - '.github/workflows/build-arm64.yml'
 
+# A newer push supersedes an in-flight build of the same branch; don't burn
+# runners (or race artifact downloads) finishing installers nobody will use.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-windows:
     strategy:
