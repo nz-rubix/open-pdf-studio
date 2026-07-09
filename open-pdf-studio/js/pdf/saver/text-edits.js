@@ -1,35 +1,16 @@
 import { getActiveDocument } from '../../core/state.js';
-import { StandardFonts, rgb } from 'pdf-lib';
+import { rgb } from 'pdf-lib';
 import { hexToRgb } from './utils.js';
+import { createEditFontProvider } from './edit-fonts.js';
 
 // Save text edits into PDF pages (cover-and-replace approach)
 export async function saveTextEditsToPages(pdfDocLib, pages) {
   const doc = getActiveDocument();
   if (!doc || !doc.textEdits || doc.textEdits.length === 0) return;
 
-  const fontCache = {};
-  async function getEditFont(fontFamily) {
-    if (fontCache[fontFamily]) return fontCache[fontFamily];
-    // Map font family string (may include bold/italic variant) to StandardFonts
-    const fontMap = {
-      'Courier': StandardFonts.Courier,
-      'Courier-Bold': StandardFonts.CourierBold,
-      'Courier-Oblique': StandardFonts.CourierOblique,
-      'Courier-BoldOblique': StandardFonts.CourierBoldOblique,
-      'TimesRoman': StandardFonts.TimesRoman,
-      'TimesRoman-Bold': StandardFonts.TimesRomanBold,
-      'TimesRoman-Italic': StandardFonts.TimesRomanItalic,
-      'TimesRoman-BoldItalic': StandardFonts.TimesRomanBoldItalic,
-      'Helvetica': StandardFonts.Helvetica,
-      'Helvetica-Bold': StandardFonts.HelveticaBold,
-      'Helvetica-Oblique': StandardFonts.HelveticaOblique,
-      'Helvetica-BoldOblique': StandardFonts.HelveticaBoldOblique,
-    };
-    const stdFont = fontMap[fontFamily] || StandardFonts.Helvetica;
-    const font = await pdfDocLib.embedFont(stdFont);
-    fontCache[fontFamily] = font;
-    return font;
-  }
+  // Standard fonts for plain-ASCII runs; embedded Unicode subset otherwise
+  // (standard fonts are WinAnsi-only and abort the save on e.g. U+2610).
+  const fonts = createEditFontProvider(pdfDocLib);
 
   for (const edit of doc.textEdits) {
     const pageIndex = edit.page - 1;
@@ -61,11 +42,17 @@ export async function saveTextEditsToPages(pdfDocLib, pages) {
     }
 
     // Draw new text line by line
-    const editFont = await getEditFont(edit.fontFamily);
+    const editFont = await fonts.getFont(edit.fontFamily, edit.newText);
     const newLines = edit.newText.split('\n');
     for (let i = 0; i < newLines.length; i++) {
       if (!newLines[i]) continue;
-      page.drawText(newLines[i], {
+      let line = newLines[i];
+      try {
+        editFont.encodeText(line);
+      } catch (_) {
+        line = fonts.sanitise(editFont, line);
+      }
+      page.drawText(line, {
         x: edit.pdfX,
         y: edit.pdfY - i * ls,
         size: fontSize,

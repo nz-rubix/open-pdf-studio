@@ -1,6 +1,7 @@
 import { getActiveDocument } from '../../core/state.js';
-import { StandardFonts, degrees, rgb } from 'pdf-lib';
+import { degrees, rgb } from 'pdf-lib';
 import { parsePageRange } from '../exporter.js';
+import { createEditFontProvider } from './edit-fonts.js';
 
 // Save watermarks into PDF pages
 export async function saveWatermarksToPages(pdfDocLib, pages) {
@@ -10,18 +11,17 @@ export async function saveWatermarksToPages(pdfDocLib, pages) {
 
   const totalPages = pages.length;
 
-  // Pre-embed fonts
-  const fontCache = {};
-  async function getFont(fontFamily) {
-    if (fontCache[fontFamily]) return fontCache[fontFamily];
-    let stdFont;
+  // Standard fonts for ASCII text, embedded Unicode subset otherwise — the
+  // standard 14 are WinAnsi-only and abort the save on any other glyph.
+  const fontProvider = createEditFontProvider(pdfDocLib);
+  function normaliseFamily(fontFamily) {
     const f = (fontFamily || '').toLowerCase();
-    if (f.includes('courier')) stdFont = StandardFonts.Courier;
-    else if (f.includes('times')) stdFont = StandardFonts.TimesRoman;
-    else stdFont = StandardFonts.Helvetica;
-    const font = await pdfDocLib.embedFont(stdFont);
-    fontCache[fontFamily] = font;
-    return font;
+    if (f.includes('courier')) return 'Courier';
+    if (f.includes('times')) return 'TimesRoman';
+    return 'Helvetica';
+  }
+  async function getFont(fontFamily, text) {
+    return fontProvider.getFont(normaliseFamily(fontFamily), text || '');
   }
 
   // Pre-embed images
@@ -86,9 +86,9 @@ export async function saveWatermarksToPages(pdfDocLib, pages) {
         if (!shouldRenderOnPage(wm, pageNum)) continue;
 
         if (wm.type === 'textWatermark' && (wm.layer || 'behind') === layer) {
-          const font = await getFont(wm.fontFamily);
-          const fontSize = wm.fontSize || 72;
           const text = wm.text || '';
+          const font = await getFont(wm.fontFamily, text);
+          const fontSize = wm.fontSize || 72;
           const textWidth = font.widthOfTextAtSize(text, fontSize);
           const textHeight = fontSize;
           const pos = getPositionPdf(wm.position, wm.customX, wm.customY, pw, ph, textWidth, textHeight);
@@ -124,7 +124,8 @@ export async function saveWatermarksToPages(pdfDocLib, pages) {
         }
 
         if (wm.type === 'headerFooter' && layer === 'infront') {
-          const font = await getFont(wm.fontFamily);
+          const font = await getFont(wm.fontFamily,
+            [wm.headerLeft, wm.headerCenter, wm.headerRight, wm.footerLeft, wm.footerCenter, wm.footerRight].join(''));
           const fontSize = wm.fontSize || 10;
           const color = hexToRgbObj(wm.color || '#000000');
           const mt = wm.marginTop || 30;
