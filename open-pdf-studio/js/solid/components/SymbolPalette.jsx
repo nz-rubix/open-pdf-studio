@@ -1,4 +1,4 @@
-import { Show, For, createSignal } from 'solid-js';
+import { Show, For, createSignal, createEffect, createMemo } from 'solid-js';
 import { state } from '../../core/state.js';
 import { setTool } from '../../tools/manager.js';
 import {
@@ -16,7 +16,12 @@ import {
   addCustomGroup, removeCustomGroup, addSymbolToGroup, getCustomGroups,
   resolveSymbolSvg,
 } from '../stores/symbolStore.js';
-import { INDUSTRIES, COUNTRIES, matchesLocale } from '../data/symbolLocales.js';
+import { matchesLocale } from '../data/symbolLocales.js';
+import {
+  ensureLibraryIndex, libraryIndustries, libraryCountries, indexStatus,
+  downloadInfoFor, downloadCountrySector,
+  downloadBusy, downloadProgress, downloadError,
+} from '../stores/symbolLibraryOnlineStore.js';
 import { registerPaletteDock, unregisterPaletteDock } from '../stores/paletteOrder.js';
 import { ifcCategoryForSymbol } from '../data/ifcCategoryMap.js';
 
@@ -265,6 +270,14 @@ export function SymbolSettingsDialog() {
   let fileInputRef;
   let importGroupInputRef;
 
+  // Bij openen van de dialoog de online bibliotheek-index laden (cache-first,
+  // offline-fallback naar de statische lijst).
+  createEffect(() => { if (settingsOpen()) ensureLibraryIndex(); });
+
+  // Downloadstatus voor het gekozen land+industrie (reactief: index,
+  // selectie én al gedownloade groepen).
+  const dlInfo = createMemo(() => downloadInfoFor(selectedCountry(), selectedIndustry()));
+
   function handleAddGroup() {
     const name = newGroupName().trim();
     if (!name) return;
@@ -362,20 +375,48 @@ export function SymbolSettingsDialog() {
             <label class="sp-settings-locale-field">
               <span>Industrie</span>
               <select value={selectedIndustry()} onChange={(e) => setSelectedIndustry(e.target.value)}>
-                <For each={INDUSTRIES}>
-                  {(ind) => <option value={ind.id}>{ind.name}</option>}
+                <For each={libraryIndustries()}>
+                  {(ind) => <option value={ind.id} selected={ind.id === selectedIndustry()}>{ind.name}</option>}
                 </For>
               </select>
             </label>
             <label class="sp-settings-locale-field">
               <span>Land</span>
               <select value={selectedCountry()} onChange={(e) => setSelectedCountry(e.target.value)}>
-                <For each={COUNTRIES}>
-                  {(c) => <option value={c.id}>{c.flag ? c.flag + ' ' : ''}{c.name}</option>}
+                <For each={libraryCountries()}>
+                  {(c) => <option value={c.id} selected={c.id === selectedCountry()}>{c.flag ? c.flag + ' ' : ''}{c.name}</option>}
                 </For>
               </select>
             </label>
           </div>
+          <Show when={indexStatus() === 'loading'}>
+            <div class="sp-settings-download sp-settings-download-note">Online bibliotheek laden…</div>
+          </Show>
+          <Show when={indexStatus() === 'offline'}>
+            <div class="sp-settings-download sp-settings-download-note">Online bibliotheek niet bereikbaar — beperkte landenlijst</div>
+          </Show>
+          <Show when={dlInfo().toFetch.length > 0 || dlInfo().tagOnly.length > 0 || downloadBusy()}>
+            <div class="sp-settings-download">
+              <Show when={!downloadBusy()} fallback={
+                <span class="sp-settings-download-label">
+                  Downloaden {Math.min((downloadProgress()?.done ?? 0) + 1, downloadProgress()?.total ?? 1)}/{downloadProgress()?.total ?? 1}: {downloadProgress()?.label || ''}
+                </span>
+              }>
+                <span class="sp-settings-download-label">
+                  {dlInfo().toFetch.length > 0
+                    ? `${dlInfo().toFetch.length} collectie${dlInfo().toFetch.length === 1 ? '' : 's'} online beschikbaar (${dlInfo().symbolCount} symbolen)`
+                    : `${dlInfo().tagOnly.length} gedownloade collectie${dlInfo().tagOnly.length === 1 ? '' : 's'} activeren voor dit land`}
+                </span>
+                <button class="sp-settings-btn-add"
+                  onClick={() => downloadCountrySector(selectedCountry(), selectedIndustry())}>
+                  Download
+                </button>
+              </Show>
+            </div>
+          </Show>
+          <Show when={downloadError()}>
+            <div class="sp-settings-download sp-settings-download-error">Download mislukt: {downloadError()}</div>
+          </Show>
           <div class="sp-settings-body">
             <For each={allCategories().filter(c => matchesLocale(c, selectedIndustry(), selectedCountry()))}>
               {(cat) => (
@@ -389,6 +430,9 @@ export function SymbolSettingsDialog() {
                     </label>
                     <Show when={cat.builtin}>
                       <span class="sp-settings-group-badge">Built-in</span>
+                    </Show>
+                    <Show when={!cat.builtin && cat.online}>
+                      <span class="sp-settings-group-badge">Online</span>
                     </Show>
                     <Show when={!cat.builtin}>
                       <button class="sp-settings-btn-add" style={{ height: '20px', 'font-size': '9px', padding: '0 6px' }}

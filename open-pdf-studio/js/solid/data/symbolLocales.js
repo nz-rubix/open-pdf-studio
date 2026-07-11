@@ -28,15 +28,22 @@ export function countryName(id) {
 
 // Filter-regel voor de settings/palette:
 //   Een categorie hoort bij de gekozen industrie+land als haar metadata
-//   exact matcht. Categorieën ZONDER industry/country-metadata ("Overig")
+//   matcht. Categorieën ZONDER industry/country-metadata ("Overig")
 //   blijven ALTIJD zichtbaar — zo verdwijnt niets onverwacht en werken
 //   custom/legacy-groepen die (nog) geen lokalisatie hebben gewoon door.
+//   De metadata mag een string zijn (ingebouwd/custom) of een ARRAY
+//   (gedownloade online-collecties gelden vaak voor meerdere landen en
+//   sectoren tegelijk; de tags groeien mee per download).
+function tagMatches(tag, selected) {
+  return Array.isArray(tag) ? tag.includes(selected) : tag === selected;
+}
+
 export function matchesLocale(cat, industry, country) {
-  const hasIndustry = cat.industry != null;
-  const hasCountry = cat.country != null;
+  const hasIndustry = cat.industry != null && (!Array.isArray(cat.industry) || cat.industry.length > 0);
+  const hasCountry = cat.country != null && (!Array.isArray(cat.country) || cat.country.length > 0);
   // Geen enkele lokalisatie-metadata → altijd tonen ("Overig").
   if (!hasIndustry && !hasCountry) return true;
-  if (hasIndustry && cat.industry !== industry) return false;
-  if (hasCountry && cat.country !== country) return false;
+  if (hasIndustry && !tagMatches(cat.industry, industry)) return false;
+  if (hasCountry && !tagMatches(cat.country, country)) return false;
   return true;
 }

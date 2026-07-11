@@ -178,6 +178,38 @@ function addSymbolToGroup(groupId, name, svg) {
   setCustomGroups(groups);
 }
 
+// --- Online bibliotheek-groepen (gedownloade collecties) ---
+// Zelfde persist-mechanisme als custom groepen (state.preferences.
+// customSymbolGroups) zodat downloads na herstart blijven en de bestaande
+// Remove-knop ze gewoon verwijdert. Een bibliotheek-groep draagt
+// `collectionId` + `online: true` en industry/country als ARRAYS.
+function upsertCustomGroup(group) {
+  const groups = getCustomGroups();
+  const i = groups.findIndex(g => g.id === group.id);
+  const next = i >= 0
+    ? groups.map((g, j) => (j === i ? { ...g, ...group } : g))
+    : [...groups, group];
+  setCustomGroups(next);
+}
+
+// Locale-tags bijwerken van een al gedownloade bibliotheek-groep: dezelfde
+// collectie (bv. een internationale set) hoort bij meerdere landen/sectoren;
+// bij elke download voor een nieuw land groeien de tag-arrays mee.
+function addGroupLocaleTag(groupId, industryId, countryId) {
+  let changed = false;
+  const groups = getCustomGroups().map(g => {
+    if (g.id !== groupId) return g;
+    const ind = new Set(Array.isArray(g.industry) ? g.industry : g.industry ? [g.industry] : []);
+    const cty = new Set(Array.isArray(g.country) ? g.country : g.country ? [g.country] : []);
+    if (ind.has(industryId) && cty.has(countryId)) return g;
+    ind.add(industryId);
+    cty.add(countryId);
+    changed = true;
+    return { ...g, industry: [...ind], country: [...cty] };
+  });
+  if (changed) setCustomGroups(groups);
+}
+
 function removeSymbolFromGroup(groupId, symbolId) {
   const groups = getCustomGroups().map(g => {
     if (g.id !== groupId) return g;
@@ -239,6 +271,6 @@ export {
   toggleGroupEnabled, isGroupEnabled,
   addCustomGroup, removeCustomGroup,
   addSymbolToGroup, removeSymbolFromGroup,
-  getCustomGroups,
+  getCustomGroups, upsertCustomGroup, addGroupLocaleTag,
   symbolTypeKey, getSymbolTypeOverrides, resolveSymbolSvg, setSymbolTypeOverride,
 };
