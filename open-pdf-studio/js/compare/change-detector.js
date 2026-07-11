@@ -170,9 +170,15 @@ function _mergeNearby(list, prox) {
   if (list.length < 2) return list;
   const out = list.slice();
   let merged = true;
+  // Fixpoint-merge zonder volledige herstart: voorheen begon de scan na élke
+  // merge opnieuw bij (0,0) — bij duizenden clusters (twee ongerelateerde
+  // pagina's, bv. voorbij het einde van het kortste document) werd dat
+  // effectief O(N³) en bevroor de UI seconden. Nu mergen we in-place en
+  // scannen door; de while-lus herhaalt tot niets meer binnen `prox` ligt,
+  // dus het eindresultaat (fixpoint) is hetzelfde.
   while (merged) {
     merged = false;
-    outer: for (let i = 0; i < out.length; i++) {
+    for (let i = 0; i < out.length; i++) {
       for (let j = i + 1; j < out.length; j++) {
         if (_bboxOverlapOrNear(out[i], out[j], prox)) {
           const a = out[i], b = out[j];
@@ -197,7 +203,7 @@ function _mergeNearby(list, prox) {
           };
           out.splice(j, 1);
           merged = true;
-          break outer;
+          j--; // blijf op dezelfde j-positie scannen na de splice
         }
       }
     }

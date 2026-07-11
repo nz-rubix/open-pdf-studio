@@ -19,6 +19,7 @@ import {
   compareShowContour,
   compareFocused,
   compareFitRequest,
+  compareDetecting,
   setCompareShowAdded,
   setCompareShowRemoved,
   setCompareShowModified,
@@ -488,13 +489,29 @@ export default function CompareView() {
     clearCompareDocCache();
   });
 
-  // Esc closes compare mode (capture phase so it wins over other Esc handlers)
+  // Esc closes compare mode (capture phase so it wins over other Esc handlers).
+  // PageDown/PageUp bladert door de pagina-paren — met 28 pagina's is alleen
+  // de kleine ‹/›-knop onwerkbaar. Toetsen in invoervelden (dx/dy/rot) blijven
+  // met rust.
   onMount(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape' && compareActive() && compareFocused()) {
+      if (!compareActive() || !compareFocused()) return;
+      if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
         exitCompare();
+        return;
+      }
+      const tag = e.target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.key === 'PageDown') {
+        e.preventDefault();
+        e.stopPropagation();
+        nextPagePair();
+      } else if (e.key === 'PageUp') {
+        e.preventDefault();
+        e.stopPropagation();
+        prevPagePair();
       }
     };
     document.addEventListener('keydown', onKey, true);
@@ -826,7 +843,7 @@ function ChangeListPanel(props) {
       <div
         style="padding:6px 10px; background:linear-gradient(#ffffff, #f5f5f5); border-bottom:1px solid #d4d4d4; font-weight:bold;"
       >
-        {(props.t('compare.changes') || 'Wijzigingen')}: {total()}
+        {(props.t('compare.changes') || 'Wijzigingen')}: {compareDetecting() ? '…' : total()}
       </div>
       <div style="display:flex; gap:4px; padding:6px 8px; border-bottom:1px solid #d4d4d4; background:#fafafa;">
         <TypeToggle type="added" count={groupedByType().added.length} />
@@ -838,7 +855,9 @@ function ChangeListPanel(props) {
           when={total() > 0}
           fallback={
             <div style="padding:14px; color:#666; font-style:italic;">
-              {props.t('compare.noChanges') || 'Geen wijzigingen'}
+              {/* Tijdens een lopende detectie is "Geen wijzigingen" misleidend —
+                  toon dan een neutrale bezig-indicator (geen i18n-key nodig). */}
+              {compareDetecting() ? '…' : (props.t('compare.noChanges') || 'Geen wijzigingen')}
             </div>
           }
         >

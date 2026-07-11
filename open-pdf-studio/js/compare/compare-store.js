@@ -22,6 +22,9 @@ const [offset, setOffset] = createSignal({ dx: 0, dy: 0, rotation: 0 });
 const [zoom, setZoom] = createSignal(1);
 const [changes, setChangesSignal] = createSignal([]);
 const [focusedChange, setFocusedChangeSignal] = createSignal(null);
+// Waar terwijl de verschildetectie voor het huidige paar nog loopt. De UI kan
+// dan "…" tonen i.p.v. een verouderde of misleidende teller.
+const [detecting, setDetectingSignal] = createSignal(false);
 const [showAdded, setShowAdded] = createSignal(true);
 const [showRemoved, setShowRemoved] = createSignal(true);
 const [showModified, setShowModified] = createSignal(true);
@@ -64,7 +67,13 @@ export {
   setShowContour as setCompareShowContour,
   focused as compareFocused,
   fitRequest as compareFitRequest,
+  detecting as compareDetecting,
 };
+
+// Detectie-status (gezet door compare-viewport rond scheduleChangeDetection).
+export function setCompareDetecting(v) {
+  setDetectingSignal(!!v);
+}
 
 // Bring the compare tab to the front (show the compare view).
 export function focusCompareTab() { if (active()) setFocused(true); }
@@ -97,6 +106,32 @@ function _pageCountFor(filePath) {
   return doc?.pdfDoc?.numPages || doc?.pageCount || 1;
 }
 
+// Basis-pagina's (het paar waarmee de vergelijking startte) plus een gedeelde
+// paar-index. De pagina's worden afgeleid als basis+index en per document
+// geklemd op zijn eigen bereik. Hierdoor is vorige/volgende SYMMETRISCH bij
+// ongelijke paginaaantallen: voorheen klemde elk document onafhankelijk per
+// stap, waardoor terugbladeren andere paren opleverde dan heenbladeren
+// (heen: (5,27)→(5,28); terug vanaf (5,28): (4,27) i.p.v. (5,27)).
+let _pairBase = { old: 1, new: 1 };
+let _pairIndex = 0;
+
+function _clampOld(p) { return Math.max(1, Math.min(oldPageCount(), p)); }
+function _clampNew(p) { return Math.max(1, Math.min(newPageCount(), p)); }
+
+function _applyPairIndex() {
+  setOldPage(_clampOld(_pairBase.old + _pairIndex));
+  setNewPage(_clampNew(_pairBase.new + _pairIndex));
+}
+
+// Bij een paginawissel is de verschillen-lijst van het vorige paar
+// betekenisloos: direct legen (en de selectie loslaten) zodat lijst en
+// Vlak/Contour-markering niet van het vorige paar op de nieuwe pagina blijven
+// staan totdat de nieuwe detectie klaar is.
+function _resetPairDiff() {
+  setChangesSignal([]);
+  setFocusedChangeSignal(null);
+}
+
 export function startCompare({ oldFilePath, newFilePath, mode: m, oldPage: op = 1, newPage: np = 1 }) {
   setOldPath(oldFilePath);
   setNewPath(newFilePath);
@@ -106,12 +141,13 @@ export function startCompare({ oldFilePath, newFilePath, mode: m, oldPage: op = 
   setOldPageCount(oc);
   setNewPageCount(nc);
   // Klem de start-pagina's binnen hun document zodat we nooit op een
-  // niet-bestaande pagina beginnen.
-  setOldPage(Math.max(1, Math.min(oc, op)));
-  setNewPage(Math.max(1, Math.min(nc, np)));
+  // niet-bestaande pagina beginnen. Dit paar is de basis voor de paar-index.
+  _pairBase = { old: Math.max(1, Math.min(oc, op)), new: Math.max(1, Math.min(nc, np)) };
+  _pairIndex = 0;
+  _applyPairIndex();
   setOffset({ dx: 0, dy: 0, rotation: 0 });
   setZoom(1);
-  setFocusedChangeSignal(null); // clean slate — no change selected yet
+  _resetPairDiff(); // clean slate — geen selectie en geen lijst van een vorige sessie
   setActive(true);
   setFocused(true); // open the compare tab in front
 }
@@ -121,6 +157,7 @@ export function exitCompare() {
   setFocused(false);
   setOldPath(null);
   setNewPath(null);
+  _resetPairDiff();
 }
 
 export function setCompareMode(m) {
@@ -139,21 +176,30 @@ export function canPrevPagePair() {
 export function nextPagePair() {
   // Elk document stapt op tot zijn eigen laatste pagina. Zo blijf je bij
   // ongelijke paginaaantallen vloeiend doorlopen: het kortere document blijft
-  // op zijn laatste pagina staan terwijl het langere verder gaat.
+  // op zijn laatste pagina staan terwijl het langere verder gaat. De gedeelde
+  // paar-index houdt heen- en terugbladeren symmetrisch.
   if (!canNextPagePair()) return;
-  setOldPage(p => Math.min(oldPageCount(), p + 1));
-  setNewPage(p => Math.min(newPageCount(), p + 1));
+  _pairIndex++;
+  _applyPairIndex();
+  _resetPairDiff();
 }
 
 export function prevPagePair() {
   if (!canPrevPagePair()) return;
-  setOldPage(p => Math.max(1, p - 1));
-  setNewPage(p => Math.max(1, p - 1));
+  _pairIndex--;
+  _applyPairIndex();
+  _resetPairDiff();
 }
 
 export function setPagePair(op, np) {
-  if (op != null) setOldPage(Math.max(1, Math.min(oldPageCount(), op)));
-  if (np != null) setNewPage(Math.max(1, Math.min(newPageCount(), np)));
+  // Expliciet gezet paar wordt de nieuwe basis voor de paar-index.
+  _pairBase = {
+    old: op != null ? _clampOld(op) : oldPage(),
+    new: np != null ? _clampNew(np) : newPage(),
+  };
+  _pairIndex = 0;
+  _applyPairIndex();
+  _resetPairDiff();
 }
 
 export function setCompareZoom(z) {

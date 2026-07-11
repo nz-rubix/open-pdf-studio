@@ -14,7 +14,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { getCachedPdfBytes } from '../pdf/loader.js';
 import { drawHighlights } from './overlay-renderer.js';
 import { detectChanges } from './change-detector.js';
-import { setChanges } from './compare-store.js';
+import { setChanges, setCompareDetecting } from './compare-store.js';
 
 // Cap detection resolution to keep CPU bounded on huge pages.
 const DETECTION_MAX_DIM = 1600;
@@ -32,6 +32,24 @@ const _docCache = new Map();
 // edits offsets, etc.). Capped to a small LRU to bound memory.
 const _imageDataCache = new Map();
 const _IMG_CACHE_MAX = 6;
+
+// Cache van kant-en-klare detectieresultaten per pagina-paar (LRU). Bladeren
+// door een multi-page vergelijking her-diffde voorheen élk bezoek aan een paar
+// volledig; met deze cache is terugkeren naar een al bekeken paar direct.
+// Sleutel bevat het uitlijnings-offset (en de schaal waarin dat offset is
+// uitgedrukt) omdat detectie daarvan afhangt; zonder offset is de schaal
+// irrelevant (zoom-only renders slaan detectie sowieso over).
+const _changesCache = new Map();
+const _CHANGES_CACHE_MAX = 24;
+
+function _changesCacheKey(opts) {
+  const { oldPath, newPath, oldPage, newPage, offset = {}, scale } = opts;
+  const dx = offset.dx || 0;
+  const dy = offset.dy || 0;
+  const rot = offset.rotation || 0;
+  const offKey = (dx === 0 && dy === 0 && rot === 0) ? '0' : `${dx},${dy},${rot},${scale || 1.5}`;
+  return `${oldPath}|${oldPage}|${newPath}|${newPage}|${offKey}`;
+}
 
 function _imgCacheGet(key) {
   if (!_imageDataCache.has(key)) return null;
@@ -72,6 +90,7 @@ export function clearCompareDocCache() {
   }
   _docCache.clear();
   _imageDataCache.clear();
+  _changesCache.clear();
 }
 
 export async function getDocPageCount(filePath) {
@@ -169,19 +188,42 @@ export function paintHighlights(canvas, changes, opts) {
  * Debounced so rapid zoom/offset changes don't spam the work.
  */
 export function scheduleChangeDetection(opts) {
-  if (_detectTimer) clearTimeout(_detectTimer);
+  if (_detectTimer) {
+    clearTimeout(_detectTimer);
+    _detectTimer = null;
+  }
   const seq = ++_detectSeq;
+  const key = _changesCacheKey(opts);
+  const cached = _changesCache.get(key);
+  if (cached) {
+    // LRU-bump en direct toepassen — geen debounce nodig voor een cache-hit,
+    // zodat bladeren naar een al bekeken paar meteen de juiste lijst toont.
+    _changesCache.delete(key);
+    _changesCache.set(key, cached);
+    setChanges(cached);
+    setCompareDetecting(false);
+    return;
+  }
+  setCompareDetecting(true);
   _detectTimer = setTimeout(async () => {
     _detectTimer = null;
     try {
       const result = await runChangeDetection(opts);
       // Drop result if a newer detection has been queued.
       if (seq !== _detectSeq) return;
+      _changesCache.set(key, result);
+      while (_changesCache.size > _CHANGES_CACHE_MAX) {
+        _changesCache.delete(_changesCache.keys().next().value);
+      }
       setChanges(result);
+      setCompareDetecting(false);
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn('[compare] change detection failed', err);
-      if (seq === _detectSeq) setChanges([]);
+      if (seq === _detectSeq) {
+        setChanges([]);
+        setCompareDetecting(false);
+      }
     }
   }, 200);
 }
