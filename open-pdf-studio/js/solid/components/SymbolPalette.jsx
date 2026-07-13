@@ -24,6 +24,7 @@ import {
 } from '../stores/symbolLibraryOnlineStore.js';
 import { registerPaletteDock, unregisterPaletteDock } from '../stores/paletteOrder.js';
 import { ifcCategoryForSymbol } from '../data/ifcCategoryMap.js';
+import { SYMBOL_STAMP_DEFAULT_SIZE } from '../../annotations/stamp-defaults.js';
 
 const DOCK_SNAP = 60;
 
@@ -120,8 +121,8 @@ function selectSymbol(symbol) {
     stampSvg: effectiveSvg,
     stampBaseSvg: symbol.svg,
     stampName: symbol.name,
-    stampWidth: 40,
-    stampHeight: 40,
+    stampWidth: SYMBOL_STAMP_DEFAULT_SIZE,
+    stampHeight: SYMBOL_STAMP_DEFAULT_SIZE,
     lockAspectRatio: true,
     ifcCategory: ifcCategoryForSymbol(symbol),
   };

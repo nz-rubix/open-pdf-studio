@@ -1,4 +1,5 @@
 import { applyToolTransform } from '../tool-context.js';
+import { SYMBOL_STAMP_DEFAULT_SIZE } from '../../annotations/stamp-defaults.js';
 
 /**
  * Text tools — comment, text, stamp, signature, editText
@@ -50,8 +51,8 @@ export const stampTool = {
     const previewImg = state.toolOverrides?._previewImg;
     if (!previewImg || !ctx.canvasCtx) return;
 
-    const w = state.toolOverrides.stampWidth || 40;
-    const h = state.toolOverrides.stampHeight || 40;
+    const w = state.toolOverrides.stampWidth || SYMBOL_STAMP_DEFAULT_SIZE;
+    const h = state.toolOverrides.stampHeight || SYMBOL_STAMP_DEFAULT_SIZE;
 
     // Redraw existing annotations then overlay the preview
     ctx.redraw();

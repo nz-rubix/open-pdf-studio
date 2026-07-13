@@ -5,6 +5,7 @@ import { showProperties } from '../ui/panels/properties-panel.js';
 import { redrawAnnotations, redrawContinuous } from './rendering.js';
 import { updateStatusMessage } from '../ui/chrome/status-bar.js';
 import { openDialog } from '../bridge.js';
+import { BUILTIN_STAMP_DEFAULT_WIDTH, BUILTIN_STAMP_DEFAULT_HEIGHT, OVERRIDE_STAMP_DEFAULT_HEIGHT } from './stamp-defaults.js';
 
 // Built-in stamp definitions
 export const BUILT_IN_STAMPS = [
@@ -32,8 +33,8 @@ export function showStampPicker(x, y) {
 function placeStamp(stamp, x, y) {
   if (!getActiveDocument()?.pdfDoc) return;
 
-  const width = 160;
-  const height = 50;
+  const width = BUILTIN_STAMP_DEFAULT_WIDTH;
+  const height = BUILTIN_STAMP_DEFAULT_HEIGHT;
 
   const ann = createAnnotation({
     type: 'stamp',
@@ -181,7 +182,7 @@ export async function placeOverrideStamp(x, y) {
     stampX = margin;
     stampY = margin;
   } else {
-    stampHeight = overrides.stampHeight || 80;
+    stampHeight = overrides.stampHeight || OVERRIDE_STAMP_DEFAULT_HEIGHT;
     stampWidth = overrides.stampWidth || Math.round(stampHeight * aspect);
     stampX = x - stampWidth / 2;
     stampY = y - stampHeight / 2;
