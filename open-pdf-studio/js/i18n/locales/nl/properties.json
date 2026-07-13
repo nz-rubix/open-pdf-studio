@@ -304,7 +304,8 @@
     "importComments": "Opmerkingen importeren...",
     "exportComments": "Opmerkingen exporteren naar gegevensbestand...",
     "exportSelectedComments": "Geselecteerde opmerkingen exporteren naar gegevensbestand...",
-    "measurements": "Metingen"
+    "measurements": "Metingen",
+    "schedules": "Staten"
   },
   "scaleBar": {
     "title": "Scale Bar",
@@ -345,5 +346,22 @@
     "noViewports": "Geen viewports gedefinieerd",
     "measurements": "Metingen",
     "noMeasurements": "Nog geen metingen"
+  },
+  "schedules": {
+    "title": "Staten",
+    "add": "Staat toevoegen",
+    "empty": "Nog geen staten. Voeg er een toe via een sjabloon.",
+    "rename": "Hernoemen",
+    "delete": "Verwijderen",
+    "dragHint": "Sleep op de pagina om te plaatsen",
+    "newName": "Nieuwe staat",
+    "tpl": {
+      "area": "Oppervlakte-staat",
+      "length": "Lengte-staat",
+      "count": "Telstaat",
+      "symbol": "Symbolen-staat",
+      "text": "Tekst-staat",
+      "full": "Volledige hoeveelheden"
+    }
   }
 }

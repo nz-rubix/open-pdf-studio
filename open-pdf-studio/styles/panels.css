@@ -1349,3 +1349,109 @@
 .measurements-item-delete:hover {
   color: #e81123;
 }
+
+/* ── Staten / Schedules-paneel (issue #277) ───────────────────────── */
+.schedules-add {
+  display: flex;
+  gap: 4px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--theme-panel-border);
+}
+
+.schedules-tpl-select {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  padding: 2px 4px;
+  border: 1px solid var(--theme-input-border, #ccc);
+  border-radius: 0;
+  background: var(--theme-input-bg, #fff);
+  color: var(--theme-text, #000);
+}
+
+.schedules-add-btn {
+  flex-shrink: 0;
+  width: 22px;
+  border: 1px solid var(--theme-input-border, #ccc);
+  border-radius: 0;
+  background: var(--theme-panel-tab-bg, #fafafa);
+  color: var(--theme-text, #000);
+  font-size: 14px;
+  line-height: 1;
+  cursor: default;
+}
+
+.schedules-add-btn:hover {
+  background: var(--theme-panel-tab-hover, #e8e8e8);
+}
+
+.schedules-hint {
+  padding: 4px 10px;
+  font-size: 10px;
+  font-style: italic;
+  color: var(--theme-text-secondary, #999);
+}
+
+.schedules-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 6px;
+  font-size: 11px;
+  cursor: grab;
+  border-top: 1px solid var(--theme-panel-border);
+}
+
+.schedules-item:hover {
+  background: var(--theme-panel-tab-hover, #e8e8e8);
+}
+
+.schedules-grip {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--theme-text-secondary, #aaa);
+}
+
+.schedules-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.schedules-rename-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  padding: 1px 3px;
+  border: 1px solid var(--theme-active, #0078d4);
+  border-radius: 0;
+  background: var(--theme-input-bg, #fff);
+  color: var(--theme-text, #000);
+}
+
+.schedules-item-btn {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: var(--theme-text-secondary, #888);
+  font-size: 12px;
+  line-height: 1;
+  cursor: default;
+  opacity: 0;
+}
+
+.schedules-item:hover .schedules-item-btn {
+  opacity: 1;
+}
+
+.schedules-item-btn:hover {
+  color: var(--theme-text, #000);
+}
+
+.schedules-item-del:hover {
+  color: #e81123;
+}

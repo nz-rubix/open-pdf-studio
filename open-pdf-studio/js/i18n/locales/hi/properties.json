@@ -237,7 +237,8 @@
     "summarize": "टिप्पणियाँ सारांश...",
     "importComments": "टिप्पणियाँ आयात करें...",
     "exportComments": "टिप्पणियाँ डेटा फ़ाइल में निर्यात करें...",
-    "exportSelectedComments": "चयनित टिप्पणियाँ डेटा फ़ाइल में निर्यात करें..."
+    "exportSelectedComments": "चयनित टिप्पणियाँ डेटा फ़ाइल में निर्यात करें...",
+    "schedules": "Schedules"
   },
   "scaleBar": {
     "title": "Scale Bar",
@@ -253,5 +254,22 @@
     "scale": "Scale",
     "unit": "Unit",
     "precision": "Precision (Decimals)"
+  },
+  "schedules": {
+    "title": "Schedules",
+    "add": "Add schedule",
+    "empty": "No schedules yet. Add one from a template.",
+    "rename": "Rename",
+    "delete": "Delete",
+    "dragHint": "Drag onto the page to place",
+    "newName": "New schedule",
+    "tpl": {
+      "area": "Area schedule",
+      "length": "Length schedule",
+      "count": "Count schedule",
+      "symbol": "Symbol schedule",
+      "text": "Text schedule",
+      "full": "Full quantities"
+    }
   }
 }

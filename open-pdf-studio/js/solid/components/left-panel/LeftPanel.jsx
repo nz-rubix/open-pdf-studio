@@ -4,7 +4,7 @@ import LeftPanelTab from './LeftPanelTab.jsx';
 import {
   thumbnailsIcon, bookmarksIcon, annotationsIcon, attachmentsIcon,
   signaturesIcon, layersIcon, formFieldsIcon, destinationsIcon,
-  tagsIcon, linksIcon, measurementsIcon, toggleIcon
+  tagsIcon, linksIcon, measurementsIcon, schedulesIcon, toggleIcon
 } from '../../data/leftPanelIcons.js';
 import ThumbnailsPanel from './panels/ThumbnailsPanel.jsx';
 import BookmarksPanel from './panels/BookmarksPanel.jsx';
@@ -17,6 +17,7 @@ import DestinationsPanel from './panels/DestinationsPanel.jsx';
 import TagsPanel from './panels/TagsPanel.jsx';
 import LinksPanel from './panels/LinksPanel.jsx';
 import MeasurementsPanel from './panels/MeasurementsPanel.jsx';
+import SchedulesPanel from './panels/SchedulesPanel.jsx';
 import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function LeftPanel() {
@@ -34,6 +35,7 @@ export default function LeftPanel() {
     { panelId: 'tags', title: () => t('leftPanel.tags'), label: () => t('leftPanel.tags'), icon: tagsIcon },
     { panelId: 'links', title: () => t('leftPanel.links'), label: () => t('leftPanel.links'), icon: linksIcon },
     { panelId: 'measurements', title: () => t('leftPanel.measurements') || 'Measurements', label: () => t('leftPanel.measurements') || 'Measurements', icon: measurementsIcon },
+    { panelId: 'schedules', title: () => t('leftPanel.schedules') || 'Schedules', label: () => t('leftPanel.schedules') || 'Schedules', icon: schedulesIcon },
   ];
 
   return (
@@ -65,6 +67,7 @@ export default function LeftPanel() {
         <TagsPanel />
         <LinksPanel />
         <MeasurementsPanel />
+        <SchedulesPanel />
       </div>
 
       <button class="left-panel-toggle" id="left-panel-toggle" title={t('leftPanel.togglePanel')} onClick={toggleLeftPanelCollapsed}>

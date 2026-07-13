@@ -1791,7 +1791,78 @@ export function drawAnnotation(ctx, annotation) {
     }
 
     case 'scheduleTable': {
-      // Render schedule table as annotation on canvas
+      // Generic columns/rows format (schedules panel + Hoeveelheden placement).
+      // rows: [{ cells: string[], group?, total?, grand? }]
+      if (Array.isArray(annotation.columns) && Array.isArray(annotation.rows)) {
+        const columns = annotation.columns;
+        const rows = annotation.rows;
+        const ncols = Math.max(1, columns.length);
+        const tw = annotation.width || Math.max(300, ncols * 90);
+        const rowH = 18, headerH = 22, pad = 6;
+        const colW = tw / ncols;
+        const bodyH = headerH + rows.length * rowH;
+
+        ctx.save();
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+
+        // Truncate a string with an ellipsis to fit maxW (uses current font).
+        const clip = (s, maxW) => {
+          s = String(s ?? '');
+          if (ctx.measureText(s).width <= maxW) return s;
+          while (s.length > 1 && ctx.measureText(s + '…').width > maxW) s = s.slice(0, -1);
+          return s + '…';
+        };
+
+        // Background + header
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(annotation.x, annotation.y, tw, bodyH);
+        ctx.fillStyle = '#f0f0f0';
+        ctx.fillRect(annotation.x, annotation.y, tw, headerH);
+        ctx.fillStyle = '#333';
+        ctx.font = 'bold 10px sans-serif';
+        for (let i = 0; i < ncols; i++) {
+          ctx.fillText(clip(columns[i], colW - pad * 2), annotation.x + i * colW + pad, annotation.y + headerH / 2);
+        }
+
+        // Rows
+        for (let r = 0; r < rows.length; r++) {
+          const ry = annotation.y + headerH + r * rowH;
+          const row = rows[r] || {};
+          if (row.group) { ctx.fillStyle = '#eef2f7'; ctx.fillRect(annotation.x, ry, tw, rowH); }
+          else if (row.total) { ctx.fillStyle = row.grand ? '#e6e6e6' : '#f4f4f4'; ctx.fillRect(annotation.x, ry, tw, rowH); }
+          else if (r % 2 === 1) { ctx.fillStyle = '#f8f8f8'; ctx.fillRect(annotation.x, ry, tw, rowH); }
+          ctx.strokeStyle = '#ddd'; ctx.lineWidth = 0.5;
+          ctx.beginPath(); ctx.moveTo(annotation.x, ry + rowH); ctx.lineTo(annotation.x + tw, ry + rowH); ctx.stroke();
+          ctx.fillStyle = '#000';
+          ctx.font = (row.total || row.group) ? 'bold 10px sans-serif' : '10px sans-serif';
+          const cells = row.cells || [];
+          if (row.group) {
+            ctx.fillText(clip(cells[0] || '', tw - pad * 2), annotation.x + pad, ry + rowH / 2);
+          } else {
+            for (let i = 0; i < ncols; i++) {
+              const val = cells[i] != null ? String(cells[i]) : '';
+              ctx.fillText(clip(val, colW - pad * 2), annotation.x + i * colW + pad, ry + rowH / 2);
+            }
+          }
+        }
+
+        // Column separators
+        ctx.strokeStyle = '#e6e6e6'; ctx.lineWidth = 0.5;
+        for (let i = 1; i < ncols; i++) {
+          ctx.beginPath(); ctx.moveTo(annotation.x + i * colW, annotation.y); ctx.lineTo(annotation.x + i * colW, annotation.y + bodyH); ctx.stroke();
+        }
+        // Outer border
+        ctx.strokeStyle = '#999'; ctx.lineWidth = 1;
+        ctx.strokeRect(annotation.x, annotation.y, tw, bodyH);
+
+        annotation.width = tw;
+        annotation.height = bodyH;
+        ctx.restore();
+        break;
+      }
+
+      // Legacy scheduleData format (fixed columns).
       const data = annotation.scheduleData || [];
       if (data.length === 0) break;
       const tx = annotation.x;
