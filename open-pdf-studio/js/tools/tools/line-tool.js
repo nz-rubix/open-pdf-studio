@@ -29,17 +29,8 @@ export const lineTool = {
 
   onPointerDown(ctx, e) {
     if (e.button === 2) {
-      // Right-click cancels
-      if (_lineState.drawing) {
-        _lineState.drawing = false;
-        _lineState.lockDirX = null;
-        _lineState.lockDirY = null;
-        state.isDrawing = false;
-        exitTypeLengthMode();
-        state._typeLengthCommit = null;
-        if (ctx.clearPolarAnchor) ctx.clearPolarAnchor();
-        ctx.redraw();
-      }
+      // Right-click cancels (shared routine, also used by Escape)
+      _cancelLineDrawing(ctx);
       return;
     }
 
@@ -157,6 +148,14 @@ export const lineTool = {
     return false;
   },
 
+  // Escape (GitHub #273): zelfde annulering als rechtermuisklik — het
+  // lopende segment (en een eventuele doorloop-ketting) stopt; al
+  // gecommitte segmenten blijven staan. De keyboard-handler schakelt
+  // daarna naar de selectietool.
+  onEscape(ctx) {
+    return _cancelLineDrawing(ctx);
+  },
+
   onDeactivate(ctx) {
     _lineState.lockDirX = null;
     _lineState.lockDirY = null;
@@ -170,6 +169,22 @@ export const lineTool = {
     if (ctx.clearPolarAnchor) ctx.clearPolarAnchor();
   },
 };
+
+// Gedeelde annuleerroutine: rechtermuisklik én Escape beëindigen het lopende
+// segment / de doorloop-ketting op precies dezelfde manier. Retourneert true
+// als er daadwerkelijk een tekening actief was.
+function _cancelLineDrawing(ctx) {
+  if (!_lineState.drawing) return false;
+  _lineState.drawing = false;
+  _lineState.lockDirX = null;
+  _lineState.lockDirY = null;
+  state.isDrawing = false;
+  exitTypeLengthMode();
+  state._typeLengthCommit = null;
+  if (ctx.clearPolarAnchor) ctx.clearPolarAnchor();
+  ctx.redraw();
+  return true;
+}
 
 function _commitLine(ctx, e) {
   // Commit using last known cursor direction + buffered length

@@ -43,9 +43,8 @@ export const arcTool = {
 
   onPointerDown(ctx, e) {
     if (e.button === 2) {
-      _arcState.clicks = [];
-      state.isDrawing = false;
-      ctx.redraw();
+      // Right-click cancels (shared routine, also used by Escape)
+      _cancelArcDrawing(ctx);
       return;
     }
 
@@ -144,8 +143,24 @@ export const arcTool = {
     return false;
   },
 
+  // Escape (GitHub #273): zelfde annulering als rechtermuisklik. De
+  // keyboard-handler schakelt daarna naar de selectietool.
+  onEscape(ctx) {
+    return _cancelArcDrawing(ctx);
+  },
+
   onDeactivate(ctx) {
     _arcState.clicks = [];
     state.isDrawing = false;
   },
 };
+
+// Gedeelde annuleerroutine: rechtermuisklik én Escape gooien de tot-nu-toe
+// geklikte boogpunten weg. Retourneert true als er punten stonden.
+function _cancelArcDrawing(ctx) {
+  const hadClicks = _arcState.clicks.length > 0;
+  _arcState.clicks = [];
+  state.isDrawing = false;
+  ctx.redraw();
+  return hadClicks;
+}

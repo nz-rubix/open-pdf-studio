@@ -42,12 +42,9 @@ export const measureDistanceTool = {
   onPointerDown(ctx, e) {
     const { x, y, state, scale } = ctx;
 
-    // Right-click cancels
+    // Right-click cancels (shared routine, also used by Escape)
     if (e.button === 2) {
-      state.dimPoints = [];
-      state.isDrawingDimension = false;
-      _dimDirLock.x = null; _dimDirLock.y = null;
-      ctx.redraw();
+      _cancelDimensionDrawing(ctx);
       return;
     }
 
@@ -298,6 +295,12 @@ export const measureDistanceTool = {
     }
   },
 
+  // Escape (GitHub #273): zelfde annulering als rechtermuisklik. De
+  // keyboard-handler schakelt daarna naar de selectietool.
+  onEscape(ctx) {
+    return _cancelDimensionDrawing(ctx);
+  },
+
   onDeactivate(ctx) {
     const { state } = ctx;
     if (state.isDrawingDimension) {
@@ -309,6 +312,19 @@ export const measureDistanceTool = {
     state._typeLengthCommit = null;
   },
 };
+
+// Gedeelde annuleerroutine voor de dimensie-flow: rechtermuisklik én Escape
+// gooien de tot-nu-toe geklikte dimensiepunten weg. Retourneert true als er
+// daadwerkelijk een dimensie in aanbouw was.
+function _cancelDimensionDrawing(ctx) {
+  const { state } = ctx;
+  const hadDrawing = state.isDrawingDimension || (state.dimPoints && state.dimPoints.length > 0);
+  state.dimPoints = [];
+  state.isDrawingDimension = false;
+  _dimDirLock.x = null; _dimDirLock.y = null;
+  ctx.redraw();
+  return !!hadDrawing;
+}
 
 // Helper: Enter pressed in measureDistance with one point + buffered length.
 function _commitMeasureDistanceClick2(ctx, e) {
@@ -354,6 +370,24 @@ export const measureAreaTool = {
     }
   },
 
+  // Escape (GitHub #273): punten-tot-nu-toe committen met dezelfde
+  // afrondroutines als rechtermuisklik (_finishMeasureWithHoles /
+  // _finishMeasure); <3 punten → annuleren (dat doet _finishMeasure zelf).
+  // De keyboard-handler schakelt daarna naar de selectietool.
+  onEscape(ctx) {
+    const { state } = ctx;
+    arcState.active = false;
+    if (state.measurePhase === 'holes' && state.measureOuterPoints) {
+      _finishMeasureWithHoles(ctx);
+      return true;
+    }
+    if (state.measurePoints && state.measurePoints.length > 0) {
+      _finishMeasure(ctx, 'measureArea');
+      return true;
+    }
+    return false;
+  },
+
   onDeactivate(ctx) {
     arcState.active = false;
     arcState.bulge = 0.3;
@@ -371,6 +405,18 @@ export const measurePerimeterTool = {
 
   onPointerMove(ctx, e) {
     _measureMultiClickMove(ctx, e, 'measurePerimeter');
+  },
+
+  // Escape (GitHub #273): zelfde afronding als rechtermuisklik — punten
+  // committen (≥2) via _finishMeasure, anders annuleren. De keyboard-
+  // handler schakelt daarna naar de selectietool.
+  onEscape(ctx) {
+    const { state } = ctx;
+    if (state.measurePoints && state.measurePoints.length > 0) {
+      _finishMeasure(ctx, 'measurePerimeter');
+      return true;
+    }
+    return false;
   },
 
   onDeactivate(ctx) {
@@ -876,15 +922,20 @@ export const addHoleTool = {
         addHoleArcState.active = !addHoleArcState.active;
         ctx.redraw();
       }
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      addHoleArcState.active = false;
-      addHoleArcState.bulge = 0.3;
-      state.addHoleTargetId = null;
-      state.addHolePoints = [];
-      ctx.redraw();
-      import("../manager.js").then(m => m.maybeRevertToSelect && m.maybeRevertToSelect());
     }
+    // Escape loopt via onEscape (keyboard-handlers) — zelfde afronding als
+    // rechtermuisklik (GitHub #273).
+  },
+
+  // Escape (GitHub #273): zelfde afronding als rechtermuisklik — het gat
+  // committen (≥3 punten) via _finishAddHole, anders alleen de modus
+  // verlaten. De keyboard-handler schakelt daarna naar de selectietool.
+  onEscape(ctx) {
+    if (!state.addHoleTargetId) return false;
+    addHoleArcState.active = false;
+    addHoleArcState.bulge = 0.3;
+    _finishAddHole(ctx);
+    return true;
   },
 
   onWheel(ctx, e) {

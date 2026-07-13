@@ -156,6 +156,17 @@ export const splineTool = {
     }
   },
 
+  // Escape (GitHub #273): zelfde afronding als rechtermuisklik — spline
+  // committen (≥3 punten) of annuleren.
+  onEscape(ctx) {
+    const { state } = ctx;
+    if (!state.isDrawingSpline && (!state.splinePoints || state.splinePoints.length === 0)) {
+      return false;
+    }
+    _finishSpline(ctx);
+    return true;
+  },
+
   onDeactivate(ctx) {
     const { state } = ctx;
     if (state.isDrawingSpline) {

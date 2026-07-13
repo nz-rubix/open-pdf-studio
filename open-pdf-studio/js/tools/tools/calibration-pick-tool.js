@@ -114,6 +114,19 @@ export const calibrationPickTool = {
     }
   },
 
+  // Escape (GitHub #273): zelfde annulering als rechtermuisklik — punten
+  // weggooien en terug naar de Meten-context. De keyboard-handler schakelt
+  // daarna naar de selectietool (rechtsklik ging naar 'hand'; Escape volgt
+  // de issue-eis en gaat naar 'select').
+  onEscape(ctx) {
+    const { state } = ctx;
+    const hadPoints = state.calibrationPoints && state.calibrationPoints.length > 0;
+    state.calibrationPoints = [];
+    setActiveTab('comment');
+    ctx.redraw();
+    return !!hadPoints;
+  },
+
   onDeactivate(ctx) {
     ctx.state.calibrationPoints = [];
     ctx.redraw();

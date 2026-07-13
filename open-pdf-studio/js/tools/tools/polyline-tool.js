@@ -186,6 +186,18 @@ export const polylineTool = {
     }
   },
 
+  // Escape (GitHub #273): zelfde afronding als rechtermuisklik — punten
+  // tot-nu-toe committen (≥2) of annuleren (<2). De keyboard-handler
+  // schakelt daarna naar de selectietool.
+  onEscape(ctx) {
+    const { state } = ctx;
+    if (!state.isDrawingPolyline && (!state.polylinePoints || state.polylinePoints.length === 0)) {
+      return false;
+    }
+    _finishPolyline(ctx);
+    return true;
+  },
+
   onDeactivate(ctx) {
     const { state } = ctx;
     if (state.isDrawingPolyline) {
@@ -318,6 +330,17 @@ export const cloudPolylineTool = {
     if (snap.snapped && !nearFirst) {
       ctx.drawSnapIndicator(snap);
     }
+  },
+
+  // Escape (GitHub #273): zelfde afronding als rechtermuisklik — wolk
+  // committen (≥3 punten) of annuleren.
+  onEscape(ctx) {
+    const { state } = ctx;
+    if (!state.isDrawingCloudPolyline && (!state.cloudPolylinePoints || state.cloudPolylinePoints.length === 0)) {
+      return false;
+    }
+    _finishCloudPolyline(ctx);
+    return true;
   },
 
   onDeactivate(ctx) {

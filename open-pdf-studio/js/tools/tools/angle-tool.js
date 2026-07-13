@@ -14,11 +14,9 @@ export const measureAngleTool = {
   onPointerDown(ctx, e) {
     const { x, y, state, scale } = ctx;
 
-    // Right-click cancels
+    // Right-click cancels (shared routine, also used by Escape)
     if (e.button === 2) {
-      state.dimPoints = [];
-      state.isDrawingDimension = false;
-      ctx.redraw();
+      _cancelAngleDrawing(ctx);
       return;
     }
 
@@ -172,6 +170,12 @@ export const measureAngleTool = {
     }
   },
 
+  // Escape (GitHub #273): zelfde annulering als rechtermuisklik. De
+  // keyboard-handler schakelt daarna naar de selectietool.
+  onEscape(ctx) {
+    return _cancelAngleDrawing(ctx);
+  },
+
   onDeactivate(ctx) {
     const { state } = ctx;
     if (state.isDrawingDimension) {
@@ -181,3 +185,14 @@ export const measureAngleTool = {
     }
   },
 };
+
+// Gedeelde annuleerroutine: rechtermuisklik én Escape gooien de tot-nu-toe
+// geklikte hoekpunten weg. Retourneert true als er een hoekmeting bezig was.
+function _cancelAngleDrawing(ctx) {
+  const { state } = ctx;
+  const hadDrawing = state.isDrawingDimension || (state.dimPoints && state.dimPoints.length > 0);
+  state.dimPoints = [];
+  state.isDrawingDimension = false;
+  ctx.redraw();
+  return !!hadDrawing;
+}

@@ -307,19 +307,27 @@ export const filledAreaTool = {
         // Immediately commit (Enter without holes)
         _finishFilledAreaWithHoles(ctx);
       }
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      // Once the OUTER contour is closed (holes phase), Escape means "I'm
-      // done" — COMMIT the area instead of throwing the work away. Only an
-      // unclosed contour-in-progress is cancelled.
-      if (state.filledAreaPhase === 'holes') {
-        _finishFilledAreaWithHoles(ctx);
-        return;
-      }
-      _resetState();
-      ctx.redraw();
-      import("../manager.js").then(m => m.maybeRevertToSelect && m.maybeRevertToSelect());
     }
+    // Escape loopt via onEscape (keyboard-handlers) — zelfde afronding als
+    // rechtermuisklik (GitHub #273).
+  },
+
+  // Escape (GitHub #273): punten-tot-nu-toe committen met dezelfde
+  // afrondroutines als rechtermuisklik — holes-fase → commit met gaten;
+  // buitencontour ≥3 punten → commit als vlak; <3 punten → annuleren
+  // (dat doet _finishFilledArea zelf). De keyboard-handler schakelt
+  // daarna naar de selectietool.
+  onEscape(ctx) {
+    arcState.active = false;
+    if (state.filledAreaPhase === 'holes') {
+      _finishFilledAreaWithHoles(ctx);
+      return true;
+    }
+    if (state.filledAreaPoints && state.filledAreaPoints.length > 0) {
+      _finishFilledArea(ctx);
+      return true;
+    }
+    return false;
   },
 
   onWheel(ctx, e) {

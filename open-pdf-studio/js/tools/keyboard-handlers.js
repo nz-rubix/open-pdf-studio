@@ -19,8 +19,9 @@ import { switchRibbonTab as switchToTab } from '../bridge.js';
 import { openFindBar, closeFindBar, onFindNext } from '../search/find-bar.js';
 import { closeActiveTab } from '../ui/chrome/tabs.js';
 import { hideProperties, showProperties, showMultiSelectionProperties, togglePropertiesPanel } from '../ui/panels/properties-panel.js';
-import { openDialog } from '../bridge.js';
+import { openDialog, getDialogs } from '../bridge.js';
 import { getTool } from './tool-registry.js';
+import { resolvePointerCoords, buildToolContext, isModalOpen } from './tool-context.js';
 import { tryStartGMove, isGMoveModeActive } from './g-move-mode.js';
 import { tryStartGRotate, isGRotateModeActive } from './g-rotate-mode.js';
 import { toggleFullscreen, exitFullscreen, getFullscreenState } from '../ui/chrome/fullscreen.js';
@@ -59,6 +60,44 @@ function _refreshTypeLengthPreview(srcEvent) {
     target.dispatchEvent(ev);
   } catch (_) {
     redraw();
+  }
+}
+
+// ── Escape → tool-afronding (GitHub #273) ─────────────────────────────────
+// Bouw een VOLWAARDIGE tool-context voor de Escape-afhandeling, zodat een
+// tool zijn onEscape-hook met exact dezelfde context kan draaien als de
+// rechtermuisklik-afronding in de dispatcher (createAnnotation, recordAdd,
+// createMeasureAreaAnnotation, redraw, ...). De coördinaten komen van de
+// laatst bekende cursorpositie (typeLengthCursor-tracker); de afrondroutines
+// gebruiken die niet voor het committen zelf.
+function _buildEscapeToolContext() {
+  try {
+    const pos = typeLengthCursor();
+    let target = null;
+    if (pos && (pos.x || pos.y) && document.elementFromPoint) {
+      const el = document.elementFromPoint(pos.x, pos.y);
+      target = el && el.closest
+        ? (el.closest('#annotation-canvas') || el.closest('.annotation-canvas'))
+        : null;
+    }
+    if (!target) {
+      target = document.getElementById('annotation-canvas')
+        || document.querySelector('.annotation-canvas');
+    }
+    if (!target) return null;
+    const fakeEvent = {
+      clientX: pos ? pos.x : 0,
+      clientY: pos ? pos.y : 0,
+      button: 2,
+      detail: 0,
+      target,
+      shiftKey: false, ctrlKey: false, altKey: false, metaKey: false,
+      preventDefault() {}, stopPropagation() {},
+    };
+    const coords = resolvePointerCoords(fakeEvent);
+    return buildToolContext(fakeEvent, coords);
+  } catch (_) {
+    return null;
   }
 }
 
@@ -522,8 +561,23 @@ export async function handleKeydown(e) {
     toggleFullscreen();
   }
 
-  // ESC key - exit fullscreen, deselect, or close dialogs, or switch back to hand tool
+  // ── ESC — prioriteitsladder (GitHub #273) ────────────────────────────────
+  // 1. Open dialoog/overlay/editor → die context handelt Escape zelf af
+  //    (Dialog.jsx, app-menu, crop-overlay, Edit-Type, CompareView). Geen
+  //    tool-wissel, geen selectie-reset.
+  // 2. Actieve tekening/bewerking → afronden zoals de rechtermuisklik dat
+  //    doet (tool.onEscape → zelfde afrondroutines), daarna selectietool.
+  // 3. Teken-tool actief zonder actieve tekening → selectietool.
+  // 4. Selectietool actief → selectie legen (bestaand gedrag).
   else if (e.key === 'Escape') {
+    // Trede 1: modale dialogen (vanilla overlays + Solid dialogStore), de
+    // Edit-Type-editor en de crop-modus handelen Escape volledig zelf af.
+    if (isModalOpen()
+        || (typeof getDialogs === 'function' && (getDialogs() || []).length > 0)
+        || state.imageCropMode
+        || document.querySelector('.ste-overlay')) {
+      return;
+    }
     e.preventDefault();
     // End an in-progress text edit (commit the typed text) and return to the
     // select tool — Esc as an alternative to right-click / clicking away.
@@ -569,19 +623,35 @@ export async function handleKeydown(e) {
       redraw();
       return;
     }
-    // Cancel in-progress dimension drawing
+    // Trede 2: actieve tekening/bewerking van de huidige tool → afronden of
+    // annuleren via de tool's onEscape-hook. Elke hook roept EXACT dezelfde
+    // afrondroutine aan als de rechtermuisklik-tak van die tool (polyline/
+    // spline/wolk/meting committen punten-tot-nu-toe; lijn/dimensie/hoek/
+    // kalibratie/schaalgebied annuleren). Daarna valt de flow door naar de
+    // selectietool-wissel onderaan. Plugin-polylijnen mappen op de native
+    // polyline-tool, zelfde mapping als de dispatcher.
+    let escTool = getTool(state.currentTool);
+    if (!escTool && getAnnotationType(state.currentTool)?.drawMode === 'polyline') {
+      escTool = getTool('polyline');
+    }
+    if (escTool && typeof escTool.onEscape === 'function') {
+      const escCtx = _buildEscapeToolContext();
+      if (escCtx) {
+        try { escTool.onEscape(escCtx, e); }
+        catch (err) { console.error('[keyboard] tool onEscape error', err); }
+      }
+    }
+    // Vangnet voor tools zonder onEscape-hook: ruim bekende teken-state op
+    // (zelfde opruiming als voorheen), maar val daarna door naar de
+    // selectietool-wissel in plaats van hier te stoppen.
     if (state.isDrawingDimension) {
       state.dimPoints = [];
       state.isDrawingDimension = false;
       redraw();
-      return;
     }
-    // Cancel in-progress measurement
     if (state.measurePoints) {
       state.measurePoints = null;
-      import('./snap-engine.js').then(m => m.clearPolarAnchor && m.clearPolarAnchor()).catch(() => {});
       redraw();
-      return;
     }
     // Always clear any lingering polar anchor on Escape
     import('./snap-engine.js').then(m => m.clearPolarAnchor && m.clearPolarAnchor()).catch(() => {});

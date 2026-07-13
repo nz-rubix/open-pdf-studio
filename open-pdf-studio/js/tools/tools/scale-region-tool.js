@@ -113,12 +113,14 @@ export const scaleRegionTool = {
     _drawPreview(ctx.x, ctx.y);
   },
 
-  onKeyDown(ctx, e) {
-    if (e.key === 'Escape' && _placement.firstX !== null) {
-      _reset();
-      ctx.redraw();
-      e.preventDefault?.();
-    }
+  // Escape (GitHub #273): zelfde annulering als rechtermuisklik — lopende
+  // plaatsing weggooien. De keyboard-handler schakelt daarna naar de
+  // selectietool.
+  onEscape(ctx) {
+    if (_placement.firstX === null) return false;
+    _reset();
+    ctx.redraw();
+    return true;
   },
 
   onDeactivate() {
