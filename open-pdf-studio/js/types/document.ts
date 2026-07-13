@@ -27,6 +27,16 @@ export interface Bookmark {
   expanded?: boolean;
 }
 
+/**
+ * Benoemde lijnstijl-preset (WEERGAVE-sectie van het Eigenschappen-paneel).
+ * Reist mee met het document via de catalog-entry /OPS_StylePresets.
+ */
+export interface StylePreset {
+  id: string;
+  name: string;
+  props: Record<string, unknown>;
+}
+
 export interface UndoCommand {
   type: string;
   [key: string]: any;
@@ -62,6 +72,8 @@ export interface DocumentState {
   pdfaCompliance: string | null;
   pdfADismissed: boolean;
   measureScale: MeasureScale | null;
+  /** Benoemde lijnstijl-presets — persist in de PDF (catalog /OPS_StylePresets). */
+  stylePresets: StylePreset[];
   // Internal loader state
   _loadedAnnotationPages: Set<number>;
   _sharedPdfLibDoc: any;

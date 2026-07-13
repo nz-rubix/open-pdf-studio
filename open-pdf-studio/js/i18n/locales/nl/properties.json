@@ -118,6 +118,19 @@
     },
     "rotation": "Rotatie"
   },
+  "stylePresets": {
+    "label": "Lijnstijl",
+    "applyPlaceholder": "Stijl toepassen…",
+    "noPresets": "Geen opgeslagen stijlen",
+    "create": "Lijnstijl maken",
+    "createTitle": "Lijnstijl maken",
+    "nameLabel": "Naam",
+    "manage": "Stijlen beheren",
+    "manageTitle": "Lijnstijlen beheren",
+    "copyStyle": "Stijl kopiëren",
+    "pasteStyle": "Stijl plakken",
+    "defaultName": "Lijnstijl"
+  },
   "content": {
     "title": "Inhoud",
     "text": "Tekst",

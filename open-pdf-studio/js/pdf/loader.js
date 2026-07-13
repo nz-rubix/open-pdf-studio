@@ -426,6 +426,21 @@ export async function loadPDF(filePath, docIndex, preloadedData = null) {
     }
     console.log(`[PERF] bookmarks DONE: ${(performance.now() - _t0).toFixed(0)}ms`);
 
+    // Load named line-style presets from the PDF catalog (data-only,
+    // non-blocking — waits on the shared pdf-lib doc that is already
+    // loading eagerly in the background).
+    {
+      if (!Array.isArray(doc.stylePresets)) doc.stylePresets = [];
+      getSharedPdfLibDoc(doc).then(async (pdfLibDoc) => {
+        if (isClosed() || !pdfLibDoc) return;
+        const { readStylePresetsFromCatalog } = await import('./saver/style-presets.js');
+        if (isClosed()) return;
+        const presets = readStylePresetsFromCatalog(pdfLibDoc);
+        if (isClosed()) return;
+        if (presets.length > 0) doc.stylePresets = presets;
+      }).catch(() => { /* presets zijn optioneel — negeer leesfouten */ });
+    }
+
     // Load persisted measure scale for this document (data-only)
     {
       const { loadDocumentScale } = await import('../annotations/measurement.js');

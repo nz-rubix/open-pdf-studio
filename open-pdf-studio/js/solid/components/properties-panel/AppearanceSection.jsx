@@ -1,20 +1,80 @@
-import { Show } from 'solid-js';
+import { Show, For, createSignal } from 'solid-js';
 import { annotProps, sectionVis, updateAnnotProp, getLineWidthLabel, cycleSelectNext } from '../../stores/propertiesStore.js';
 import CollapsibleSection from './CollapsibleSection.jsx';
 import ColorPalettePicker from './ColorPalettePicker.jsx';
 import PrefComboBox from '../preferences/PrefComboBox.jsx';
+import Dialog from '../Dialog.jsx';
 import { useTranslation } from '../../../i18n/useTranslation.js';
 import { state } from '../../../core/state.js';
 import { savePreferences } from '../../../core/preferences.js';
+import {
+  getStylePresets, createStylePreset, deleteStylePreset, renameStylePreset,
+  applyStylePresetById, copyStyleFromSelection, pasteStyleToSelection, copiedStyle,
+} from '../../stores/stylePresetsStore.js';
 
 export default function AppearanceSection() {
   const { t } = useTranslation('properties');
   const { t: tCommon } = useTranslation('common');
   const isLocked = () => annotProps.locked === true || annotProps.locked === 'mixed';
 
+  // ── Benoemde lijnstijl-presets (issue #268) ──────────────────────────────
+  const [createOpen, setCreateOpen] = createSignal(false);
+  const [manageOpen, setManageOpen] = createSignal(false);
+  const [presetName, setPresetName] = createSignal('');
+  let nameInputRef;
+
+  const presets = () => getStylePresets();
+  // Preset-UI alleen tonen wanneer de sectie echte stijl-controls bevat.
+  const showsStyleControls = () =>
+    sectionVis.fillColorGroup || sectionVis.strokeColorGroup || sectionVis.colorGroup ||
+    sectionVis.opacityGroup || sectionVis.lineWidthGroup || sectionVis.borderStyleGroup;
+
+  const handleApplyPreset = (e) => {
+    const id = e.target.value;
+    if (id) applyStylePresetById(id);
+    // Terug naar de placeholder zodat dezelfde preset opnieuw gekozen kan worden.
+    e.target.selectedIndex = 0;
+  };
+
+  const openCreateDialog = () => {
+    setPresetName(`${t('stylePresets.defaultName')} ${presets().length + 1}`);
+    setCreateOpen(true);
+    requestAnimationFrame(() => { nameInputRef?.focus(); nameInputRef?.select(); });
+  };
+
+  const confirmCreate = () => {
+    if (createStylePreset(presetName())) setCreateOpen(false);
+  };
+
   return (
     <Show when={sectionVis.appearance}>
       <CollapsibleSection title={t('appearance.title')} name="appearance" id="prop-appearance-section">
+        <Show when={showsStyleControls()}>
+          <div class="property-group">
+            <label>{t('stylePresets.label')}</label>
+            <div class="style-preset-row">
+              <select
+                id="prop-style-preset-select"
+                disabled={isLocked() || presets().length === 0}
+                onChange={handleApplyPreset}
+              >
+                <option value="">
+                  {presets().length > 0 ? t('stylePresets.applyPlaceholder') : t('stylePresets.noPresets')}
+                </option>
+                <For each={presets()}>
+                  {(p) => <option value={p.id}>{p.name}</option>}
+                </For>
+              </select>
+              <button
+                class="prop-action-btn style-preset-manage-btn"
+                title={t('stylePresets.manage')}
+                disabled={presets().length === 0}
+                onClick={() => setManageOpen(true)}
+              >{'⋯'}</button>
+            </div>
+          </div>
+        </Show>
+
         <Show when={sectionVis.iconGroup}>
           <div class="property-group">
             <label>{t('appearance.icon')}</label>
@@ -143,7 +203,91 @@ export default function AppearanceSection() {
             />
           </div>
         </Show>
+
+        <Show when={showsStyleControls()}>
+          <div class="style-preset-actions">
+            <button class="prop-action-btn style-preset-btn" id="prop-style-preset-create"
+              disabled={isLocked()} onClick={openCreateDialog}>
+              {t('stylePresets.create')}
+            </button>
+          </div>
+          <div class="style-preset-actions">
+            <button class="prop-action-btn style-preset-btn" onClick={() => copyStyleFromSelection()}>
+              {t('stylePresets.copyStyle')}
+            </button>
+            <button class="prop-action-btn style-preset-btn"
+              disabled={!copiedStyle() || isLocked()} onClick={() => pasteStyleToSelection()}>
+              {t('stylePresets.pasteStyle')}
+            </button>
+          </div>
+        </Show>
       </CollapsibleSection>
+
+      {/* Naam-dialoog voor "Lijnstijl maken" — Windows-stijl, verplaatsbaar,
+          sluit niet bij klik buiten het venster (Dialog.jsx-gedrag). */}
+      <Show when={createOpen()}>
+        <Dialog
+          title={t('stylePresets.createTitle')}
+          dialogClass="style-preset-dialog"
+          onClose={() => setCreateOpen(false)}
+          footer={
+            <>
+              <button class="pref-btn pref-btn-secondary" onClick={() => setCreateOpen(false)}>
+                {tCommon('cancel')}
+              </button>
+              <button class="pref-btn pref-btn-primary" disabled={!presetName().trim()} onClick={confirmCreate}>
+                {tCommon('ok')}
+              </button>
+            </>
+          }
+        >
+          <div class="style-preset-name-row">
+            <label for="style-preset-name-input">{t('stylePresets.nameLabel')}</label>
+            <input
+              id="style-preset-name-input"
+              ref={nameInputRef}
+              type="text"
+              value={presetName()}
+              onInput={(e) => setPresetName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && presetName().trim()) confirmCreate(); }}
+            />
+          </div>
+        </Dialog>
+      </Show>
+
+      {/* Beheer-dialoog: hernoemen (inline) en verwijderen. */}
+      <Show when={manageOpen()}>
+        <Dialog
+          title={t('stylePresets.manageTitle')}
+          dialogClass="style-preset-dialog"
+          onClose={() => setManageOpen(false)}
+          footer={
+            <button class="pref-btn pref-btn-primary" onClick={() => setManageOpen(false)}>
+              {tCommon('close')}
+            </button>
+          }
+        >
+          <div class="style-preset-list">
+            <For each={presets()}>
+              {(p) => (
+                <div class="style-preset-list-row">
+                  <input
+                    type="text"
+                    value={p.name}
+                    onChange={(e) => renameStylePreset(p.id, e.target.value)}
+                  />
+                  <button class="pref-btn" onClick={() => deleteStylePreset(p.id)}>
+                    {tCommon('delete')}
+                  </button>
+                </div>
+              )}
+            </For>
+            <Show when={presets().length === 0}>
+              <div class="style-preset-empty">{t('stylePresets.noPresets')}</div>
+            </Show>
+          </div>
+        </Dialog>
+      </Show>
     </Show>
   );
 }

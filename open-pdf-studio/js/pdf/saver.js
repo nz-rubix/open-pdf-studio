@@ -19,6 +19,7 @@ import { hexToRgb, buildBorderStyle, computeAnnotFlags, mapFontToPdfName,
 import { saveTextEditsToPages } from './saver/text-edits.js';
 import { saveWatermarksToPages } from './saver/watermarks.js';
 import { saveBookmarksToOutline } from './saver/bookmarks.js';
+import { saveStylePresetsToCatalog } from './saver/style-presets.js';
 import { catmullRomSpline } from '../tools/tools/spline-tool.js';
 import { buildFilledAreaAP, buildMeasureAreaAP, buildPolylineMeasureAP,
   buildMeasureDistanceAP, buildWallAP, buildCloudAP,
@@ -2108,6 +2109,9 @@ export async function savePDF(saveAsPath = null) {
 
     // Save bookmarks to PDF outline
     saveBookmarksToOutline(pdfDocLib);
+
+    // Save named line-style presets into the catalog (travel with the PDF)
+    saveStylePresetsToCatalog(pdfDocLib);
 
     // Save the PDF
     const pdfBytes = await pdfDocLib.save();

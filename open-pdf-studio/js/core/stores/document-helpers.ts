@@ -27,6 +27,7 @@ export function createDocument(filePath: string | null = null): DocumentState {
     pdfaCompliance: null,
     pdfADismissed: false,
     measureScale: null,
+    stylePresets: [],
     _loadedAnnotationPages: new Set(),
     _sharedPdfLibDoc: null,
     _sharedPdfLibDocPromise: null,

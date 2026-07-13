@@ -118,6 +118,19 @@
       "nen47-maaiveld": "NEN47-25 Ground level"
     }
   },
+  "stylePresets": {
+    "label": "Line style",
+    "applyPlaceholder": "Apply style…",
+    "noPresets": "No saved styles",
+    "create": "Create Line Style",
+    "createTitle": "Create Line Style",
+    "nameLabel": "Name",
+    "manage": "Manage styles",
+    "manageTitle": "Manage Line Styles",
+    "copyStyle": "Copy Style",
+    "pasteStyle": "Paste Style",
+    "defaultName": "Line style"
+  },
   "content": {
     "title": "Content",
     "text": "Text",
