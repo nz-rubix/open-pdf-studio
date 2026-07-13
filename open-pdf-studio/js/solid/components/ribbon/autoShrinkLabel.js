@@ -10,7 +10,7 @@ const observer = new MutationObserver((mutations) => {
 });
 
 // True when the label overflows its box. Vertical: more than MAX_LINES
-// lines. Horizontal: a word wider than the box — `word-break: keep-all`
+// lines. Horizontal: a word wider than the box — `word-break: normal`
 // forbids mid-word breaks, so long words (e.g. "Schermafbeelding") don't
 // wrap and were silently clipped by `overflow: hidden` (#158). scrollHeight
 // only detects the vertical case, so check scrollWidth too.

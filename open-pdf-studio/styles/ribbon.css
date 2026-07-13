@@ -290,7 +290,13 @@
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  word-break: keep-all;
+  /* Break labels only at word boundaries (spaces), never mid-word (#158).
+     `normal` + `overflow-wrap: normal` forbids mid-word character breaks
+     for Latin text ("Opmerkingen selecteren" wraps as "Opmerkingen" /
+     "selecteren", not "Opmerkinge" / "n selecteren"), while still letting
+     CJK scripts wrap naturally. A word wider than the box overflows and is
+     shrunk to fit by autoShrinkLabel.js rather than broken. */
+  word-break: normal;
   overflow-wrap: normal;
 }
 
