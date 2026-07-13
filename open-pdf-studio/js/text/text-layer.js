@@ -398,6 +398,9 @@ export function injectSyntheticTextSpans(textLayerDiv, pageNum, pageWidth, pageH
       span.dataset.pdfBold = String(isBold);
       span.dataset.pdfItalic = String(isItalic);
       span.dataset.synthetic = 'true';
+      // Link the span back to its source textEdit record so the edit-text tool
+      // re-opens/updates THAT record instead of creating a duplicate edit.
+      span.dataset.editId = String(edit.id);
 
       textLayerDiv.appendChild(span);
     }

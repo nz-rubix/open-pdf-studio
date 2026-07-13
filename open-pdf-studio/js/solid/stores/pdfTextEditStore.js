@@ -29,4 +29,23 @@ export function getEditorText() {
   return text();
 }
 
+// Merge a partial style object into the live editor style (used when the
+// properties panel changes font/colour/weight while a text edit is open).
+export function updateEditorStyle(partial) {
+  setEditorStyle(prev => ({ ...(prev || {}), ...partial }));
+}
+
+// Shift the live editor's fixed position by a pixel delta (used for keyboard
+// nudge / move of the active text edit). left/top are 'Npx' strings.
+export function shiftEditorPosition(dxPx, dyPx) {
+  setEditorStyle(prev => {
+    const s = { ...(prev || {}) };
+    const l = parseFloat(s.left) || 0;
+    const t = parseFloat(s.top) || 0;
+    s.left = `${l + dxPx}px`;
+    s.top = `${t + dyPx}px`;
+    return s;
+  });
+}
+
 export { active, editorStyle, text, setText, commitHandler, cancelHandler, keyDownHandler, blurHandler, selectOnFocus, setSelectOnFocus };

@@ -734,3 +734,19 @@ body.pdf-cursor-override #canvas-container * {
   word-break: break-word;
   box-shadow: 0 0 0 1px rgba(0, 120, 215, 0.3);
 }
+
+/* Delete button shown in the properties panel while editing PDF text */
+.text-edit-delete-btn {
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid #d4d4d4;
+  background: #f5f5f5;
+  color: #b00020;
+  cursor: pointer;
+  font-size: 12px;
+}
+.text-edit-delete-btn:hover {
+  background: #e81123;
+  border-color: #e81123;
+  color: #ffffff;
+}

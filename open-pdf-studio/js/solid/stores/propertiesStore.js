@@ -869,6 +869,18 @@ export function updateAnnotProp(key, value) {
     return;
   }
 
+  // PDF text-edit mode: the panel drives the text edit currently open in the
+  // inline editor (a throwaway pseudo-annotation is shown for the controls).
+  // Route formatting changes to the active edit instead of mutating the pseudo
+  // (issue #264 — formatting changes previously did nothing).
+  if (currentAnnotation.id === '_pdfTextEdit') {
+    setAnnotProps(key, value); // panel feedback
+    import('../../tools/text-edit-tool.js')
+      .then(m => m.applyActiveTextEditStyle && m.applyActiveTextEditStyle(key, value))
+      .catch(() => {});
+    return;
+  }
+
   // Special handling for locked toggle
   if (key === 'locked' && currentAnnotation.locked && value === false) {
     currentAnnotation.locked = false;

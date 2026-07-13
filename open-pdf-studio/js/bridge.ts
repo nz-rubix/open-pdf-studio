@@ -137,6 +137,8 @@ export {
   showPdfTextEditor,
   hidePdfTextEditor,
   getEditorText as getPdfEditorText,
+  updateEditorStyle as updatePdfEditorStyle,
+  shiftEditorPosition as shiftPdfEditorPosition,
 } from './solid/stores/pdfTextEditStore.js';
 
 // ============= SCREENSHOT =============

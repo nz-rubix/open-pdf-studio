@@ -1,5 +1,5 @@
 import { Show, For, createMemo } from 'solid-js';
-import { annotProps, sectionVis, updateAnnotProp, cycleSelectNext } from '../../stores/propertiesStore.js';
+import { annotProps, sectionVis, updateAnnotProp, cycleSelectNext, panelMode } from '../../stores/propertiesStore.js';
 import CollapsibleSection from './CollapsibleSection.jsx';
 import ColorPalettePicker from './ColorPalettePicker.jsx';
 import PrefComboBox from '../preferences/PrefComboBox.jsx';
@@ -83,6 +83,19 @@ export default function TextFormatSection() {
             </button>
           </div>
         </div>
+
+        {/* PDF text-edit mode: allow deleting the text edit that is open in the
+            inline editor (inserted or existing PDF text). */}
+        <Show when={panelMode() === 'textEdit'}>
+          <div class="property-group">
+            <button type="button" class="text-edit-delete-btn"
+              onClick={() => import('../../../tools/text-edit-tool.js')
+                .then(m => m.deleteActiveTextEdit && m.deleteActiveTextEdit())
+                .catch(() => {})}>
+              {tCommon('delete')}
+            </button>
+          </div>
+        </Show>
       </CollapsibleSection>
     </Show>
   );

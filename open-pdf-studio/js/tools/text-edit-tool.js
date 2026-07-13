@@ -4,7 +4,9 @@ import { redrawAnnotations, redrawContinuous } from '../annotations/rendering.js
 import { showTextEditProperties, hideProperties } from '../ui/panels/properties-panel.js';
 import { markDocumentModified } from '../ui/chrome/tabs.js';
 import { canvasContainer, continuousContainer, pdfCanvas } from '../ui/dom-elements.js';
-import { showPdfTextEditor, hidePdfTextEditor, getPdfEditorText as getEditorText } from '../bridge.js';
+import { showPdfTextEditor, hidePdfTextEditor, getPdfEditorText as getEditorText,
+  updatePdfEditorStyle, shiftPdfEditorPosition } from '../bridge.js';
+import { injectSyntheticTextSpans } from '../text/text-layer.js';
 
 let activeEditor = null;
 let hoverListeners = [];
@@ -18,6 +20,80 @@ function rgbToHex(rgbStr) {
   if (!m) return '#000000';
   const r = parseInt(m[1]), g = parseInt(m[2]), b = parseInt(m[3]);
   return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
+}
+
+// ── Font mapping shared by the text-edit sessions ──
+// Map a display / actual font name + bold/italic flags to a pdf-lib StandardFont
+// name (the value stored on the text-edit record and used by the saver).
+function toStandardFontName(displayName, isBold, isItalic) {
+  const n = (displayName || '').toLowerCase();
+  if (n.includes('courier') || n.includes('consolas') || n.includes('mono')) {
+    return isBold && isItalic ? 'Courier-BoldOblique'
+      : isBold ? 'Courier-Bold'
+      : isItalic ? 'Courier-Oblique'
+      : 'Courier';
+  }
+  if (n.includes('times') || n.includes('garamond') || n.includes('georgia')
+      || n.includes('palatino') || n.includes('cambria') || n.includes('bookman') || n.includes('serif')) {
+    return isBold && isItalic ? 'TimesRoman-BoldItalic'
+      : isBold ? 'TimesRoman-Bold'
+      : isItalic ? 'TimesRoman-Italic'
+      : 'TimesRoman';
+  }
+  return isBold && isItalic ? 'Helvetica-BoldOblique'
+    : isBold ? 'Helvetica-Bold'
+    : isItalic ? 'Helvetica-Oblique'
+    : 'Helvetica';
+}
+
+// CSS font-family for the live editor / synthetic span, from a font name.
+function cssFamilyFor(name) {
+  const n = (name || '').toLowerCase();
+  if (n.includes('courier') || n.includes('consolas') || n.includes('mono')) return '"Courier New", Courier, monospace';
+  if (n.includes('times') || n.includes('garamond') || n.includes('georgia')
+      || n.includes('palatino') || n.includes('cambria') || n.includes('bookman') || n.includes('serif')) return '"Times New Roman", Times, serif';
+  return 'Helvetica, Arial, sans-serif';
+}
+
+// Re-inject the synthetic text-layer spans for added text on a page (after the
+// record's content/style/position changed) and repaint the annotation canvas.
+function reRenderAddedText(pageNum) {
+  const textLayer = document.querySelector(`.textLayer[data-page="${pageNum}"]`)
+    || document.querySelector('.textLayer');
+  const canvasEl = textLayer?.parentElement?.querySelector('canvas.pdf-canvas')
+    || pdfCanvas || document.getElementById('pdf-canvas');
+  if (textLayer && canvasEl) {
+    const sc = getActiveDocument()?.scale || 1.5;
+    const pw = canvasEl.width / sc;
+    const ph = canvasEl.height / sc;
+    injectSyntheticTextSpans(textLayer, pageNum, pw, ph);
+  }
+  if (getActiveDocument()?.viewMode === 'continuous') redrawContinuous();
+  else redrawAnnotations();
+}
+
+// Apply the accumulated style state (family/size/colour/bold/italic) onto a
+// text-edit record. Returns true when any field actually changed.
+function applyStyleStateToRecord(rec, st) {
+  if (!rec || !st) return false;
+  let changed = false;
+  if (st.size != null && rec.fontSize !== st.size) { rec.fontSize = st.size; rec.lineSpacing = st.size * 1.2; changed = true; }
+  if (st.color != null && rec.color !== st.color) { rec.color = st.color; changed = true; }
+  const std = toStandardFontName(st.family, st.bold, st.italic);
+  if (rec.fontFamily !== std) { rec.fontFamily = std; changed = true; }
+  return changed;
+}
+
+// Live-update the open editor's CSS from the style state (colour/weight/style/
+// family — size is left to the record re-render so the box geometry stays put).
+function applyStyleStateToEditor(st) {
+  if (!st) return;
+  updatePdfEditorStyle({
+    color: st.color || '#000000',
+    'font-weight': st.bold ? 'bold' : 'normal',
+    'font-style': st.italic ? 'italic' : 'normal',
+    'font-family': cssFamilyFor(st.family),
+  });
 }
 
 export function activateEditTextTool() {
@@ -332,6 +408,20 @@ function startPdfTextEditing(span, pageNum) {
   const textLayer = span.closest('.textLayer');
   if (!textLayer) return;
 
+  // Added text (synthetic span) → re-open the SAME textEdit record instead of
+  // creating a duplicate edit-of-an-edit. This makes inserted text properly
+  // re-editable (content, style, position, delete) via startTextEditEditing.
+  const editId = span.dataset.editId;
+  if (editId) {
+    const doc = getActiveDocument();
+    const rec = doc?.textEdits?.find(e => String(e.id) === editId);
+    if (rec) {
+      const canvasEl = textLayer.parentElement?.querySelector('canvas.pdf-canvas')
+        || pdfCanvas || document.getElementById('pdf-canvas');
+      if (canvasEl) { startTextEditEditing(rec, pageNum, canvasEl); return; }
+    }
+  }
+
   const block = spanToBlock.get(span);
   if (!block || block.spans.length === 0) return;
 
@@ -406,13 +496,24 @@ function startPdfTextEditing(span, pageNum) {
   activeEditor = {
     block,
     pageNum,
+    kind: 'existingText',
     originalText: combinedText,
     pdfX,
     pdfY,
     pdfWidth,
     fontSize,
     lineSpacing,
-    numOriginalLines: lineData.length
+    numOriginalLines: lineData.length,
+    scale: getActiveDocument()?.scale || 1.5,
+    // Accumulated style state edited via the properties panel; seeded from the
+    // block's detected formatting. Persisted onto the edit record on commit.
+    styleState: {
+      family: lineData[0].actualFontName || lineData[0].pdfFontName || cssFallbackFont,
+      size: fontSize,
+      color: lineData[0].color || '#000000',
+      bold: lineData[0].isBold || false,
+      italic: lineData[0].isItalic || false,
+    },
   };
 
   state.pdfTextEditState = activeEditor;
@@ -433,6 +534,7 @@ function startPdfTextEditing(span, pageNum) {
     if (e.key === 'Escape') {
       e.stopPropagation();
       cancelPdfTextEditing();
+      return;
     }
     // Enter commits only if single-line block; otherwise allow newlines
     if (e.key === 'Enter' && !e.shiftKey && lineData.length === 1) {
@@ -476,7 +578,7 @@ function finishPdfTextEditing() {
 
   const {
     block, pageNum, originalText,
-    pdfX, pdfY, pdfWidth, fontSize, lineSpacing, numOriginalLines
+    pdfX, pdfY, pdfWidth, fontSize, lineSpacing, numOriginalLines, styleState
   } = activeEditor;
   const newText = getEditorText();
 
@@ -485,43 +587,40 @@ function finishPdfTextEditing() {
   // Show all spans again
   for (const s of block.spans) s.style.visibility = '';
 
-  if (newText !== originalText && newText.trim() !== '') {
-    const { lineData } = block;
-    const pdfFontFamily = lineData[0].fontFamily || 'sans-serif';
-    const pdfFontName = lineData[0].pdfFontName || '';
-    const actualFontName = lineData[0].actualFontName || '';
-    const isBold = lineData[0].isBold || false;
-    const isItalic = lineData[0].isItalic || false;
+  const st = styleState || {};
+  // Did the panel change any formatting relative to the detected block style?
+  const styleChanged =
+    (st.size != null && st.size !== fontSize) ||
+    (st.color != null && st.color !== (block.lineData[0].color || '#000000')) ||
+    (st.bold != null && st.bold !== (block.lineData[0].isBold || false)) ||
+    (st.italic != null && st.italic !== (block.lineData[0].isItalic || false));
 
-    // Map actual PDF font name to closest standard font for saving
-    const an = actualFontName.toLowerCase();
-    const fl = pdfFontFamily.toLowerCase();
-    let fontFamily;
-    if (an.includes('courier') || an.includes('consolas') || an.includes('mono') || fl === 'monospace') {
-      fontFamily = isBold && isItalic ? 'Courier-BoldOblique'
-        : isBold ? 'Courier-Bold'
-        : isItalic ? 'Courier-Oblique'
-        : 'Courier';
-    } else if (an.includes('times') || an.includes('garamond') || an.includes('georgia')
-        || an.includes('palatino') || an.includes('cambria') || an.includes('bookman')
-        || fl === 'serif') {
-      fontFamily = isBold && isItalic ? 'TimesRoman-BoldItalic'
-        : isBold ? 'TimesRoman-Bold'
-        : isItalic ? 'TimesRoman-Italic'
-        : 'TimesRoman';
-    } else {
-      fontFamily = isBold && isItalic ? 'Helvetica-BoldOblique'
-        : isBold ? 'Helvetica-Bold'
-        : isItalic ? 'Helvetica-Oblique'
-        : 'Helvetica';
-    }
+  // Persist when the text OR the formatting changed (a pure re-style of
+  // existing PDF text must be saveable too).
+  if ((newText !== originalText || styleChanged) && newText.trim() !== '') {
+    const { lineData } = block;
+    const pdfFontName = lineData[0].pdfFontName || '';
+
+    // Final formatting: panel-edited style state wins over the detected block
+    // style (seeded identically, so unchanged edits reproduce the original).
+    const finalSize = st.size != null ? st.size : fontSize;
+    const finalColor = st.color != null ? st.color : (lineData[0].color || '#000000');
+    const finalBold = st.bold != null ? st.bold : (lineData[0].isBold || false);
+    const finalItalic = st.italic != null ? st.italic : (lineData[0].isItalic || false);
+    const fontFamily = toStandardFontName(
+      st.family != null ? st.family : (lineData[0].actualFontName || lineData[0].fontFamily),
+      finalBold, finalItalic
+    );
     // Capture original span texts before modifying
     const originalSpanTexts = lineData.map(ld =>
       ld.spans.map(s => s.textContent)
     );
 
-    // Store the PDF.js loaded font name for canvas rendering (exact visual match)
-    const loadedFontName = lineData[0].loadedFontName || '';
+    // Store the PDF.js loaded font name for canvas rendering (exact visual
+    // match). Drop it when the family/weight was changed in the panel so the
+    // new StandardFont is used instead of the stale embedded font.
+    const loadedFontName = (st.family != null || finalBold !== (lineData[0].isBold || false)
+      || finalItalic !== (lineData[0].isItalic || false)) ? '' : (lineData[0].loadedFontName || '');
 
     const editRecord = {
       id: Date.now() + Math.random().toString(36).substr(2, 9),
@@ -531,13 +630,13 @@ function finishPdfTextEditing() {
       pdfX,
       pdfY,
       pdfWidth,
-      fontSize,
+      fontSize: finalSize,
       lineSpacing,
       numOriginalLines,
       fontFamily,
       loadedFontName,
       pdfFontName,
-      color: lineData[0].color || '#000000',
+      color: finalColor,
       originalSpanTexts
     };
 
@@ -783,21 +882,30 @@ export function startTextEditEditing(textEdit, pageNum, canvasEl) {
   if (ff.includes('italic') || ff.includes('oblique')) styleObj['font-style'] = 'italic';
 
   const oldTextEdit = { ...textEdit };
+  const isAddedText = oldTextEdit.originalText === '';
 
   const finishEditing = () => {
     const newText = getEditorText();
     hidePdfTextEditor();
 
-    if (newText !== oldTextEdit.newText && newText.trim() !== '') {
-      textEdit.newText = newText;
+    // Clearing all the text of an INSERTED edit deletes it entirely — this is
+    // how the user removes inserted text (issue #264).
+    if (isAddedText && newText.trim() === '') {
+      removeTextEditRecord(textEdit);
+      activeEditor = null;
+      state.pdfTextEditState = null;
+      hideProperties();
+      return;
+    }
+
+    if (newText.trim() !== '') textEdit.newText = newText;
+    // Persist when content, style, or position changed. Style/position edits
+    // were applied live to `textEdit`, so compare the whole record.
+    const changed = JSON.stringify({ ...textEdit }) !== JSON.stringify(oldTextEdit);
+    if (changed) {
       execute({ type: 'modifyTextEdit', oldTextEdit, newTextEdit: { ...textEdit } });
       markDocumentModified();
-
-      if (getActiveDocument()?.viewMode === 'continuous') {
-        redrawContinuous();
-      } else {
-        redrawAnnotations();
-      }
+      reRenderAddedText(pageNum);
     }
 
     activeEditor = null;
@@ -815,6 +923,8 @@ export function startTextEditEditing(textEdit, pageNum, canvasEl) {
   activeEditor = {
     block: { spans: [] },
     pageNum,
+    kind: 'record',
+    _recordRef: textEdit,
     originalText: textEdit.newText,
     pdfX: textEdit.pdfX,
     pdfY: textEdit.pdfY,
@@ -822,6 +932,14 @@ export function startTextEditEditing(textEdit, pageNum, canvasEl) {
     fontSize,
     lineSpacing: ls,
     numOriginalLines: numLines,
+    scale: editScale,
+    styleState: {
+      family: textEdit.fontFamily || 'Helvetica',
+      size: textEdit.fontSize,
+      color: textEdit.color || '#000000',
+      bold: ff.includes('bold'),
+      italic: ff.includes('italic') || ff.includes('oblique'),
+    },
     _finishEditing: finishEditing,
     _cancelEditing: cancelEditing
   };
@@ -844,6 +962,18 @@ export function startTextEditEditing(textEdit, pageNum, canvasEl) {
     if (e.key === 'Escape') {
       e.stopPropagation();
       cancelEditing();
+      return;
+    }
+    // Alt+Arrow nudges the inserted text (Alt keeps normal caret arrows free).
+    if (e.altKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+      e.preventDefault();
+      e.stopPropagation();
+      const step = e.shiftKey ? 5 : 1;
+      nudgeActiveTextEdit(
+        e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0,
+        e.key === 'ArrowUp' ? step : e.key === 'ArrowDown' ? -step : 0
+      );
+      return;
     }
     if (e.key === 'Enter' && !e.shiftKey && numLines === 1) {
       e.preventDefault();
@@ -873,4 +1003,117 @@ export function startTextEditEditing(textEdit, pageNum, canvasEl) {
     onKeyDown: handleKeyDown,
     onBlur: handleBlur
   });
+}
+
+// ── Management of the ACTIVE text edit (called from the properties panel) ──
+
+// Apply a formatting change from the properties panel to the text edit that is
+// currently open in the inline editor. Works for both inserted text (a live
+// textEdit record) and existing PDF text (persisted on commit).
+export function applyActiveTextEditStyle(key, value) {
+  if (!activeEditor || !activeEditor.styleState) return;
+  const st = activeEditor.styleState;
+  switch (key) {
+    case 'fontFamily': st.family = value; break;
+    case 'textFontSize':
+    case 'fontSize': { const n = parseInt(value); if (!isNaN(n) && n > 0) st.size = n; break; }
+    case 'textColor':
+    case 'color': st.color = value; break;
+    case 'fontBold': st.bold = !!value; break;
+    case 'fontItalic': st.italic = !!value; break;
+    default: return;
+  }
+  applyStyleStateToEditor(st);
+  // Record sessions (inserted text or an existing edit record) update live so
+  // the user sees the restyle immediately.
+  if (activeEditor._recordRef) {
+    applyStyleStateToRecord(activeEditor._recordRef, st);
+    reRenderAddedText(activeEditor._recordRef.page);
+  }
+}
+
+// Delete the text edit that is currently open in the inline editor.
+export function deleteActiveTextEdit() {
+  if (!activeEditor) return;
+  hidePdfTextEditor();
+  // Restore any spans the existing-text session hid.
+  if (activeEditor.block && activeEditor.block.spans) {
+    for (const s of activeEditor.block.spans) s.style.visibility = '';
+  }
+  if (activeEditor._recordRef) {
+    // Inserted text / existing edit record → drop the record.
+    removeTextEditRecord(activeEditor._recordRef);
+  } else if (activeEditor.kind === 'existingText' && activeEditor.originalText) {
+    // Existing PDF text with no record yet → cover it (empty replacement) so
+    // the underlying text is removed from the page on save.
+    coverExistingText(activeEditor);
+  }
+  activeEditor = null;
+  state.pdfTextEditState = null;
+  hideProperties();
+}
+
+// Move the active text edit by a PDF-unit delta (Alt+Arrow keys).
+function nudgeActiveTextEdit(dxPdf, dyPdf) {
+  if (!activeEditor) return;
+  const scale = activeEditor.scale || (getActiveDocument()?.scale || 1.5);
+  // +pdfX → right; +pdfY → up (screen top decreases), so flip Y for the editor.
+  shiftPdfEditorPosition(dxPdf * scale, -dyPdf * scale);
+  if (activeEditor._recordRef) {
+    activeEditor._recordRef.pdfX += dxPdf;
+    activeEditor._recordRef.pdfY += dyPdf;
+    reRenderAddedText(activeEditor._recordRef.page);
+  } else {
+    // Existing-text session: coords are read from activeEditor on commit.
+    activeEditor.pdfX += dxPdf;
+    activeEditor.pdfY += dyPdf;
+  }
+}
+
+// Remove a textEdit record from the document (undoable).
+function removeTextEditRecord(rec) {
+  const doc = getActiveDocument();
+  if (!doc || !doc.textEdits) return;
+  const index = doc.textEdits.findIndex(e => e.id === rec.id);
+  if (index === -1) return;
+  execute({ type: 'removeTextEdit', textEdit: { ...rec }, index });
+  markDocumentModified();
+  reRenderAddedText(rec.page);
+}
+
+// Cover existing PDF text with an empty replacement edit (deletes the text).
+function coverExistingText(ed) {
+  const { block, pageNum, originalText, pdfX, pdfY, pdfWidth, fontSize, lineSpacing, numOriginalLines, styleState } = ed;
+  if (!originalText) return;
+  const st = styleState || {};
+  const doc = getActiveDocument();
+  if (!doc) return;
+
+  const editRecord = {
+    id: Date.now() + Math.random().toString(36).substr(2, 9),
+    page: pageNum,
+    originalText,
+    newText: '',
+    pdfX, pdfY, pdfWidth,
+    fontSize: st.size != null ? st.size : fontSize,
+    lineSpacing,
+    numOriginalLines,
+    fontFamily: toStandardFontName(
+      st.family != null ? st.family : (block.lineData[0].actualFontName || block.lineData[0].fontFamily),
+      st.bold || false, st.italic || false
+    ),
+    loadedFontName: '',
+    pdfFontName: block.lineData[0].pdfFontName || '',
+    color: st.color != null ? st.color : (block.lineData[0].color || '#000000'),
+    originalSpanTexts: block.lineData.map(ld => ld.spans.map(s => s.textContent)),
+  };
+
+  if (!doc.textEdits) doc.textEdits = [];
+  doc.textEdits.push(editRecord);
+  // Blank the covered spans in the text layer.
+  for (const ld of block.lineData) for (const s of ld.spans) s.textContent = '';
+  execute({ type: 'addTextEdit', textEdit: { ...editRecord } });
+  markDocumentModified();
+  if (getActiveDocument()?.viewMode === 'continuous') redrawContinuous();
+  else redrawAnnotations();
 }
