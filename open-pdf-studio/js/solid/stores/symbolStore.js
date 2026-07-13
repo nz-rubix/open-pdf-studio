@@ -7,6 +7,7 @@ import { matchesLocale, DEFAULT_INDUSTRY, DEFAULT_COUNTRY } from '../data/symbol
 import { state } from '../../core/state.js';
 import { savePreferences } from '../../core/preferences.js';
 import { registerPaletteDock } from './paletteOrder.js';
+import { removeSteelCatalog } from '../../symbols/steel-catalog-store.js';
 
 // --- State ---
 const [searchQuery, setSearchQuery] = createSignal('');
@@ -166,7 +167,11 @@ function addCustomGroup(name) {
 }
 
 function removeCustomGroup(id) {
+  const group = getCustomGroups().find(g => g.id === id);
   setCustomGroups(getCustomGroups().filter(g => g.id !== id));
+  // Bibliotheek-groep met parametrische staalcatalogus: ook de geregistreerde
+  // templates + de gepersisteerde catalogus opruimen (no-op voor de rest).
+  if (group && group.collectionId) removeSteelCatalog(group.collectionId);
 }
 
 function addSymbolToGroup(groupId, name, svg) {

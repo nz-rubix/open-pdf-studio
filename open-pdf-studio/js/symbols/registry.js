@@ -46,6 +46,18 @@ register(paalType1Template);
 register(paalType2Template);
 register(boutTemplate);
 
+// Runtime registration for catalog-driven templates (downloaded steel
+// catalogs from the online symbol library — see symbols/steel-catalog-store.js).
+// Same registry, so getTemplate/listTemplates/the picker/properties panel
+// work identically for built-in and downloaded templates.
+export function registerTemplate(t) {
+  if (t && t.id) register(t);
+}
+
+export function unregisterTemplate(id) {
+  templates.delete(id);
+}
+
 export function getTemplate(id) {
   return templates.get(id) || null;
 }

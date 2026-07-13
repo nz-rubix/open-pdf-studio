@@ -7,7 +7,7 @@
 // Het projectpackage is CJS (geen "type":"module"), dus de ESM-bronnen
 // worden naar een tempmap gekopieerd als .mjs en daarvandaan geïmporteerd.
 
-import { readFileSync, readdirSync, writeFileSync, mkdtempSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync, mkdtempSync, mkdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -23,16 +23,26 @@ if (!existsSync(join(libDir, 'index.json'))) {
 }
 
 // --- ESM-bronnen importeren via temp-.mjs (package is CJS) ---
+// De mappenstructuur blijft behouden en relatieve .js-imports worden naar
+// .mjs herschreven, zodat modules met onderlinge imports (steel-catalog.js
+// → templates/staalprofiel.js) ook werken.
 const tmp = mkdtempSync(join(tmpdir(), 'opds-symlib-'));
-function importAsMjs(relPath) {
-  const src = readFileSync(join(appRoot, relPath), 'utf8');
-  const target = join(tmp, relPath.replace(/[\\/]/g, '_').replace(/\.js$/, '.mjs'));
+function stageMjs(relPath) {
+  const src = readFileSync(join(appRoot, relPath), 'utf8')
+    .replace(/(from\s*['"])(\.{1,2}\/[^'"]+)\.js(['"])/g, '$1$2.mjs$3');
+  const target = join(tmp, relPath).replace(/\.js$/, '.mjs');
+  mkdirSync(dirname(target), { recursive: true });
   writeFileSync(target, src);
-  return import(pathToFileURL(target).href);
+  return target;
+}
+function importAsMjs(relPath) {
+  return import(pathToFileURL(stageMjs(relPath)).href);
 }
 
+stageMjs('js/symbols/templates/staalprofiel.js');
 const online = await importAsMjs('js/solid/data/symbolLibraryOnline.js');
 const locales = await importAsMjs('js/solid/data/symbolLocales.js');
+const steel = await importAsMjs('js/symbols/steel-catalog.js');
 
 let failures = 0;
 let checks = 0;
@@ -153,6 +163,36 @@ assert(online.LIBRARY_INDEX_URL === 'https://raw.githubusercontent.com/OpenAEC-F
 assert(online.collectionJsonUrl('nen1414-fire').endsWith('/collections/nen1414-fire/collection.json'), 'collection.json-URL');
 assert(online.symbolRawUrl('x', 'a b.svg').includes('a%20b.svg'), 'bestandsnaam ge-encodeerd');
 assert(online.symbolsListApiUrl('x').startsWith('https://api.github.com/repos/OpenAEC-Foundation/open-pdf-studio-library/contents/collections/x/symbols'), 'contents-API-URL');
+
+// --- 8. Parametrische staalcatalogi (steel-sections) ---
+console.log('8. steel-sections: parametric.json → catalogus → palette-groep');
+assert(online.parametricJsonUrl('x').endsWith('/collections/x/parametric.json'), 'parametric.json-URL');
+const steelIds = Object.keys(idx.collections)
+  .filter(id => (idx.collections[id].types || []).includes('parametric')
+    && idx.collections[id].status === 'available');
+assert(steelIds.length >= 10, `verwacht >= 10 parametrische collecties in de index, kreeg ${steelIds.length}`);
+let famCount = 0;
+for (const id of steelIds) {
+  const metaS = JSON.parse(readFileSync(join(collectionsDir, id, 'collection.json'), 'utf8'));
+  const rawS = JSON.parse(readFileSync(join(collectionsDir, id, 'parametric.json'), 'utf8'));
+  const cat = steel.parseSteelSectionCatalog(rawS);
+  assert(cat && cat.families.length > 0, `${id}: catalogus parsebaar`);
+  const group = steel.steelCatalogToGroup(id, metaS, cat, 'nl');
+  assert(group.id === `lib-${id}`, `${id}: groep-id`);
+  assert(group.online === true && group.steelCatalog === true, `${id}: online+steelCatalog-vlaggen`);
+  assert(group.collectionId === id, `${id}: collectionId`);
+  assert(group.symbols.length === cat.families.length, `${id}: één palette-entry per familie`);
+  for (const sym of group.symbols) {
+    assert(sym.parametricId && sym.parametricId.startsWith(`steel-${id}-`), `${id}: parametricId-prefix (${sym.parametricId})`);
+    assert(online.isSafeSymbolSvg(sym.svg), `${id}: preview-svg veilig (${sym.id})`);
+  }
+  famCount += cat.families.length;
+}
+console.log(`   ${steelIds.length} catalogi, ${famCount} families gecontroleerd`);
+assert(steel.parseSteelSectionCatalog({ format: 'anders' }) === null, 'onbekend parametrisch formaat → null (SVG-fallback)');
+let steelThrew = false;
+try { steel.parseSteelSectionCatalog({ format: 'steel-sections', formatVersion: 99 }); } catch { steelThrew = true; }
+assert(steelThrew, 'kapotte steel-sections-catalogus moet een fout geven');
 
 console.log(`\n${checks} checks, ${failures} fouten`);
 process.exit(failures ? 1 : 0);

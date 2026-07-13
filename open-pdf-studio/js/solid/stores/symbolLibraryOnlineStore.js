@@ -22,8 +22,10 @@ import {
   LIBRARY_INDEX_URL,
   parseLibraryIndex, pickLocalized, sectorLabel,
   collectionJsonUrl, symbolsListApiUrl, symbolRawUrl, stampsJsonUrl,
-  collectionToGroup,
+  parametricJsonUrl, collectionToGroup,
 } from '../data/symbolLibraryOnline.js';
+import { parseSteelSectionCatalog, steelCatalogToGroup } from '../../symbols/steel-catalog.js';
+import { registerSteelCatalog } from '../../symbols/steel-catalog-store.js';
 
 const INDEX_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 1 dag; daarna stille refresh
 const FETCH_TIMEOUT_MS = 20000;
@@ -158,6 +160,29 @@ async function downloadCollection(collectionId, indexMeta, lang) {
     console.warn(`collection.json van ${collectionId} niet bereikbaar, index-metadata gebruikt`, e);
   }
   const types = (meta && meta.types) || (indexMeta && indexMeta.types) || [];
+
+  // Parametrische catalogus (bv. staalprofielen): NIET als platte SVG-groep,
+  // maar als geregistreerde catalogus — de families worden parametrische
+  // templates (identiek aan de NL staalprofielen: doorsnede/boven/zij,
+  // real-size via de meetschaal, maat-keuze in het eigenschappen-paneel).
+  // De catalogus persist in preferences (steelSectionCatalogs) zodat de
+  // templates na herstart terugkomen; de palette-groep persist via het
+  // custom-groups-mechanisme. De platte SVG's van zo'n collectie worden
+  // bewust overgeslagen (anders staat elk profiel er dubbel in).
+  if (types.includes('parametric')) {
+    try {
+      const raw = await fetchJson(parametricJsonUrl(collectionId));
+      const catalog = parseSteelSectionCatalog(raw);
+      if (catalog) {
+        registerSteelCatalog(collectionId, catalog);
+        return steelCatalogToGroup(collectionId, meta, catalog, lang);
+      }
+    } catch (e) {
+      // Onbekend/kapot parametrisch formaat → val terug op de SVG-symbolen.
+      console.warn(`parametric.json van ${collectionId} niet bruikbaar, SVG-fallback gebruikt`, e);
+    }
+  }
+
   const contents = { svgFiles: [], stamps: [] };
 
   if (types.includes('symbols')) {
@@ -178,8 +203,8 @@ async function downloadCollection(collectionId, indexMeta, lang) {
     const st = await fetchJson(stampsJsonUrl(collectionId));
     contents.stamps = (st && st.stamps) || [];
   }
-  // Overige typen (parametric/hatches/legends) hebben (nog) geen
-  // palette-representatie en worden bewust overgeslagen.
+  // Overige typen (hatches/legends) hebben (nog) geen palette-representatie
+  // en worden bewust overgeslagen.
 
   return collectionToGroup(collectionId, meta, contents, lang);
 }

@@ -442,3 +442,21 @@ export const hebTemplate = _iProfileTemplate('staal-heb', 'HEB', HEB, 'HEB 200')
 export const ipeTemplate = _iProfileTemplate('staal-ipe', 'IPE', IPE, 'IPE 200');
 export const unpTemplate = _iProfileTemplate('staal-unp', 'UNP', UNP, 'UNP 200', _uSectionPts);
 export const kokerTemplate = _kokerTemplate();
+
+// Geometry/behaviour helpers, reused by the catalog-driven steel templates
+// (js/symbols/steel-catalog.js) so downloaded country catalogs render and
+// behave EXACTLY like the built-in NL profiles. Pure re-exports — the NL
+// tables and templates above are untouched.
+export {
+  _arcPts as arcPts,
+  _roundedRectPts as roundedRectPts,
+  _iSectionPts as iSectionPts,
+  _uSectionPts as uSectionPts,
+  _scalePts as scalePts,
+  _labelCmd as labelCmd,
+  _hartlijnCmds as hartlijnCmds,
+  _snapPoints as steelSnapPoints,
+  _schaalOf as schaalOf,
+  _COMMON_PARAMS as STEEL_COMMON_PARAMS,
+  _beamViewCmds as beamViewCmds,
+};

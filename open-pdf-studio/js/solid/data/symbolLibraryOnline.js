@@ -86,6 +86,9 @@ export function symbolRawUrl(collectionId, fileName) {
 export function stampsJsonUrl(collectionId) {
   return `${LIBRARY_RAW_BASE}collections/${collectionId}/stamps.json`;
 }
+export function parametricJsonUrl(collectionId) {
+  return `${LIBRARY_RAW_BASE}collections/${collectionId}/parametric.json`;
+}
 
 // Bestandsnaam is het symbool-id (kebab-case): 'anti-paniekverlichting.svg'
 // → 'Anti paniekverlichting'.

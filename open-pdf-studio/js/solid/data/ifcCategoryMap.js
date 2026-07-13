@@ -163,6 +163,9 @@ export function ifcCategoryForSymbol(symbol) {
 export function ifcCategoryForParametric(parametricId) {
   const id = String(parametricId || '');
   if (PARAMETRIC_ID_DEFAULT[id]) return PARAMETRIC_ID_DEFAULT[id];
+  // Gedownloade staalcatalogus-templates (symbols/steel-catalog.js) dragen
+  // het 'steel-'-prefix -> zelfde categorie als de NL staalprofielen.
+  if (/^steel-/.test(id)) return 'IfcMember';
   return keywordMatch(id.toLowerCase()) || IFC_DEFAULT;
 }
 
