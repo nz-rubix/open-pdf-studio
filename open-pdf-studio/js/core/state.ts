@@ -87,6 +87,8 @@ export interface AppState {
   isDrawingCloudPolyline: boolean;
   splinePoints: Point[];
   isDrawingSpline: boolean;
+  splineArrowPoints: Point[];
+  isDrawingSplineArrow: boolean;
   dimPoints: Point[];
   isDrawingDimension: boolean;
   isDragging: boolean;
@@ -216,6 +218,10 @@ export const state = createMutable<AppState>({
   set splinePoints(v) { interactionState.splinePoints = v; },
   get isDrawingSpline() { return interactionState.isDrawingSpline; },
   set isDrawingSpline(v) { interactionState.isDrawingSpline = v; },
+  get splineArrowPoints() { return interactionState.splineArrowPoints; },
+  set splineArrowPoints(v) { interactionState.splineArrowPoints = v; },
+  get isDrawingSplineArrow() { return interactionState.isDrawingSplineArrow; },
+  set isDrawingSplineArrow(v) { interactionState.isDrawingSplineArrow = v; },
   get dimPoints() { return interactionState.dimPoints; },
   set dimPoints(v) { interactionState.dimPoints = v; },
   get isDrawingDimension() { return interactionState.isDrawingDimension; },

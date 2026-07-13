@@ -295,6 +295,7 @@ export function getAnnotationHandles(annotation, scale = 1) {
       break;
 
     case 'polyline':
+    case 'splineArrow':
     case 'cloudPolyline':
     case 'measureArea':
     case 'measurePerimeter':

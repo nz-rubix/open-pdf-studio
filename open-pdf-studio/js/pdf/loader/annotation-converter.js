@@ -633,6 +633,43 @@ export async function convertPdfAnnotation(annot, pageNum, viewport, stampImageM
           return createAnnotation(mpProps);
         }
 
+        // Check if this is a curved (spline) arrow — issue #267. Rebuild from
+        // the clicked control points (OPS_Points) so it reloads as editable.
+        if (extraColors.opsSubtype === 'splineArrow' && extraColors.opsPoints && extraColors.opsPoints.length >= 4) {
+          const saPts = [];
+          for (let i = 0; i < extraColors.opsPoints.length; i += 2) {
+            const [sx, sy] = convertPoint(extraColors.opsPoints[i], extraColors.opsPoints[i + 1]);
+            saPts.push({ x: sx, y: sy });
+          }
+          const saMapHead = (h) => {
+            switch (h) {
+              case 'OpenArrow': return 'open';
+              case 'ClosedArrow': return 'closed';
+              case 'Diamond': return 'diamond';
+              case 'Circle': return 'circle';
+              case 'Square': return 'square';
+              case 'Slash': return 'slash';
+              case 'Butt': return 'butt';
+              case 'ROpenArrow': return 'openReversed';
+              case 'RClosedArrow': return 'closedReversed';
+              default: return 'none';
+            }
+          };
+          const saLe = annot.lineEndings || [];
+          return createAnnotation({
+            ...baseProps,
+            type: 'splineArrow',
+            points: saPts,
+            color: colorArrayToHex(annot.color, '#000000'),
+            strokeColor: colorArrayToHex(annot.color, '#000000'),
+            lineWidth: extraColors.borderWidth ?? annot.borderStyle?.width ?? 2,
+            borderStyle: mapBorderStyle(annot, extraColors),
+            startHead: saLe.length >= 2 ? saMapHead(saLe[0]) : 'none',
+            endHead: saLe.length >= 2 ? saMapHead(saLe[1]) : 'open',
+            headSize: extraColors.opsHeadSize || 8,
+          });
+        }
+
         // Check if this is a spline
         if (extraColors.opsSubtype === 'spline' && extraColors.opsPoints && extraColors.opsPoints.length >= 6) {
           const splineControlPts = [];

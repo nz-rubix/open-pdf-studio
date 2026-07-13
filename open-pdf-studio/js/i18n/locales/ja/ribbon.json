@@ -87,6 +87,8 @@
     "polyline": "ポリライン",
     "splineTitle": "スプライン（ダブルクリックで終了）",
     "spline": "スプライン",
+    "splineArrow": "Curved Arrow",
+    "splineArrowTitle": "Curved arrow (double-click to finish)",
     "shapes": "図形",
     "rectangle": "四角形",
     "rect": "四角形",

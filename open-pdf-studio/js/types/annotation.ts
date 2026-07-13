@@ -3,7 +3,7 @@ export type AnnotationType =
   | 'draw' | 'line' | 'arrow' | 'box' | 'circle'
   | 'textbox' | 'callout' | 'comment' | 'stamp' | 'image' | 'signature'
   | 'polygon' | 'cloud' | 'cloudPolyline' | 'polyline' | 'text'
-  | 'arc' | 'spline' | 'redaction'
+  | 'arc' | 'spline' | 'splineArrow' | 'redaction'
   | 'measureDistance' | 'measureArea' | 'measurePerimeter' | 'measureAngle'
   | 'filledArea'
   | 'scaleBar'

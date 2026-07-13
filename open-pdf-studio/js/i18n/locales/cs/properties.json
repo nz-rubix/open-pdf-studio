@@ -165,6 +165,7 @@
     "line": "Čára",
     "arrow": "Šipka",
     "polyline": "Lomená čára",
+    "splineArrow": "Curved Arrow",
     "circle": "Elipsa",
     "box": "Obdélník",
     "polygon": "Mnohoúhelník",

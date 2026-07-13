@@ -270,6 +270,7 @@
     "line": "Line",
     "arrow": "Arrow",
     "polyline": "Polyline",
+    "splineArrow": "Curved Arrow",
     "circle": "Ellipse",
     "box": "Rectangle",
     "polygon": "Polygon",

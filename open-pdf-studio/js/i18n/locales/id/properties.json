@@ -165,6 +165,7 @@
     "line": "Garis",
     "arrow": "Panah",
     "polyline": "Polyline",
+    "splineArrow": "Curved Arrow",
     "circle": "Elips",
     "box": "Persegi Panjang",
     "polygon": "Poligon",

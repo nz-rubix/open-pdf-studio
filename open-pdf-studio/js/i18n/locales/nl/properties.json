@@ -230,6 +230,7 @@
     "line": "Lijn",
     "arrow": "Pijl",
     "polyline": "Polylijn",
+    "splineArrow": "Gebogen pijl",
     "circle": "Ellips",
     "box": "Rechthoek",
     "polygon": "Veelhoek",

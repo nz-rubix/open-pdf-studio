@@ -165,6 +165,7 @@
     "line": "Linje",
     "arrow": "Pil",
     "polyline": "Polylinje",
+    "splineArrow": "Curved Arrow",
     "circle": "Ellipse",
     "box": "Rektangel",
     "polygon": "Polygon",

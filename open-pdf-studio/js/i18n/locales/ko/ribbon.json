@@ -87,6 +87,8 @@
     "polyline": "폴리라인",
     "splineTitle": "스플라인 (더블클릭으로 완료)",
     "spline": "스플라인",
+    "splineArrow": "Curved Arrow",
+    "splineArrowTitle": "Curved arrow (double-click to finish)",
     "shapes": "도형",
     "rectangle": "사각형",
     "rect": "사각형",

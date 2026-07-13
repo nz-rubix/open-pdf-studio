@@ -87,6 +87,8 @@
     "polyline": "Polilinie",
     "splineTitle": "Spline (dublu clic pentru a termina)",
     "spline": "Spline",
+    "splineArrow": "Curved Arrow",
+    "splineArrowTitle": "Curved arrow (double-click to finish)",
     "shapes": "Forme",
     "rectangle": "Dreptunghi",
     "rect": "Drept.",

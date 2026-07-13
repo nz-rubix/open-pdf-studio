@@ -87,6 +87,8 @@
     "polyline": "Πολυγραμμή",
     "splineTitle": "Spline (διπλό κλικ για ολοκλήρωση)",
     "spline": "Spline",
+    "splineArrow": "Curved Arrow",
+    "splineArrowTitle": "Curved arrow (double-click to finish)",
     "shapes": "Σχήματα",
     "rectangle": "Ορθογώνιο",
     "rect": "Ορθ.",

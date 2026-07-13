@@ -87,6 +87,8 @@
     "polyline": "เส้นหลายจุด",
     "splineTitle": "สไปลน์ (ดับเบิลคลิกเพื่อสิ้นสุด)",
     "spline": "สไปลน์",
+    "splineArrow": "Curved Arrow",
+    "splineArrowTitle": "Curved arrow (double-click to finish)",
     "shapes": "รูปทรง",
     "rectangle": "สี่เหลี่ยม",
     "rect": "สี่เหลี่ยม",

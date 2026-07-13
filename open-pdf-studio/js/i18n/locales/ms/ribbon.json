@@ -87,6 +87,8 @@
     "polyline": "Polyline",
     "splineTitle": "Spline (klik dua kali untuk selesai)",
     "spline": "Spline",
+    "splineArrow": "Curved Arrow",
+    "splineArrowTitle": "Curved arrow (double-click to finish)",
     "shapes": "Bentuk",
     "rectangle": "Segi Empat Tepat",
     "rect": "Segi Empat",

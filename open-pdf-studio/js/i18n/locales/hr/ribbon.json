@@ -87,6 +87,8 @@
     "polyline": "Polilinija",
     "splineTitle": "Spline (dvaput kliknite za završetak)",
     "spline": "Spline",
+    "splineArrow": "Curved Arrow",
+    "splineArrowTitle": "Curved arrow (double-click to finish)",
     "shapes": "Oblici",
     "rectangle": "Pravokutnik",
     "rect": "Pravokutnik",

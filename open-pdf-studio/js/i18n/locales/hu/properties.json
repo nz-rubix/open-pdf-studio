@@ -165,6 +165,7 @@
     "line": "Vonal",
     "arrow": "Nyíl",
     "polyline": "Töröttvonal",
+    "splineArrow": "Curved Arrow",
     "circle": "Ellipszis",
     "box": "Téglalap",
     "polygon": "Sokszög",

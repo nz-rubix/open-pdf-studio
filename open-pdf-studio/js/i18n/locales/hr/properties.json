@@ -165,6 +165,7 @@
     "line": "Linija",
     "arrow": "Strelica",
     "polyline": "Polilinija",
+    "splineArrow": "Curved Arrow",
     "circle": "Elipsa",
     "box": "Pravokutnik",
     "polygon": "Poligon",

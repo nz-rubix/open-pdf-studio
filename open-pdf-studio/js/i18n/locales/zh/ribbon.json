@@ -87,6 +87,8 @@
     "polyline": "折线",
     "splineTitle": "样条线（双击完成）",
     "spline": "样条线",
+    "splineArrow": "Curved Arrow",
+    "splineArrowTitle": "Curved arrow (double-click to finish)",
     "shapes": "形状",
     "rectangle": "矩形",
     "rect": "矩形",

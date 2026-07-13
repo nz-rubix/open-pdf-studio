@@ -649,6 +649,7 @@ export function applyResize(annotation, handleType, deltaX, deltaY, originalAnn,
       break;
 
     case 'polyline':
+    case 'splineArrow':
     case 'cloudPolyline':
     case 'measureArea':
     case 'measurePerimeter':

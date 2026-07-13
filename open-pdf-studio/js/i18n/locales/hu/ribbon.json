@@ -87,6 +87,8 @@
     "polyline": "Töröttvonal",
     "splineTitle": "Spline (dupla kattintás a befejezéshez)",
     "spline": "Spline",
+    "splineArrow": "Curved Arrow",
+    "splineArrowTitle": "Curved arrow (double-click to finish)",
     "shapes": "Alakzatok",
     "rectangle": "Téglalap",
     "rect": "Téglalap",

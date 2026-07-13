@@ -263,7 +263,9 @@ export async function extractAnnotationColors(pageNum, pdfDoc) {
             const num = pdfNum(context.lookup(val) || val);
             if (num !== null) flatPoints.push(num);
           }
-          if (flatPoints.length >= 6) colors.opsPoints = flatPoints;
+          // >= 4 (2 points): spline arrows (issue #267) can have as few as two
+          // control points; the spline loader still self-gates on >= 6.
+          if (flatPoints.length >= 4) colors.opsPoints = flatPoints;
         }
       }
 

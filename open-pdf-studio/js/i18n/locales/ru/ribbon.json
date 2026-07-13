@@ -87,6 +87,8 @@
     "polyline": "Полилиния",
     "splineTitle": "Сплайн (двойной клик для завершения)",
     "spline": "Сплайн",
+    "splineArrow": "Curved Arrow",
+    "splineArrowTitle": "Curved arrow (double-click to finish)",
     "shapes": "Фигуры",
     "rectangle": "Прямоугольник",
     "rect": "Прямоуг.",

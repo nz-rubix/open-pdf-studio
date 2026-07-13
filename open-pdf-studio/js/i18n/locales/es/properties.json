@@ -165,6 +165,7 @@
     "line": "Línea",
     "arrow": "Flecha",
     "polyline": "Polilínea",
+    "splineArrow": "Curved Arrow",
     "circle": "Elipse",
     "box": "Rectángulo",
     "polygon": "Polígono",

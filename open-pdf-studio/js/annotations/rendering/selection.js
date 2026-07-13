@@ -123,7 +123,7 @@ export function drawSelectionHandles(ctx, annotation) {
   const isMeasureDist = annotation.type === 'measureDistance';
   // For point-based annotations, draw the polygon/polyline outline instead of bounding rect
   const isPointBased = ((annotation.type === 'measureArea' || annotation.type === 'measurePerimeter' ||
-    annotation.type === 'polyline' || annotation.type === 'cloudPolyline') ||
+    annotation.type === 'polyline' || annotation.type === 'cloudPolyline' || annotation.type === 'splineArrow') ||
     (annotation.type === 'filledArea' && isEditingContour)) && annotation.points && annotation.points.length >= 2;
   if (isMeasureAngle) {
     ctx.save();

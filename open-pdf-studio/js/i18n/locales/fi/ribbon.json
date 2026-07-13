@@ -87,6 +87,8 @@
     "polyline": "Murtoviiva",
     "splineTitle": "Spline (kaksoisnapsauta lopettaaksesi)",
     "spline": "Spline",
+    "splineArrow": "Curved Arrow",
+    "splineArrowTitle": "Curved arrow (double-click to finish)",
     "shapes": "Muodot",
     "rectangle": "Suorakulmio",
     "rect": "Suorak.",

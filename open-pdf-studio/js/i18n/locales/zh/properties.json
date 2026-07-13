@@ -165,6 +165,7 @@
     "line": "线条",
     "arrow": "箭头",
     "polyline": "折线",
+    "splineArrow": "Curved Arrow",
     "circle": "椭圆",
     "box": "矩形",
     "polygon": "多边形",

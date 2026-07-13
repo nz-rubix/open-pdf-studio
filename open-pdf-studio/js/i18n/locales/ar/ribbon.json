@@ -87,6 +87,8 @@
     "polyline": "خط متعدد",
     "splineTitle": "منحنى سبلاين (انقر مزدوج للإنهاء)",
     "spline": "سبلاين",
+    "splineArrow": "Curved Arrow",
+    "splineArrowTitle": "Curved arrow (double-click to finish)",
     "shapes": "أشكال",
     "rectangle": "مستطيل",
     "rect": "مستطيل",

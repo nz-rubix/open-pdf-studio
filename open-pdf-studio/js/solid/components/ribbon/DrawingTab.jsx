@@ -33,6 +33,7 @@ import { openDialog } from '../../../bridge.js';
 const placeholderIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="0" stroke-dasharray="3 2"/><path d="M9 9 L15 15 M15 9 L9 15" stroke-width="1"/></svg>`;
 const arcIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20 Q 12 4 20 20"/></svg>`;
 const splineIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17 C 7 2, 13 2, 12 12 S 17 22 21 7"/></svg>`;
+const splineArrowIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19 C 8 9, 14 7, 19 9"/><path d="M14 6 L 20 9 L 16 13.5"/></svg>`;
 const hatchIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18"/><path d="M3 9 L9 3 M3 15 L15 3 M3 21 L21 3 M9 21 L21 9 M15 21 L21 15" stroke-width="1"/></svg>`;
 const imageIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M3 17l5-5 4 4 3-3 6 6"/></svg>`;
 const moveIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>`;
@@ -131,6 +132,8 @@ export default function DrawingTab() {
             disabled={ro()} active={state.currentTool === 'line'} onClick={() => setTool('line')} />
           <RibbonButton size="small" id="dr-arrow" title={t('comment.arrow')} icon={arrowIcon}
             disabled={ro()} active={state.currentTool === 'arrow'} onClick={() => setTool('arrow')} />
+          <RibbonButton size="small" id="dr-spline-arrow" title={t('comment.splineArrowTitle')} icon={splineArrowIcon}
+            disabled={ro()} active={state.currentTool === 'splineArrow'} onClick={() => setTool('splineArrow')} />
           <RibbonButton size="small" id="dr-draw" title={t('comment.freehand')} icon={drawIcon}
             disabled={ro()} active={state.currentTool === 'draw'} onClick={() => setTool('draw')} />
           <RibbonButton size="small" id="dr-rect" title={t('comment.rectangle')} icon={rectIcon}

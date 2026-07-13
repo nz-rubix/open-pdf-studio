@@ -10,6 +10,7 @@ import { lineTool } from './line-tool.js';
 import { polylineTool, cloudPolylineTool } from './polyline-tool.js';
 import { arcTool } from './arc-tool.js';
 import { splineTool } from './spline-tool.js';
+import { splineArrowTool } from './spline-arrow-tool.js';
 import { measureDistanceTool, measureAreaTool, measurePerimeterTool, addHoleTool } from './measurement-tool.js';
 import { filledAreaTool } from './filled-area-tool.js';
 import { measureAngleTool } from './angle-tool.js';
@@ -55,6 +56,7 @@ export function registerAllTools() {
   registerTool('wall', lineTool);
   registerTool('arc', arcTool);
   registerTool('spline', splineTool);
+  registerTool('splineArrow', splineArrowTool);
 
   // Multi-click tools
   registerTool('polyline', polylineTool);

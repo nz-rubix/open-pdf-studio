@@ -87,6 +87,8 @@
     "polyline": "Polilinia",
     "splineTitle": "Spline (kliknij dwukrotnie, aby zakończyć)",
     "spline": "Spline",
+    "splineArrow": "Curved Arrow",
+    "splineArrowTitle": "Curved arrow (double-click to finish)",
     "shapes": "Kształty",
     "rectangle": "Prostokąt",
     "rect": "Prostokąt",

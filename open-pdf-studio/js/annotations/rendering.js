@@ -8,6 +8,7 @@ import { renderWatermarksBehind, renderWatermarksInFront } from '../watermark/wa
 import { drawPolygonShape, drawCloudShape, buildPolygonPath, buildCloudPath, buildCloudPolylinePath, drawTextboxContent, isRTLText } from './rendering/shapes.js';
 import { drawArrowheadOnCanvas, applyBorderStyle, drawDimensionLineEnding } from './rendering/decorations.js';
 import { catmullRomSpline } from '../tools/tools/spline-tool.js';
+import { catmullRomToBezier, splineArrowEndTangent } from './spline-arrow-geometry.js';
 import { drawDimension, drawMeasureAreaShape, drawCentroidLabel, drawMeasurePerimeterShape } from './rendering/measurements.js';
 import { applyHatchFill, applyHatchFillPolygon } from './rendering/hatch-patterns.js';
 import { drawWall } from './rendering/walls.js';
@@ -521,6 +522,41 @@ export function drawAnnotation(ctx, annotation) {
         ctx.setLineDash([]);
       }
       break;
+
+    case 'splineArrow': {
+      // Curved (spline) arrow — smooth Catmull-Rom curve through the clicked
+      // points with an arrowhead at the last point along the end tangent.
+      const saPts = annotation.points;
+      if (saPts && saPts.length >= 2) {
+        const segs = catmullRomToBezier(saPts);
+        ctx.strokeStyle = strokeColor;
+        ctx.fillStyle = annotation.fillColor || strokeColor;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        applyBorderStyle(ctx, annotation.borderStyle);
+        if (segs.length) {
+          ctx.beginPath();
+          ctx.moveTo(segs[0].x0, segs[0].y0);
+          for (const s of segs) ctx.bezierCurveTo(s.c1x, s.c1y, s.c2x, s.c2y, s.x1, s.y1);
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        // Arrowheads at end (and optionally start) of the curve.
+        const saHeadSize = annotation.headSize || 8;
+        const saEndHead = annotation.endHead || 'open';
+        const saStartHead = annotation.startHead || 'none';
+        if (saEndHead !== 'none') {
+          const tip = saPts[saPts.length - 1];
+          drawArrowheadOnCanvas(ctx, tip.x, tip.y, splineArrowEndTangent(saPts), saHeadSize, saEndHead);
+        }
+        if (saStartHead !== 'none') {
+          const startTip = saPts[0];
+          const revAngle = splineArrowEndTangent([...saPts].reverse());
+          drawArrowheadOnCanvas(ctx, startTip.x, startTip.y, revAngle, saHeadSize, saStartHead);
+        }
+      }
+      break;
+    }
 
     case 'circle':
       // Draw ellipse that fits in bounding box

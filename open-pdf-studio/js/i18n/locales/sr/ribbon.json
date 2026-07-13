@@ -87,6 +87,8 @@
     "polyline": "Полилинија",
     "splineTitle": "Сплајн (двокликом завршите)",
     "spline": "Сплајн",
+    "splineArrow": "Curved Arrow",
+    "splineArrowTitle": "Curved arrow (double-click to finish)",
     "shapes": "Облици",
     "rectangle": "Правоугаоник",
     "rect": "Правоуг.",

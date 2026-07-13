@@ -165,6 +165,7 @@
     "line": "Линия",
     "arrow": "Стрелка",
     "polyline": "Полилиния",
+    "splineArrow": "Curved Arrow",
     "circle": "Елипса",
     "box": "Правоъгълник",
     "polygon": "Многоъгълник",

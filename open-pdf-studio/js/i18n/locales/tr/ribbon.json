@@ -87,6 +87,8 @@
     "polyline": "Çoklu Çizgi",
     "splineTitle": "Spline (bitirmek için çift tıklayın)",
     "spline": "Spline",
+    "splineArrow": "Curved Arrow",
+    "splineArrowTitle": "Curved arrow (double-click to finish)",
     "shapes": "Şekiller",
     "rectangle": "Dikdörtgen",
     "rect": "Dikdörtgen",

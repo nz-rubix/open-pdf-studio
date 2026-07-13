@@ -106,6 +106,23 @@ function getAnnotationCenterAndSize(ann) {
       }
       return { centerX: 0, centerY: 0, width: 0, height: 0 };
     }
+    case 'splineArrow': {
+      if (ann.points && ann.points.length >= 2) {
+        const xs = ann.points.map(p => p.x);
+        const ys = ann.points.map(p => p.y);
+        const saMinX = Math.min(...xs);
+        const saMaxX = Math.max(...xs);
+        const saMinY = Math.min(...ys);
+        const saMaxY = Math.max(...ys);
+        return {
+          centerX: (saMinX + saMaxX) / 2,
+          centerY: (saMinY + saMaxY) / 2,
+          width: saMaxX - saMinX || 1,
+          height: saMaxY - saMinY || 1
+        };
+      }
+      return { centerX: 0, centerY: 0, width: 0, height: 0 };
+    }
     case 'circle':
       const w = ann.width || ann.radius * 2;
       const h = ann.height || ann.radius * 2;
@@ -213,6 +230,16 @@ export function findAnnotationAt(x, y) {
       case 'spline': {
         if (ann.controlPoints && ann.controlPoints.length >= 3) {
           const samples = catmullRomSpline(ann.controlPoints, 16);
+          for (let i = 0; i < samples.length - 1; i++) {
+            const d = distanceToLine(x, y, samples[i].x, samples[i].y, samples[i + 1].x, samples[i + 1].y);
+            if (d < tol) return ann;
+          }
+        }
+        break;
+      }
+      case 'splineArrow': {
+        if (ann.points && ann.points.length >= 2) {
+          const samples = catmullRomSpline(ann.points, 16);
           for (let i = 0; i < samples.length - 1; i++) {
             const d = distanceToLine(x, y, samples[i].x, samples[i].y, samples[i + 1].x, samples[i + 1].y);
             if (d < tol) return ann;
@@ -560,6 +587,17 @@ export function isPointInsideAnnotation(x, y, annotation) {
     case 'spline': {
       if (annotation.controlPoints && annotation.controlPoints.length >= 3) {
         const samples = catmullRomSpline(annotation.controlPoints, 16);
+        for (let i = 0; i < samples.length - 1; i++) {
+          const d = distanceToLine(localX, localY, samples[i].x, samples[i].y, samples[i + 1].x, samples[i + 1].y);
+          if (d < 15) return true;
+        }
+      }
+      return false;
+    }
+
+    case 'splineArrow': {
+      if (annotation.points && annotation.points.length >= 2) {
+        const samples = catmullRomSpline(annotation.points, 16);
         for (let i = 0; i < samples.length - 1; i++) {
           const d = distanceToLine(localX, localY, samples[i].x, samples[i].y, samples[i + 1].x, samples[i + 1].y);
           if (d < 15) return true;

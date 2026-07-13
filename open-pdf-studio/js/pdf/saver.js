@@ -22,7 +22,7 @@ import { saveBookmarksToOutline } from './saver/bookmarks.js';
 import { saveStylePresetsToCatalog } from './saver/style-presets.js';
 import { catmullRomSpline } from '../tools/tools/spline-tool.js';
 import { buildFilledAreaAP, buildMeasureAreaAP, buildPolylineMeasureAP,
-  buildMeasureDistanceAP, buildWallAP, buildCloudAP,
+  buildMeasureDistanceAP, buildWallAP, buildCloudAP, buildSplineArrowAP,
   cloudRectOutlinePts, cloudPolyOutlinePts } from './saver/appearance-vectors.js';
 import { computeWallShape, resolveWallMaterial } from '../annotations/rendering/walls.js';
 
@@ -640,6 +640,82 @@ export async function savePDF(saveAsPath = null) {
             splineDict.BS = buildBorderStyle(context, borderWidth, ann.borderStyle);
 
             annotDict = context.obj(splineDict);
+            break;
+          }
+
+          case 'splineArrow': {
+            // Curved (spline) arrow — issue #267. Persisted as a PolyLine whose
+            // /Vertices trace the smooth curve (so third-party viewers show the
+            // bend, not a straight chord) with /LE line-endings for the
+            // arrowhead. The clicked control points are stored in /OPS_Points so
+            // OPDS reloads it as an editable spline arrow, and an explicit /AP
+            // draws the curve + arrowhead for pixel-faithful rendering.
+            if (!ann.points || ann.points.length < 2) continue;
+
+            const saSamples = catmullRomSpline(ann.points, 16);
+            const saVertices = [];
+            let saMinX = Infinity, saMinY = Infinity, saMaxX = -Infinity, saMaxY = -Infinity;
+            for (const s of saSamples) {
+              const px = convertX(s.x);
+              const py = convertY(s.y);
+              saVertices.push(px, py);
+              saMinX = Math.min(saMinX, px); saMaxX = Math.max(saMaxX, px);
+              saMinY = Math.min(saMinY, py); saMaxY = Math.max(saMaxY, py);
+            }
+
+            const saStrokeColor = ann.strokeColor ? hexToColorArray(ann.strokeColor) : colorArr;
+            const saHeadSize = ann.headSize || 8;
+            const saPad = Math.max(borderWidth, saHeadSize) + 2;
+
+            const saMapHead = (h) => {
+              switch (h) {
+                case 'open': return 'OpenArrow';
+                case 'closed': return 'ClosedArrow';
+                case 'diamond': return 'Diamond';
+                case 'circle': return 'Circle';
+                case 'square': return 'Square';
+                case 'slash': return 'Slash';
+                case 'butt': return 'Butt';
+                case 'openReversed': return 'ROpenArrow';
+                case 'closedReversed': return 'RClosedArrow';
+                default: return 'None';
+              }
+            };
+
+            // OPS_Points = clicked control points (app curve is rebuilt from these).
+            const saOpsPoints = [];
+            for (const cp of ann.points) saOpsPoints.push(convertX(cp.x), convertY(cp.y));
+
+            const saRect = [saMinX - saPad, saMinY - saPad, saMaxX + saPad, saMaxY + saPad];
+            const splineArrowDict = {
+              Type: 'Annot',
+              Subtype: 'PolyLine',
+              Rect: saRect,
+              Vertices: saVertices,
+              C: saStrokeColor,
+              CA: opacity,
+              LE: [PDFName.of(saMapHead(ann.startHead)), PDFName.of(saMapHead(ann.endHead || 'open'))],
+              T: PDFString.of(ann.author || 'User'),
+              Contents: PDFString.of(ann.subject || ''),
+              M: PDFString.of(new Date().toISOString()),
+              F: computeAnnotFlags(ann),
+              OPS_Subtype: PDFString.of('splineArrow'),
+              OPS_Points: context.obj(saOpsPoints),
+              OPS_HeadSize: saHeadSize,
+            };
+            if (hasFill(ann.fillColor)) splineArrowDict.IC = hexToColorArray(ann.fillColor);
+            splineArrowDict.BS = buildBorderStyle(context, borderWidth, ann.borderStyle);
+
+            annotDict = context.obj(splineArrowDict);
+
+            attachVectorAP(context, annotDict, buildSplineArrowAP({
+              points: ann.points, X: convertX, Y: convertY,
+              strokeColorHex: ann.strokeColor || ann.color || '#000000',
+              fillColorHex: ann.fillColor,
+              lineWidth: borderWidth, borderStyle: ann.borderStyle,
+              startHead: ann.startHead || 'none', endHead: ann.endHead || 'open',
+              headSize: saHeadSize,
+            }), saRect);
             break;
           }
 

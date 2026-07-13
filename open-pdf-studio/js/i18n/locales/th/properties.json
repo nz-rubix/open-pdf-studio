@@ -165,6 +165,7 @@
     "line": "เส้น",
     "arrow": "ลูกศร",
     "polyline": "เส้นหลายจุด",
+    "splineArrow": "Curved Arrow",
     "circle": "วงรี",
     "box": "สี่เหลี่ยม",
     "polygon": "รูปหลายเหลี่ยม",

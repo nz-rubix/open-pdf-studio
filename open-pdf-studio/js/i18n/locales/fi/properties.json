@@ -165,6 +165,7 @@
     "line": "Viiva",
     "arrow": "Nuoli",
     "polyline": "Murtoviiva",
+    "splineArrow": "Curved Arrow",
     "circle": "Ellipsi",
     "box": "Suorakulmio",
     "polygon": "Monikulmio",

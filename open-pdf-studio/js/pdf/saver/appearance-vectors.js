@@ -16,6 +16,7 @@
 
 import { hexToRgb } from './utils.js';
 import { getHatchLineFamilies } from './hatch-catalog.js';
+import { catmullRomToBezier, splineArrowEndTangent } from '../../annotations/spline-arrow-geometry.js';
 
 // ── number / string formatting ──────────────────────────────────────────────
 const f = (n) => {
@@ -397,6 +398,67 @@ export function buildCloudAP({ kind, x, y, w, h, points, puff, X, Y,
   }
   s += `${f(stroke[0])} ${f(stroke[1])} ${f(stroke[2])} RG\n${f(lineWidth ?? 1)} w\n${dashOp(borderStyle)}`;
   s += pathOps(outline, X, Y, true) + 'S\n';
+  return { content: s, needsFont: false };
+}
+
+// splineArrow: smooth Catmull-Rom curve (as cubic Béziers) through the clicked
+// points, plus an arrowhead at the end (and optionally the start). All geometry
+// is computed in APP space and converted per-point via X()/Y(), so the PDF
+// appearance matches the on-screen canvas (issue #267).
+const _FILLED_HEADS = new Set(['closed', 'closedReversed', 'diamond', 'square', 'circle']);
+
+// Emit one arrowhead at app-space tip (tx,ty) pointing along `angle`
+// (screen/app space, y-down). Mirrors decorations.js drawArrowheadOnCanvas:
+// half-angle 30°, tip at the point, back corners at (-size, ±size·tan30°).
+function arrowheadOps(tx, ty, angle, size, style, strokeRgb, fillRgb, lineWidth, X, Y) {
+  const t = Math.tan(Math.PI / 6);
+  const cos = Math.cos(angle), sin = Math.sin(angle);
+  // Rotate a local (lx,ly) into app space around the tip.
+  const world = (lx, ly) => ({ x: tx + lx * cos - ly * sin, y: ty + lx * sin + ly * cos });
+  const bl = world(-size, -size * t);
+  const br = world(-size, size * t);
+  let s = `${f(strokeRgb[0])} ${f(strokeRgb[1])} ${f(strokeRgb[2])} RG\n${f(lineWidth ?? 1)} w\n[] 0 d\n`;
+  if (_FILLED_HEADS.has(style)) {
+    // Filled triangle: tip -> back-left -> back-right, close, fill+stroke.
+    const fill = fillRgb || strokeRgb;
+    s += `${f(fill[0])} ${f(fill[1])} ${f(fill[2])} rg\n`;
+    s += `${f(X(tx))} ${f(Y(ty))} m ${f(X(bl.x))} ${f(Y(bl.y))} l ${f(X(br.x))} ${f(Y(br.y))} l h\nB\n`;
+  } else {
+    // Open V: back-left -> tip -> back-right, stroked only.
+    s += `${f(X(bl.x))} ${f(Y(bl.y))} m ${f(X(tx))} ${f(Y(ty))} l ${f(X(br.x))} ${f(Y(br.y))} l S\n`;
+  }
+  return s;
+}
+
+export function buildSplineArrowAP({ points, X, Y, strokeColorHex, fillColorHex,
+  lineWidth, borderStyle, startHead, endHead, headSize }) {
+  const segs = catmullRomToBezier(points);
+  if (segs.length === 0) return null;
+  const stroke = hexToRgb(strokeColorHex || '#000000');
+  const fill = fillColorHex && fillColorHex !== 'none' && fillColorHex !== 'transparent'
+    ? hexToRgb(fillColorHex) : null;
+  const lw = lineWidth ?? 1;
+  const size = headSize || 8;
+
+  // Curve (bezier chain).
+  let s = `${f(stroke[0])} ${f(stroke[1])} ${f(stroke[2])} RG\n${f(lw)} w\n1 J 1 j\n${dashOp(borderStyle)}`;
+  s += `${f(X(segs[0].x0))} ${f(Y(segs[0].y0))} m\n`;
+  for (const seg of segs) {
+    s += `${f(X(seg.c1x))} ${f(Y(seg.c1y))} ${f(X(seg.c2x))} ${f(Y(seg.c2y))} ${f(X(seg.x1))} ${f(Y(seg.y1))} c\n`;
+  }
+  s += 'S\n';
+
+  // End arrowhead.
+  if (endHead && endHead !== 'none') {
+    const tip = points[points.length - 1];
+    s += arrowheadOps(tip.x, tip.y, splineArrowEndTangent(points), size, endHead, stroke, fill, lw, X, Y);
+  }
+  // Start arrowhead (curve reversed to get the outgoing tangent at the start).
+  if (startHead && startHead !== 'none') {
+    const tip = points[0];
+    const revAngle = splineArrowEndTangent([...points].reverse());
+    s += arrowheadOps(tip.x, tip.y, revAngle, size, startHead, stroke, fill, lw, X, Y);
+  }
   return { content: s, needsFont: false };
 }
 

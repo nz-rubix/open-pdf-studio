@@ -17,7 +17,7 @@ import { recalculateAllMeasurements, calculateArea, calculatePerimeter, calculat
 // strokeColor or a stale strokeColor would override the change (the reported
 // "polyline colour change does nothing" bug).
 const _STROKE_COLOR_DRIVEN = new Set([
-  'parametricSymbol', 'polyline', 'cloudPolyline', 'spline', 'draw',
+  'parametricSymbol', 'polyline', 'cloudPolyline', 'spline', 'splineArrow', 'draw',
 ]);
 
 // Panel visibility and collapsed state
@@ -187,7 +187,7 @@ function computeSectionVisibility(type) {
   const hideLineWidth = ['highlight', 'comment', 'image', 'textHighlight'].includes(type);
   const hasFillColor = ['highlight', 'box', 'circle', 'polygon', 'cloud', 'textbox', 'callout', 'arrow', 'line', 'measureArea', 'filledArea'].includes(type);
   const hideColor = ['line', 'arrow', 'box', 'circle', 'draw', 'highlight', 'image', 'textbox', 'callout', 'polygon', 'cloud', 'measureDistance', 'measureArea', 'measurePerimeter', 'filledArea'].includes(type);
-  const hasBorderStyle = ['textbox', 'callout', 'arrow', 'line', 'box', 'circle', 'polygon', 'cloud', 'draw', 'polyline', 'measureDistance', 'measureArea', 'measurePerimeter', 'filledArea'].includes(type);
+  const hasBorderStyle = ['textbox', 'callout', 'arrow', 'line', 'box', 'circle', 'polygon', 'cloud', 'draw', 'polyline', 'splineArrow', 'measureDistance', 'measureArea', 'measurePerimeter', 'filledArea'].includes(type);
   const hasHatchPattern = ['box', 'circle', 'polygon', 'cloud', 'measureArea', 'filledArea'].includes(type);
   const hasRotation = ['box', 'circle', 'polygon', 'cloud', 'highlight', 'redaction', 'comment', 'stamp', 'signature'].includes(type);
   const isMeasurement = ['measureDistance', 'measureArea', 'measurePerimeter'].includes(type);
@@ -204,7 +204,7 @@ function computeSectionVisibility(type) {
     general: true,
     replies: !isScaleBar,
     appearance: !isScaleBar,
-    lineEndings: isArrow || type === 'measureDistance' || type === 'measurePerimeter',
+    lineEndings: isArrow || type === 'splineArrow' || type === 'measureDistance' || type === 'measurePerimeter',
     dimensions: isLineOrArrow,
     measurement: isMeasurement,
     scaleBar: isScaleBar,
@@ -500,7 +500,7 @@ export function storeShowMultiSelection(selected) {
   const strokeColorTypes = new Set(['line', 'arrow', 'box', 'circle', 'draw', 'textbox', 'callout', 'polygon', 'cloud']);
   const hideColorTypes = new Set(['line', 'arrow', 'box', 'circle', 'draw', 'highlight', 'image', 'textbox', 'callout', 'polygon', 'cloud']);
   const hideLineWidthTypes = new Set(['highlight', 'comment', 'image', 'textHighlight']);
-  const borderStyleTypes = new Set(['textbox', 'callout', 'arrow', 'line', 'box', 'circle', 'polygon', 'cloud', 'draw', 'polyline']);
+  const borderStyleTypes = new Set(['textbox', 'callout', 'arrow', 'line', 'box', 'circle', 'polygon', 'cloud', 'draw', 'polyline', 'splineArrow']);
   const hatchPatternTypes = new Set(['box', 'circle', 'polygon', 'cloud', 'measureArea', 'filledArea']);
   const rotationTypes = new Set(['box', 'circle', 'polygon', 'cloud', 'highlight', 'redaction', 'comment', 'stamp', 'signature']);
   const textboxTypes = new Set(['textbox', 'callout']);
@@ -512,7 +512,7 @@ export function storeShowMultiSelection(selected) {
     general: true,
     replies: false,
     appearance: true,
-    lineEndings: allSameType && sharedType === 'arrow',
+    lineEndings: allSameType && (sharedType === 'arrow' || sharedType === 'splineArrow'),
     dimensions: false,
     measurement: false,
     textFormat: allMatch(t => textboxTypes.has(t)),
