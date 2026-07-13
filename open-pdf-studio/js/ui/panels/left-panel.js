@@ -232,6 +232,10 @@ export async function generateThumbnails() {
   if (!documentState.has(docId)) {
     documentState.set(docId, {
       pdfDoc,
+      // Keep a reference to the owning document so background thumbnail
+      // renders resolve paths/annotations against THIS document, not whatever
+      // happens to be active (see renderThumbnailToDataURL).
+      doc: activeDoc,
       numPages,
       nextPage: 1,
       startPage: 1,
@@ -394,7 +398,7 @@ async function processPriorityThumbnail(docId) {
 
   const gen = getPageGen(docId, pageNum);
   try {
-    const imageData = await renderThumbnailToDataURL(pdfDoc, pageNum);
+    const imageData = await renderThumbnailToDataURL(pdfDoc, pageNum, docState.doc);
     if (imageData) {
       // Drop result if a newer invalidate raced past us — prevents stale
       // overlay (e.g. old annotation snapshot) from overwriting fresh cache.
@@ -449,7 +453,7 @@ async function processDocumentThumbnail(docId) {
 
     const gen = getPageGen(docId, pageNum);
     try {
-      const imageData = await renderThumbnailToDataURL(pdfDoc, pageNum);
+      const imageData = await renderThumbnailToDataURL(pdfDoc, pageNum, docState.doc);
       if (imageData) {
         if (!pageGenMatches(docId, pageNum, gen)) {
           return true;
@@ -475,8 +479,11 @@ async function processDocumentThumbnail(docId) {
 // Composite plugin/Solid-store annotations on top of a rendered thumbnail
 // dataURL. Returns a new dataURL with annotations overlayed. If the page has
 // no annotations, returns the input dataURL unchanged (zero-cost early-exit).
-async function overlayAnnotationsOnDataURL(dataURL, pageNum, width, height, scale) {
-  const doc = getActiveDocument();
+async function overlayAnnotationsOnDataURL(dataURL, pageNum, width, height, scale, doc) {
+  // Overlay the OWNING document's annotations, not the active one's (see
+  // renderThumbnailToDataURL) — otherwise a background thumbnail got the
+  // active document's annotations painted on it.
+  if (!doc) doc = getActiveDocument();
   const annotations = (doc?.annotations || []).filter(a => a.page === pageNum);
   if (annotations.length === 0) return dataURL;
   try {
@@ -513,11 +520,17 @@ async function overlayAnnotationsOnDataURL(dataURL, pageNum, width, height, scal
 // (already extracted by the main viewer) for ~3-6× speedup; falls back to the
 // Rust backend, then PDF.js. Reusing the cache avoids re-parsing the PDF
 // content stream + IPC + JPEG encode + base64 round-trip.
-async function renderThumbnailToDataURL(pdfDoc, pageNum) {
+async function renderThumbnailToDataURL(pdfDoc, pageNum, doc) {
   if (!pdfDoc || !Number.isInteger(pageNum) || pageNum < 1 || pageNum > pdfDoc.numPages) return null;
   const _th0 = performance.now();
 
-  const doc = getActiveDocument();
+  // `doc` is the document that owns `pdfDoc`, passed by the thumbnail processor.
+  // The old code always used getActiveDocument() here, so a background
+  // document's thumbnails were rendered against the ACTIVE document's file
+  // path (and annotations) — one file's pages leaked into another's panel when
+  // several documents were open. Only fall back to the active doc for legacy
+  // direct callers that don't pass one.
+  if (!doc) doc = getActiveDocument();
 
   // ── Fast path: JS replay of cached vector commands ────────────────────────
   // Only viable if the main viewer has already populated the cache for this
@@ -554,7 +567,7 @@ async function renderThumbnailToDataURL(pdfDoc, pageNum) {
           const dataURL = canvas.toDataURL('image/jpeg', 0.7);
           // Overlay annotations on top (same as Rust path).
           try {
-            const composited = await overlayAnnotationsOnDataURL(dataURL, pageNum, w, h, scale);
+            const composited = await overlayAnnotationsOnDataURL(dataURL, pageNum, w, h, scale, doc);
             return { dataURL: composited, width: w, height: h };
           } catch {
             return { dataURL, width: w, height: h };
@@ -604,7 +617,7 @@ async function renderThumbnailToDataURL(pdfDoc, pageNum) {
           const overlayScale = widthPt ? w / widthPt : null;
           if (overlayScale) {
             try {
-              const composited = await overlayAnnotationsOnDataURL(dataURL, pageNum, w, h, overlayScale);
+              const composited = await overlayAnnotationsOnDataURL(dataURL, pageNum, w, h, overlayScale, doc);
               console.log(`[thumb] p${pageNum} uit prog-bitmap (${w}x${h})`);
               return { dataURL: composited, width: w, height: h };
             } catch { /* val terug op kale bitmap hieronder */ }
@@ -647,7 +660,7 @@ async function renderThumbnailToDataURL(pdfDoc, pageNum) {
               const oScale = doc.pageDims?.[pageNum]?.widthPt ? w / doc.pageDims[pageNum].widthPt : null;
               if (oScale) {
                 try {
-                  const composited = await overlayAnnotationsOnDataURL(dataURL, pageNum, w, h, oScale);
+                  const composited = await overlayAnnotationsOnDataURL(dataURL, pageNum, w, h, oScale, doc);
                   console.log(`[thumb] p${pageNum} via pool-render (${w}x${h})`);
                   return { dataURL: composited, width: w, height: h };
                 } catch { /* val terug op kale bitmap */ }
@@ -685,7 +698,7 @@ async function renderThumbnailToDataURL(pdfDoc, pageNum) {
         const page = await pdfDoc.getPage(pageNum);
         const viewport = page.getViewport({ scale: 1 });
         const scale = data.width / viewport.width;
-        const composited = await overlayAnnotationsOnDataURL(data.dataURL, pageNum, data.width, data.height, scale);
+        const composited = await overlayAnnotationsOnDataURL(data.dataURL, pageNum, data.width, data.height, scale, doc);
         return { dataURL: composited, width: data.width, height: data.height };
       } catch {
         return { dataURL: data.dataURL, width: data.width, height: data.height };
@@ -725,8 +738,10 @@ async function renderThumbnailToDataURL(pdfDoc, pageNum) {
       // viewport.width = pdfPtWidth * THUMBNAIL_SCALE, dus scale-factor naar
       // PDF-pt-coordsysteem = THUMBNAIL_SCALE.
       try {
-        const docActive = getActiveDocument();
-        const annotations = (docActive?.annotations || []).filter(a => a.page === pageNum);
+        // Use the owning document's annotations (not the active one's) — same
+        // cross-document leak as the other thumbnail paths.
+        const docAnn = doc || getActiveDocument();
+        const annotations = (docAnn?.annotations || []).filter(a => a.page === pageNum);
         if (annotations.length > 0) {
           ctx.save();
           ctx.scale(THUMBNAIL_SCALE, THUMBNAIL_SCALE);
