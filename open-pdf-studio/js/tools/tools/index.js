@@ -24,6 +24,7 @@ import { scaleBarTool } from './scalebar-tool.js';
 import { trimTool } from './trim-tool.js';
 import { extendTool } from './extend-tool.js';
 import { arrayTool } from './array-tool.js';
+import { removeImageTool } from './remove-image-tool.js';
 
 export function registerAllTools() {
   // Navigation / selection
@@ -96,6 +97,9 @@ export function registerAllTools() {
 
   // Plugin fallback
   registerTool('_plugin_click', pluginClickTool);
+
+  // Remove an image that is embedded in the PDF page content (issue #184)
+  registerTool('removeImage', removeImageTool);
 
   // CAD tools
   registerTool('trim', trimTool);

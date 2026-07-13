@@ -4,6 +4,7 @@ import AdaptiveGroups from './AdaptiveGroups.jsx';
 import RibbonButton from './RibbonButton.jsx';
 import RibbonButtonStack from './RibbonButtonStack.jsx';
 import { setTool } from '../../../tools/manager.js';
+import { startRemoveImageTool } from '../../../tools/tools/remove-image-tool.js';
 import { state, getActiveDocument, noPdf } from '../../../core/state.js';
 import { savePreferences } from '../../../core/preferences.js';
 import { isPdfAReadOnly } from '../../../pdf/loader.js';
@@ -36,6 +37,7 @@ const splineIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 const splineArrowIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19 C 8 9, 14 7, 19 9"/><path d="M14 6 L 20 9 L 16 13.5"/></svg>`;
 const hatchIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18"/><path d="M3 9 L9 3 M3 15 L15 3 M3 21 L21 3 M9 21 L21 9 M15 21 L21 15" stroke-width="1"/></svg>`;
 const imageIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M3 17l5-5 4 4 3-3 6 6"/></svg>`;
+const removeImageIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="13" height="13"/><circle cx="7" cy="7" r="1.3"/><path d="M3 12l3.5-3.5 3 3"/><path d="M14.5 14.5l6.5 6.5M21 14.5l-6.5 6.5"/></svg>`;
 const moveIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>`;
 const copyAnnIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="8" y="8" width="12" height="12"/><rect x="4" y="4" width="12" height="12"/></svg>`;
 const arrayIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="6" height="6"/><rect x="15" y="3" width="6" height="6"/><rect x="3" y="15" width="6" height="6"/><rect x="15" y="15" width="6" height="6"/></svg>`;
@@ -162,6 +164,8 @@ export function DrawingGroups() {
           <RibbonButton size="small" id="dr-l-shape" title={cs} icon={placeholderIcon} disabled={true} />
           <RibbonButton size="small" id="dr-image" title={t('drawing.image')} icon={imageIcon}
             disabled={ro()} active={state.currentTool === 'image'} onClick={() => setTool('image')} />
+          <RibbonButton size="small" id="dr-remove-image" title={t('drawing.removeImage')} icon={removeImageIcon}
+            disabled={ro()} active={state.currentTool === 'removeImage'} onClick={() => startRemoveImageTool()} />
         </RibbonGroup>
 
         {/* LIJN-OPTIES — alleen zichtbaar bij het lijn-gereedschap. Bevat het

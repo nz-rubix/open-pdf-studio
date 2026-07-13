@@ -15,6 +15,7 @@ import { drawWall } from './rendering/walls.js';
 import { getAnnotationType } from '../plugins/annotation-type-registry.js';
 import { drawSelectionHandles } from './rendering/selection.js';
 import { drawImageCropOverlay } from './image-crop-overlay.js';
+import { drawEmbeddedImageOverlay } from '../tools/tools/remove-image-tool.js';
 import { updateQuickAccessButtons, updateContextualTabs, drawGrid, snapToGrid } from './rendering/ui-state.js';
 import { drawCommentIcon } from './rendering/comment-icons.js';
 import { spatialIndex } from './spatial-index.js';
@@ -2324,6 +2325,9 @@ export function redrawAnnotations(lightweight = false) {
   // Drawn after selection handles so the crop rectangle sits on top.
   drawImageCropOverlay(annotationCtx, curPage);
 
+  // Embedded image-removal tool highlights (issue #184).
+  drawEmbeddedImageOverlay(annotationCtx, curPage);
+
   // Blender-style 2D cursor (Shift+right-click places it; hidden until set).
   if (_renderDoc?.cursor2D && _renderDoc.cursor2D.page === curPage) {
     _draw2DCursor(annotationCtx, _renderDoc.cursor2D.x, _renderDoc.cursor2D.y, effectiveScale);
@@ -2432,6 +2436,9 @@ export function renderAnnotationsForPage(ctx, pageNum, width, height, overrideDp
 
   // Interactive image-crop overlay for the page being cropped (continuous).
   drawImageCropOverlay(ctx, pageNum);
+
+  // Embedded image-removal tool highlights (issue #184).
+  drawEmbeddedImageOverlay(ctx, pageNum);
 
   // Restore context
   ctx.restore();
