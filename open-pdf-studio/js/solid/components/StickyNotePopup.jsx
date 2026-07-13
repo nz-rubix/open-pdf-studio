@@ -276,6 +276,7 @@ function StickyNotePopup(props) {
       <textarea
         ref={textareaRef}
         class="sticky-popup-textarea"
+        dir="auto"
         style={{ background: bgColor() }}
         value={ann()?.text || ''}
         onInput={handleInput}

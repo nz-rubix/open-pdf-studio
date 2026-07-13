@@ -241,6 +241,7 @@ export default function TextAnnotationDialog(props) {
       <textarea
         ref={textareaRef}
         id="text-annot-input"
+        dir="auto"
         placeholder={t('textAnnotation.placeholder')}
         spellcheck={true}
         value={text()}

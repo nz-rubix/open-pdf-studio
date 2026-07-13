@@ -29,6 +29,7 @@ export default function PdfTextEditOverlay() {
       <textarea
         ref={textareaRef}
         class="pdf-text-editor"
+        dir="auto"
         style={editorStyle()}
         value={text()}
         onInput={(e) => setText(e.target.value)}

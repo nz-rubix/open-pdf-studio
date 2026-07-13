@@ -153,6 +153,7 @@ export default function TextEditOverlay() {
         <textarea
           ref={textareaRef}
           class="inline-text-editor"
+          dir="auto"
           style={textareaStyle()}
           value={text()}
           onInput={handleInput}
