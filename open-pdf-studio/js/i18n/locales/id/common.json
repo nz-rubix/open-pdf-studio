@@ -109,5 +109,6 @@
     "openExternalFile": "Buka: {{filename}}",
     "destination": "Tujuan: {{name}}",
     "internalLink": "Tautan Internal"
-  }
+  },
+  "failedToInsertPagesFromFile": "Failed to insert pages from file: {{error}}"
 }

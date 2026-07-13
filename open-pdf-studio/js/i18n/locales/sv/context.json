@@ -93,7 +93,10 @@
     "deletePages": "Radera sidor",
     "deletePageConfirm": "Radera sida {{page}}?",
     "deletePageTitle": "Radera sida",
-    "properties": "Egenskaper"
+    "properties": "Egenskaper",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Markera markering",

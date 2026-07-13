@@ -93,7 +93,10 @@
     "deletePages": "পৃষ্ঠা মুছুন",
     "deletePageConfirm": "পৃষ্ঠা {{page}} মুছে ফেলবেন?",
     "deletePageTitle": "পৃষ্ঠা মুছুন",
-    "properties": "বৈশিষ্ট্য"
+    "properties": "বৈশিষ্ট্য",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "নির্বাচন হাইলাইট করুন",

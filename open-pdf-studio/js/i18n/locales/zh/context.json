@@ -93,7 +93,10 @@
     "deletePages": "删除页面",
     "deletePageConfirm": "删除第 {{page}} 页？",
     "deletePageTitle": "删除页面",
-    "properties": "属性"
+    "properties": "属性",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "高亮选择",

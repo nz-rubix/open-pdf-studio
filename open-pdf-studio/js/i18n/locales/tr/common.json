@@ -109,5 +109,6 @@
     "openExternalFile": "Aç: {{filename}}",
     "destination": "Hedef: {{name}}",
     "internalLink": "Dahili Bağlantı"
-  }
+  },
+  "failedToInsertPagesFromFile": "Failed to insert pages from file: {{error}}"
 }

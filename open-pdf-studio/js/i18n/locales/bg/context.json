@@ -93,7 +93,10 @@
     "deletePages": "Изтриване на страници",
     "deletePageConfirm": "Изтриване на страница {{page}}?",
     "deletePageTitle": "Изтриване на страница",
-    "properties": "Свойства"
+    "properties": "Свойства",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Маркиране на избраното",

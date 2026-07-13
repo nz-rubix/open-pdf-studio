@@ -93,7 +93,10 @@
     "deletePages": "पृष्ठ हटाएं",
     "deletePageConfirm": "पृष्ठ {{page}} हटाएं?",
     "deletePageTitle": "पृष्ठ हटाएं",
-    "properties": "गुण"
+    "properties": "गुण",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "चयन हाइलाइट करें",

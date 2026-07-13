@@ -93,7 +93,10 @@
     "deletePages": "Futa Kurasa",
     "deletePageConfirm": "Futa ukurasa {{page}}?",
     "deletePageTitle": "Futa Ukurasa",
-    "properties": "Sifa"
+    "properties": "Sifa",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Angaza Chaguo",

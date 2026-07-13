@@ -93,7 +93,10 @@
     "deletePages": "ページを削除",
     "deletePageConfirm": "{{page}} ページを削除しますか？",
     "deletePageTitle": "ページの削除",
-    "properties": "プロパティ"
+    "properties": "プロパティ",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "選択範囲をハイライト",

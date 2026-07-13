@@ -93,7 +93,10 @@
     "deletePages": "מחיקת עמודים",
     "deletePageConfirm": "למחוק את עמוד {{page}}?",
     "deletePageTitle": "מחיקת עמוד",
-    "properties": "מאפיינים"
+    "properties": "מאפיינים",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "הדגשת הבחירה",

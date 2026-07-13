@@ -109,5 +109,6 @@
     "openExternalFile": "Mở: {{filename}}",
     "destination": "Đích đến: {{name}}",
     "internalLink": "Liên kết nội bộ"
-  }
+  },
+  "failedToInsertPagesFromFile": "Failed to insert pages from file: {{error}}"
 }

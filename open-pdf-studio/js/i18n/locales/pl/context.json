@@ -93,7 +93,10 @@
     "deletePages": "Usuń strony",
     "deletePageConfirm": "Usunąć stronę {{page}}?",
     "deletePageTitle": "Usuń stronę",
-    "properties": "Właściwości"
+    "properties": "Właściwości",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Podkreśl zaznaczenie",

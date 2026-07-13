@@ -93,7 +93,10 @@
     "deletePages": "Удалить страницы",
     "deletePageConfirm": "Удалить страницу {{page}}?",
     "deletePageTitle": "Удаление страницы",
-    "properties": "Свойства"
+    "properties": "Свойства",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Выделить выделенное",

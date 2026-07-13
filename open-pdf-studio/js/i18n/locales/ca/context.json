@@ -93,7 +93,10 @@
     "deletePages": "Suprimeix pàgines",
     "deletePageConfirm": "Voleu suprimir la pàgina {{page}}?",
     "deletePageTitle": "Suprimeix la pàgina",
-    "properties": "Propietats"
+    "properties": "Propietats",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Ressalta la selecció",

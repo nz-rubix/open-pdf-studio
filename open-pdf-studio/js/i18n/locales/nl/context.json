@@ -109,7 +109,10 @@
     "rotateRightPages": "{{count}} pagina's rechtsom draaien",
     "deletePagesMulti": "{{count}} pagina's verwijderen",
     "selectAll": "Alle pagina's selecteren",
-    "deselectAll": "Selectie opheffen"
+    "deselectAll": "Selectie opheffen",
+    "insertFromFile": "Invoegen uit bestand...",
+    "insertFromFileBefore": "Vóór deze pagina...",
+    "insertFromFileAfter": "Na deze pagina..."
   },
   "textSelection": {
     "highlightSelection": "Selectie markeren",

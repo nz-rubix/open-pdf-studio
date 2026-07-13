@@ -133,5 +133,6 @@
     "openExternalFile": "Open: {{filename}}",
     "destination": "Destination: {{name}}",
     "internalLink": "Internal Link"
-  }
+  },
+  "failedToInsertPagesFromFile": "Failed to insert pages from file: {{error}}"
 }

@@ -93,7 +93,10 @@
     "deletePages": "Excluir páginas",
     "deletePageConfirm": "Excluir a página {{page}}?",
     "deletePageTitle": "Excluir página",
-    "properties": "Propriedades"
+    "properties": "Propriedades",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Realcar seleção",

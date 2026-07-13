@@ -109,5 +109,6 @@
     "openExternalFile": "Otvoriť: {{filename}}",
     "destination": "Cieľ: {{name}}",
     "internalLink": "Interný odkaz"
-  }
+  },
+  "failedToInsertPagesFromFile": "Failed to insert pages from file: {{error}}"
 }

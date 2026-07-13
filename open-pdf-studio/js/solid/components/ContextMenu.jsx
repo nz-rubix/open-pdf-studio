@@ -796,6 +796,16 @@ function ThumbnailMenuContent() {
       <MenuItem icon={thumbnailInsertIcon} label={t('thumbnail.insertPages')} onClick={() => {
         import('../../ui/chrome/dialogs.js').then(m => m.showInsertPageDialog());
       }} />
+      <Submenu icon={thumbnailInsertIcon} label={t('thumbnail.insertFromFile')}>
+        <MenuItem label={t('thumbnail.insertFromFileBefore')} onClick={async () => {
+          const { insertPagesFromFile } = await import('../../pdf/page-manager.js');
+          await insertPagesFromFile(pageNum(), 'before');
+        }} />
+        <MenuItem label={t('thumbnail.insertFromFileAfter')} onClick={async () => {
+          const { insertPagesFromFile } = await import('../../pdf/page-manager.js');
+          await insertPagesFromFile(pageNum(), 'after');
+        }} />
+      </Submenu>
       <MenuItem icon={thumbnailExtractIcon} label={t('thumbnail.extractPages')} onClick={() => {
         const rangeStr = formatPageRangeString(pages());
         import('../stores/dialogStore.js').then(m => m.openDialog('extract-pages', {

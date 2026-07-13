@@ -109,5 +109,6 @@
     "openExternalFile": "Fungua: {{filename}}",
     "destination": "Marudio: {{name}}",
     "internalLink": "Kiungo cha ndani"
-  }
+  },
+  "failedToInsertPagesFromFile": "Failed to insert pages from file: {{error}}"
 }

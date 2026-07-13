@@ -93,7 +93,10 @@
     "deletePages": "Seiten löschen",
     "deletePageConfirm": "Seite {{page}} löschen?",
     "deletePageTitle": "Seite löschen",
-    "properties": "Eigenschaften"
+    "properties": "Eigenschaften",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Auswahl hervorheben",

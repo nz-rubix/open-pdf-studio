@@ -109,5 +109,6 @@
     "openExternalFile": "खोलें: {{filename}}",
     "destination": "गंतव्य: {{name}}",
     "internalLink": "आंतरिक लिंक"
-  }
+  },
+  "failedToInsertPagesFromFile": "Failed to insert pages from file: {{error}}"
 }

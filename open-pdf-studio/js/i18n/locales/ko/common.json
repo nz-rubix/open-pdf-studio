@@ -109,5 +109,6 @@
     "openExternalFile": "열기: {{filename}}",
     "destination": "대상: {{name}}",
     "internalLink": "내부 링크"
-  }
+  },
+  "failedToInsertPagesFromFile": "Failed to insert pages from file: {{error}}"
 }

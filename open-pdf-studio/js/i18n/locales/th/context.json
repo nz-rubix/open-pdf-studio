@@ -93,7 +93,10 @@
     "deletePages": "ลบหน้า",
     "deletePageConfirm": "ลบหน้า {{page}}?",
     "deletePageTitle": "ลบหน้า",
-    "properties": "คุณสมบัติ"
+    "properties": "คุณสมบัติ",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "เน้นข้อความที่เลือก",

@@ -93,7 +93,10 @@
     "deletePages": "Poista sivut",
     "deletePageConfirm": "Poistetaanko sivu {{page}}?",
     "deletePageTitle": "Poista sivu",
-    "properties": "Ominaisuudet"
+    "properties": "Ominaisuudet",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Korosta valinta",

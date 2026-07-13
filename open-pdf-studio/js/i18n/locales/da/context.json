@@ -93,7 +93,10 @@
     "deletePages": "Slet sider",
     "deletePageConfirm": "Slet side {{page}}?",
     "deletePageTitle": "Slet side",
-    "properties": "Egenskaber"
+    "properties": "Egenskaber",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Fremhæv markering",

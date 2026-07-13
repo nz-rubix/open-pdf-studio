@@ -93,7 +93,10 @@
     "deletePages": "Slett sider",
     "deletePageConfirm": "Slette side {{page}}?",
     "deletePageTitle": "Slett side",
-    "properties": "Egenskaper"
+    "properties": "Egenskaper",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Uthev utvalg",

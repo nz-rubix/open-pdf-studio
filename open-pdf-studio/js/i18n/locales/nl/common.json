@@ -133,5 +133,6 @@
   "failedToLoadPdf": "PDF laden mislukt: {{error}}",
   "failedToCreateDocument": "Document aanmaken mislukt: {{error}}",
   "failedToReplacePage": "Pagina vervangen mislukt: {{error}}",
-  "failedToMergeFile": "Samenvoegen mislukt: {{file}}\n{{error}}"
+  "failedToMergeFile": "Samenvoegen mislukt: {{file}}\n{{error}}",
+  "failedToInsertPagesFromFile": "Kan pagina's niet invoegen uit bestand: {{error}}"
 }

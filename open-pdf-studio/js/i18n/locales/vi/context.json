@@ -93,7 +93,10 @@
     "deletePages": "Xóa Trang",
     "deletePageConfirm": "Xóa trang {{page}}?",
     "deletePageTitle": "Xóa Trang",
-    "properties": "Thuộc tính"
+    "properties": "Thuộc tính",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Tô sáng Vùng chọn",

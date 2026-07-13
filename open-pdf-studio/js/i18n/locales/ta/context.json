@@ -93,7 +93,10 @@
     "deletePages": "பக்கங்களை நீக்கு",
     "deletePageConfirm": "பக்கம் {{page}} நீக்கவா?",
     "deletePageTitle": "பக்கத்தை நீக்கு",
-    "properties": "பண்புகள்"
+    "properties": "பண்புகள்",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "தேர்வை முன்னிலைப்படுத்து",

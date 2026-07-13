@@ -93,7 +93,10 @@
     "deletePages": "페이지 삭제",
     "deletePageConfirm": "{{page}} 페이지를 삭제하시겠습니까?",
     "deletePageTitle": "페이지 삭제",
-    "properties": "속성"
+    "properties": "속성",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "선택 영역 하이라이트",

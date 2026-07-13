@@ -93,7 +93,10 @@
     "deletePages": "Padam Halaman",
     "deletePageConfirm": "Padam halaman {{page}}?",
     "deletePageTitle": "Padam Halaman",
-    "properties": "Sifat"
+    "properties": "Sifat",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Sorot Pilihan",

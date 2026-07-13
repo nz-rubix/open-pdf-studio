@@ -93,7 +93,10 @@
     "deletePages": "Видалити сторінки",
     "deletePageConfirm": "Видалити сторінку {{page}}?",
     "deletePageTitle": "Видалити сторінку",
-    "properties": "Властивості"
+    "properties": "Властивості",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Виділити виділене",

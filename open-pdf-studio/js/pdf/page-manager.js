@@ -354,6 +354,99 @@ export async function insertBlankPages(position, refPage, count, widthPt, height
 }
 
 /**
+ * Insert pages from another PDF file at a specific position relative to a
+ * reference page. Mirrors replacePages()/mergeFiles(): opens a file picker,
+ * loads the chosen PDF with pdf-lib, copies all its pages into the current
+ * document and remaps annotations/rotations, all undo-able via the shared
+ * page-structure convention.
+ * @param {number} refPage - Reference page number (1-based)
+ * @param {'before'|'after'} position - Insert before or after the reference page
+ */
+export async function insertPagesFromFile(refPage, position) {
+  const activeDoc = getActiveDocument();
+  if (!activeDoc?.pdfDoc) return;
+  if (!isTauri()) return;
+
+  const numPages = activeDoc.pdfDoc.numPages;
+  if (refPage < 1 || refPage > numPages) return;
+
+  // Open file dialog to pick the source PDF
+  let filePath;
+  try {
+    filePath = await window.__TAURI__.dialog.open({
+      multiple: false,
+      filters: [{ name: 'PDF Files', extensions: ['pdf'] }],
+    });
+  } catch (e) {
+    return;
+  }
+  if (!filePath) return;
+
+  const cacheKey = getCacheKey();
+  const currentBytes = getCachedPdfBytes(cacheKey);
+  if (!currentBytes) return;
+
+  const doc = getActiveDocument();
+  const oldAnnotations = doc.annotations.map(a => ({ ...a }));
+  const oldRotations = { ...doc.pageRotations };
+  const oldPage = doc.currentPage;
+
+  showLoading('Inserting pages...');
+  try {
+    // Ensure the picked source file is inside the fs allowlist scope.
+    try { await window.__TAURI__?.core?.invoke?.('allow_fs_scope', { path: filePath }); } catch {}
+    const fileData = await readBinaryFile(filePath);
+    const srcBytes = new Uint8Array(fileData);
+    const srcDoc = await PDFDocument.load(srcBytes, { ignoreEncryption: true });
+    const srcPageCount = srcDoc.getPageCount();
+
+    if (srcPageCount === 0) {
+      showMessage(i18next.t('selectedPdfNoPages'));
+      return;
+    }
+
+    const destDoc = await PDFDocument.load(currentBytes, { ignoreEncryption: true });
+    const oldNumPages = destDoc.getPageCount();
+
+    // 0-based insertion index
+    const insertIdx = position === 'before' ? refPage - 1 : refPage;
+
+    const indices = [];
+    for (let i = 0; i < srcPageCount; i++) indices.push(i);
+    const copiedPages = await destDoc.copyPages(srcDoc, indices);
+    for (let i = 0; i < copiedPages.length; i++) {
+      destDoc.insertPage(insertIdx + i, copiedPages[i]);
+    }
+
+    // Build page mapping for existing annotations/rotations
+    const pageMapping = {};
+    for (let oldP = 1; oldP <= oldNumPages; oldP++) {
+      if (oldP <= insertIdx) {
+        pageMapping[oldP] = oldP;
+      } else {
+        pageMapping[oldP] = oldP + srcPageCount;
+      }
+    }
+
+    const newAnnotations = remapAnnotations(doc.annotations, pageMapping);
+    const newRotations = remapRotations(doc.pageRotations, pageMapping);
+
+    const newBytes = new Uint8Array(await destDoc.save());
+    const targetPage = insertIdx + 1; // Navigate to first inserted page
+
+    await reloadFromBytes(newBytes, newAnnotations, newRotations, targetPage);
+
+    // Record undo
+    recordPageStructure(currentBytes, oldAnnotations, oldRotations, oldPage, newBytes, newAnnotations, newRotations, targetPage);
+  } catch (err) {
+    console.error('Failed to insert pages from file:', err);
+    showMessage(i18next.t('failedToInsertPagesFromFile', { error: err.message }));
+  } finally {
+    hideLoading();
+  }
+}
+
+/**
  * Delete pages from the current document.
  * @param {number[]} pageNumbers - Page numbers to delete (1-based)
  */

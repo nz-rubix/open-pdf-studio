@@ -93,7 +93,10 @@
     "deletePages": "حذف صفحات",
     "deletePageConfirm": "آیا صفحه {{page}} حذف شود؟",
     "deletePageTitle": "حذف صفحه",
-    "properties": "ویژگی‌ها"
+    "properties": "ویژگی‌ها",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "برجسته‌سازی انتخاب",

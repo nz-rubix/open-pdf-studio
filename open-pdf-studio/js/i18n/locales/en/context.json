@@ -109,7 +109,10 @@
     "rotateRightPages": "Rotate {{count}} Pages Right",
     "deletePagesMulti": "Delete {{count}} Pages",
     "selectAll": "Select All Pages",
-    "deselectAll": "Deselect All"
+    "deselectAll": "Deselect All",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Highlight Selection",

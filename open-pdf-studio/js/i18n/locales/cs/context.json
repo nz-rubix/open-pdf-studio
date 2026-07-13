@@ -93,7 +93,10 @@
     "deletePages": "Smazat stránky",
     "deletePageConfirm": "Smazat stránku {{page}}?",
     "deletePageTitle": "Smazat stránku",
-    "properties": "Vlastnosti"
+    "properties": "Vlastnosti",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Zvýraznit výběr",

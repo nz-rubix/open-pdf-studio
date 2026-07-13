@@ -93,7 +93,10 @@
     "deletePages": "Stergere pagini",
     "deletePageConfirm": "Stergeti pagina {{page}}?",
     "deletePageTitle": "Stergere pagina",
-    "properties": "Proprietati"
+    "properties": "Proprietati",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Evidentiare selectie",

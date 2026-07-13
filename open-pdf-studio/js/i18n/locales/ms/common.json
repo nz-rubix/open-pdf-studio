@@ -109,5 +109,6 @@
     "openExternalFile": "Buka: {{filename}}",
     "destination": "Destinasi: {{name}}",
     "internalLink": "Pautan Dalaman"
-  }
+  },
+  "failedToInsertPagesFromFile": "Failed to insert pages from file: {{error}}"
 }

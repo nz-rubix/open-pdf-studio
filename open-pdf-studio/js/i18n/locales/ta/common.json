@@ -109,5 +109,6 @@
     "openExternalFile": "திற: {{filename}}",
     "destination": "இலக்கு: {{name}}",
     "internalLink": "உள் இணைப்பி"
-  }
+  },
+  "failedToInsertPagesFromFile": "Failed to insert pages from file: {{error}}"
 }

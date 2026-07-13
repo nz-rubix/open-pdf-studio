@@ -109,5 +109,6 @@
     "openExternalFile": "Άνοιγμα: {{filename}}",
     "destination": "Προορισμός: {{name}}",
     "internalLink": "Εσωτερικός σύνδεσμος"
-  }
+  },
+  "failedToInsertPagesFromFile": "Failed to insert pages from file: {{error}}"
 }

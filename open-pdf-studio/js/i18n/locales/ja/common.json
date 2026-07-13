@@ -109,5 +109,6 @@
     "openExternalFile": "開く: {{filename}}",
     "destination": "移動先：{{name}}",
     "internalLink": "内部リンク"
-  }
+  },
+  "failedToInsertPagesFromFile": "Failed to insert pages from file: {{error}}"
 }

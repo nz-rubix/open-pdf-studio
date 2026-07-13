@@ -93,7 +93,10 @@
     "deletePages": "Hapus Halaman",
     "deletePageConfirm": "Hapus halaman {{page}}?",
     "deletePageTitle": "Hapus Halaman",
-    "properties": "Properti"
+    "properties": "Properti",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Sorot Pilihan",

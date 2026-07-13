@@ -93,7 +93,10 @@
     "deletePages": "Oldalak törlése",
     "deletePageConfirm": "Törli a(z) {{page}}. oldalt?",
     "deletePageTitle": "Oldal törlése",
-    "properties": "Tulajdonságok"
+    "properties": "Tulajdonságok",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Kijelölés kiemelése",

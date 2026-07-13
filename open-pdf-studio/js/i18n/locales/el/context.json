@@ -93,7 +93,10 @@
     "deletePages": "Διαγραφή σελίδων",
     "deletePageConfirm": "Διαγραφή σελίδας {{page}};",
     "deletePageTitle": "Διαγραφή σελίδας",
-    "properties": "Ιδιότητες"
+    "properties": "Ιδιότητες",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Επισήμανση επιλογής",

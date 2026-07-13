@@ -109,5 +109,6 @@
     "openExternalFile": "Deschidere: {{filename}}",
     "destination": "Destinatie: {{name}}",
     "internalLink": "Link intern"
-  }
+  },
+  "failedToInsertPagesFromFile": "Failed to insert pages from file: {{error}}"
 }

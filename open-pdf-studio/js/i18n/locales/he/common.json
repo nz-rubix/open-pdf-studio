@@ -109,5 +109,6 @@
     "openExternalFile": "פתיחה: {{filename}}",
     "destination": "יעד: {{name}}",
     "internalLink": "קישור פנימי"
-  }
+  },
+  "failedToInsertPagesFromFile": "Failed to insert pages from file: {{error}}"
 }

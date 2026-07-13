@@ -93,7 +93,10 @@
     "deletePages": "صفحات حذف کریں",
     "deletePageConfirm": "صفحہ {{page}} حذف کریں؟",
     "deletePageTitle": "صفحہ حذف کریں",
-    "properties": "خصوصیات"
+    "properties": "خصوصیات",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "انتخاب نمایاں کریں",

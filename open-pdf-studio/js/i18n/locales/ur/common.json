@@ -109,5 +109,6 @@
     "openExternalFile": "کھولیں: {{filename}}",
     "destination": "منزل: {{name}}",
     "internalLink": "اندرونی لنک"
-  }
+  },
+  "failedToInsertPagesFromFile": "Failed to insert pages from file: {{error}}"
 }

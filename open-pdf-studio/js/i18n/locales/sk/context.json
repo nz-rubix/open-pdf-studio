@@ -93,7 +93,10 @@
     "deletePages": "Odstrániť strany",
     "deletePageConfirm": "Odstrániť stranu {{page}}?",
     "deletePageTitle": "Odstrániť stranu",
-    "properties": "Vlastnosti"
+    "properties": "Vlastnosti",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Zvýrazniť výber",

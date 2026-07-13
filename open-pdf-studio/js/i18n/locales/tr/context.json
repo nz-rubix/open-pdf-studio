@@ -93,7 +93,10 @@
     "deletePages": "Sayfaları Sil",
     "deletePageConfirm": "Sayfa {{page}} silinsin mi?",
     "deletePageTitle": "Sayfa Sil",
-    "properties": "Özellikler"
+    "properties": "Özellikler",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Seçimi Vurgula",

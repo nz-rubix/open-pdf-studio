@@ -93,7 +93,10 @@
     "deletePages": "Obriši stranice",
     "deletePageConfirm": "Obrisati stranicu {{page}}?",
     "deletePageTitle": "Brisanje stranice",
-    "properties": "Svojstva"
+    "properties": "Svojstva",
+    "insertFromFile": "Insert from File...",
+    "insertFromFileBefore": "Before This Page...",
+    "insertFromFileAfter": "After This Page..."
   },
   "textSelection": {
     "highlightSelection": "Istakni odabrano",
