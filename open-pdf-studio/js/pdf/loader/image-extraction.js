@@ -66,10 +66,23 @@ export async function extractStampImagesViaPdfJs(page, viewport, stampAnnots) {
   if (stampAnnots.length === 0) return imageMap;
 
   try {
-    // Render at 2x for quality. CRITICAL: the canvas pixel dimensions must
-    // exactly match the viewport dimensions — do NOT apply additional DPR scaling,
-    // otherwise crop coordinates will be wrong (causing tiled/repeated images).
-    const hiResScale = 2;
+    // Render at up to 2x for quality, but cap total pixels so a very large
+    // sheet (A0/A1 bouwtekening) doesn't allocate a multi-hundred-MB canvas
+    // just to crop a few stamp thumbnails. Same guard philosophy as the
+    // MAX_PIXELS cap in crop-margins.js. The cropping loop below uses
+    // hiResViewport.convertToViewportPoint(), so it adapts to whatever scale
+    // we end up rendering at — crop coordinates stay correct at any scale.
+    //
+    // CRITICAL: the canvas pixel dimensions must exactly match the viewport
+    // dimensions — do NOT apply additional DPR scaling, otherwise crop
+    // coordinates will be wrong (causing tiled/repeated images).
+    const MAX_PIXELS = 20_000_000; // ~20 MP, matches crop-margins.js
+    const baseViewport = page.getViewport({ scale: 1 });
+    const basePixels = baseViewport.width * baseViewport.height;
+    let hiResScale = 2;
+    if (basePixels > 0 && basePixels * hiResScale * hiResScale > MAX_PIXELS) {
+      hiResScale = Math.max(1, Math.sqrt(MAX_PIXELS / basePixels));
+    }
     const hiResViewport = page.getViewport({ scale: hiResScale });
 
     // Canvas pixel size must EXACTLY match viewport dimensions.
