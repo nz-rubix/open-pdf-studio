@@ -21,6 +21,7 @@
   "copy": "Kopírovať",
   "cut": "Vystrihnúť",
   "paste": "Prilepiť",
+  "pasteInPlace": "Paste in Place",
   "select": "Vybrať",
   "deselect": "Zrušiť výber",
   "duplicate": "Duplikovať",

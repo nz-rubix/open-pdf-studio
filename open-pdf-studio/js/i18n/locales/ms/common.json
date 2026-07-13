@@ -21,6 +21,7 @@
   "copy": "Salin",
   "cut": "Potong",
   "paste": "Tampal",
+  "pasteInPlace": "Paste in Place",
   "select": "Pilih",
   "deselect": "Nyahpilih",
   "duplicate": "Pendua",

@@ -22,6 +22,7 @@ const SHORTCUT_CATEGORIES = [
       { action: 'Select All', keys: ['Ctrl', 'A'] },
       { action: 'Copy', keys: ['Ctrl', 'C'] },
       { action: 'Paste', keys: ['Ctrl', 'V'] },
+      { action: 'Paste in Place', keys: ['Ctrl', 'Shift', 'V'] },
       { action: 'Duplicate', keys: ['Ctrl', 'D'] },
       { action: 'Clear Page', keys: ['Ctrl', 'Shift', 'C'] },
     ],

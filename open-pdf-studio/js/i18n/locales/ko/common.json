@@ -21,6 +21,7 @@
   "copy": "복사",
   "cut": "잘라내기",
   "paste": "붙여넣기",
+  "pasteInPlace": "Paste in Place",
   "select": "선택",
   "deselect": "선택 해제",
   "duplicate": "복제",

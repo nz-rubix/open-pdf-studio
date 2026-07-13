@@ -21,6 +21,7 @@
   "copy": "Kopyala",
   "cut": "Kes",
   "paste": "Yapıştır",
+  "pasteInPlace": "Paste in Place",
   "select": "Seç",
   "deselect": "Seçimi Kaldır",
   "duplicate": "Çoğalt",

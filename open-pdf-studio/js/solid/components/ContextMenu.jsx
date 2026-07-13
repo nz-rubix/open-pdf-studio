@@ -20,7 +20,7 @@ import {
 import { state, getActiveDocument, clearSelection, isSelected } from '../../core/state.js';
 import { showProperties, hideProperties } from '../../ui/panels/properties-panel.js';
 import { redrawAnnotations, redrawContinuous } from '../../annotations/rendering.js';
-import { copyAnnotation, copyAnnotations, pasteFromClipboard, duplicateAnnotation } from '../../annotations/clipboard.js';
+import { copyAnnotation, copyAnnotations, pasteFromClipboard, pasteAnnotationsInPlace, duplicateAnnotation } from '../../annotations/clipboard.js';
 import { cloneAnnotation } from '../../annotations/factory.js';
 import { recordDelete, recordBulkDelete, recordModify } from '../../core/undo-manager.js';
 import { bringToFront, sendToBack, bringForward, sendBackward, rotateAnnotation, flipHorizontal, flipVertical } from '../../annotations/z-order.js';
@@ -245,6 +245,7 @@ function AnnotationMenuContent() {
       }} />
       <MenuItem icon={copyIcon} label={tCommon('copy')} shortcut="Ctrl+C" onClick={() => copyAnnotation(ann())} />
       <MenuItem icon={pasteIcon} label={tCommon('paste')} shortcut="Ctrl+V" onClick={() => pasteFromClipboard()} />
+      <MenuItem icon={pasteIcon} label={tCommon('pasteInPlace')} shortcut="Ctrl+Shift+V" onClick={() => pasteAnnotationsInPlace()} />
 
       <Separator />
 
@@ -583,6 +584,7 @@ function PageMenuContent() {
       <MenuItem icon={pageCutIcon} label={tCommon('cut')} shortcut="Ctrl+X" disabled={true} />
       <MenuItem icon={pageCopyIcon} label={tCommon('copy')} shortcut="Ctrl+C" disabled={true} />
       <MenuItem icon={pagePasteIcon} label={tCommon('paste')} shortcut="Ctrl+V" onClick={() => pasteFromClipboard()} />
+      <MenuItem icon={pagePasteIcon} label={tCommon('pasteInPlace')} shortcut="Ctrl+Shift+V" onClick={() => pasteAnnotationsInPlace()} />
 
       <Separator />
 

@@ -1,5 +1,6 @@
 import { state, getActiveDocument, imageCache } from '../core/state.js';
 import { cloneAnnotation } from './factory.js';
+import { cloneAnnotationsInPlace } from './paste-in-place.js';
 import { generateImageId } from '../utils/helpers.js';
 import { updateStatusMessage } from '../ui/chrome/status-bar.js';
 import { showProperties, showMultiSelectionProperties } from '../ui/panels/properties-panel.js';
@@ -287,4 +288,63 @@ export function pasteAnnotations() {
   }
 
   updateStatusMessage(`${newAnnotations.length} annotations pasted`);
+}
+
+// "Plakken op plaats" (paste in place) — GitHub issue #269.
+// Plakt het interne clipboard op de HUIDIGE pagina op exact dezelfde
+// coördinaten (positie, afmetingen, rotatie) als het origineel — handig om
+// markeringen van de ene verdiepings-pagina op de volgende te stempelen.
+// Herhaalbaar: navigeer naar de volgende pagina en plak opnieuw. De gewone
+// Plakken (Ctrl+V, met +20-cascade) blijft onaangetast.
+export function pasteAnnotationsInPlace() {
+  const doc = getActiveDocument();
+  if (!doc?.pdfDoc) return;
+
+  const sources = (state.clipboardAnnotations && state.clipboardAnnotations.length > 0)
+    ? state.clipboardAnnotations
+    : (state.clipboardAnnotation ? [state.clipboardAnnotation] : []);
+  if (sources.length === 0) return;
+
+  // Pure kloon-logica (testbaar in Node): nieuwe id's + huidige pagina,
+  // posities exact behouden.
+  const newAnnotations = cloneAnnotationsInPlace(sources, doc.currentPage || 1);
+
+  for (let i = 0; i < newAnnotations.length; i++) {
+    const newAnn = newAnnotations[i];
+    // Afbeeldingen/handtekeningen refereren de gedeelde image-cache —
+    // registreer per kloon een vers image-id (zelfde patroon als
+    // pasteAnnotation/pasteAnnotations hierboven).
+    if (newAnn.type === 'image' || newAnn.type === 'signature') {
+      const newImageId = generateImageId();
+      const originalImg = imageCache.get(sources[i].imageId);
+      if (originalImg) imageCache.set(newImageId, originalImg);
+      newAnn.imageId = newImageId;
+    }
+    doc.annotations.push(newAnn);
+  }
+
+  // Ongedaan maken via het bestaande undo-command-pad.
+  if (newAnnotations.length === 1) {
+    recordAdd(newAnnotations[0]);
+  } else {
+    recordBulkAdd(newAnnotations);
+  }
+
+  doc.selectedAnnotations = newAnnotations;
+  doc.selectedAnnotation = newAnnotations[0];
+  if (newAnnotations.length === 1) {
+    showProperties(newAnnotations[0]);
+  } else {
+    showMultiSelectionProperties();
+  }
+
+  if (doc.viewMode === 'continuous') {
+    redrawContinuous();
+  } else {
+    redrawAnnotations();
+  }
+
+  updateStatusMessage(newAnnotations.length === 1
+    ? 'Annotation pasted in place'
+    : `${newAnnotations.length} annotations pasted in place`);
 }

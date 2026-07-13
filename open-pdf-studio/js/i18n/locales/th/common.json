@@ -21,6 +21,7 @@
   "copy": "คัดลอก",
   "cut": "ตัด",
   "paste": "วาง",
+  "pasteInPlace": "Paste in Place",
   "select": "เลือก",
   "deselect": "ยกเลิกการเลือก",
   "duplicate": "ทำซ้ำ",

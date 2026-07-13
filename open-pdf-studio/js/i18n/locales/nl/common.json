@@ -21,6 +21,7 @@
   "copy": "Kopiëren",
   "cut": "Knippen",
   "paste": "Plakken",
+  "pasteInPlace": "Plakken op plaats",
   "select": "Selecteren",
   "deselect": "Deselecteren",
   "duplicate": "Dupliceren",

@@ -21,6 +21,7 @@
   "copy": "Salin",
   "cut": "Potong",
   "paste": "Tempel",
+  "pasteInPlace": "Paste in Place",
   "select": "Pilih",
   "deselect": "Batalkan Pilihan",
   "duplicate": "Duplikat",

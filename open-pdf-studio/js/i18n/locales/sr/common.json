@@ -21,6 +21,7 @@
   "copy": "Копирај",
   "cut": "Исеци",
   "paste": "Налепи",
+  "pasteInPlace": "Paste in Place",
   "select": "Изабери",
   "deselect": "Поништи избор",
   "duplicate": "Дуплирај",

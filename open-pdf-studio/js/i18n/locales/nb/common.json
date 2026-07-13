@@ -21,6 +21,7 @@
   "copy": "Kopier",
   "cut": "Klipp ut",
   "paste": "Lim inn",
+  "pasteInPlace": "Paste in Place",
   "select": "Velg",
   "deselect": "Opphev valg",
   "duplicate": "Dupliser",

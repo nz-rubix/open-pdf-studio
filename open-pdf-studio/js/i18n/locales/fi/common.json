@@ -21,6 +21,7 @@
   "copy": "Kopioi",
   "cut": "Leikkaa",
   "paste": "Liitä",
+  "pasteInPlace": "Paste in Place",
   "select": "Valitse",
   "deselect": "Poista valinta",
   "duplicate": "Monista",

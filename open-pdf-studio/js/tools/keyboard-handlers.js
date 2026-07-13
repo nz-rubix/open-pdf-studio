@@ -462,6 +462,15 @@ export async function handleKeydown(e) {
       if (selected.length > 1) copyAnnotations(selected);
       else copyAnnotation(selected[0]);
     }
+  } else if (ctrl && shift && (e.key === 'V' || e.key === 'v')) {
+    // Plakken op plaats (paste in place) — GitHub #269: plak het interne
+    // clipboard op de HUIDIGE pagina op exact de gekopieerde coördinaten.
+    // preventDefault mag hier wél — dit pad gebruikt alleen het interne
+    // annotatie-clipboard, geen native paste-event.
+    e.preventDefault();
+    if (!getActiveDocument()?.pdfDoc) return;
+    if (isPdfAReadOnly()) return;
+    import('../annotations/clipboard.js').then(({ pasteAnnotationsInPlace }) => pasteAnnotationsInPlace());
   } else if (ctrl && !shift && e.key === 'v') {
     // Don't preventDefault — let native paste event fire so handlePaste can
     // read clipboardData.items (required on Linux/WebKitGTK where the async

@@ -21,6 +21,7 @@
   "copy": "Копіювати",
   "cut": "Вирізати",
   "paste": "Вставити",
+  "pasteInPlace": "Paste in Place",
   "select": "Вибрати",
   "deselect": "Зняти вибір",
   "duplicate": "Дублювати",

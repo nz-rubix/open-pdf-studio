@@ -23,6 +23,7 @@
   "copy": "Copy",
   "cut": "Cut",
   "paste": "Paste",
+  "pasteInPlace": "Paste in Place",
   "select": "Select",
   "deselect": "Deselect",
   "duplicate": "Duplicate",

@@ -425,6 +425,7 @@
     "join": "Join",
     "lengthen": "Lengthen",
     "paste": "Paste",
+    "pasteInPlace": "Paste in Place",
     "cut": "Cut",
     "delete": "Delete",
     "collectionCreate": "Create",

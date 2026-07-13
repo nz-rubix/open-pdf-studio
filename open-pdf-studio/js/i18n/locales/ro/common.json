@@ -21,6 +21,7 @@
   "copy": "Copiere",
   "cut": "Decupare",
   "paste": "Lipire",
+  "pasteInPlace": "Paste in Place",
   "select": "Selectare",
   "deselect": "Deselectare",
   "duplicate": "Duplicare",

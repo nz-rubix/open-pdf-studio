@@ -21,6 +21,7 @@
   "copy": "复制",
   "cut": "剪切",
   "paste": "粘贴",
+  "pasteInPlace": "Paste in Place",
   "select": "选择",
   "deselect": "取消选择",
   "duplicate": "复制",

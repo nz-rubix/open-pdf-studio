@@ -21,6 +21,7 @@
   "copy": "コピー",
   "cut": "切り取り",
   "paste": "貼り付け",
+  "pasteInPlace": "Paste in Place",
   "select": "選択",
   "deselect": "選択解除",
   "duplicate": "複製",

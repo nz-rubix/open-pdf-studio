@@ -10,7 +10,7 @@ import { isPdfAReadOnly } from '../../../pdf/loader.js';
 import { clearSelection, selectAllOnPage } from '../../../core/stores/selection-helpers.js';
 import { toggleFindBar } from '../../../search/find-bar.js';
 import { showPreferencesDialog } from '../../../core/preferences.js';
-import { copyAnnotation, copyAnnotations, pasteAnnotation, pasteAnnotations, duplicateAnnotation } from '../../../annotations/clipboard.js';
+import { copyAnnotation, copyAnnotations, pasteAnnotation, pasteAnnotations, pasteAnnotationsInPlace, duplicateAnnotation } from '../../../annotations/clipboard.js';
 import { flipHorizontal, flipVertical } from '../../../annotations/z-order.js';
 import { cloneAnnotation } from '../../../annotations/factory.js';
 import { recordBulkModify } from '../../../core/undo-manager.js';
@@ -41,6 +41,8 @@ const arrayIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 const trimIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8 16 L20 4 M16 16 L4 4"/></svg>`;
 const extendIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12h14M14 8l4 4-4 4M19 4v16" stroke-linecap="round"/></svg>`;
 const pasteIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6" y="4" width="12" height="16"/><rect x="9" y="2" width="6" height="3"/></svg>`;
+// Plakken op plaats: klembord-icoon met richtkruis (exacte positie).
+const pasteInPlaceIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6" y="4" width="12" height="16"/><rect x="9" y="2" width="6" height="3"/><circle cx="12" cy="13" r="2.5"/><path d="M12 8.5v2M12 15.5v2M7.5 13h2M14.5 13h2"/></svg>`;
 const cutIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8 16 L20 4 M16 16 L4 4"/></svg>`;
 const deleteIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6h16M9 6V4h6v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/></svg>`;
 const tableIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16"/><path d="M3 9h18M3 14h18M9 4v16M15 4v16"/></svg>`;
@@ -303,6 +305,8 @@ export default function DrawingTab() {
         <RibbonGroup label={t('drawing.clipboard')}>
           <RibbonButton id="dr-paste" title={t('drawing.paste')} icon={pasteIcon} label={t('drawing.paste')}
             disabled={ro()} onClick={pasteFromClipboard} />
+          <RibbonButton id="dr-paste-in-place" title={`${t('drawing.pasteInPlace')} (Ctrl+Shift+V)`} icon={pasteInPlaceIcon} label={t('drawing.pasteInPlace')}
+            disabled={ro()} onClick={() => pasteAnnotationsInPlace()} />
           <RibbonButtonStack>
             <RibbonButton size="small" id="dr-cut" title={t('drawing.cut')} icon={cutIcon} label={t('drawing.cut')}
               disabled={ro()} onClick={cutSelected} />

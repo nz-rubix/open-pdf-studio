@@ -21,6 +21,7 @@
   "copy": "Kopiera",
   "cut": "Klipp ut",
   "paste": "Klistra in",
+  "pasteInPlace": "Paste in Place",
   "select": "Markera",
   "deselect": "Avmarkera",
   "duplicate": "Duplicera",

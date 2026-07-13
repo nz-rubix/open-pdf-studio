@@ -21,6 +21,7 @@
   "copy": "Másolás",
   "cut": "Kivágás",
   "paste": "Beillesztés",
+  "pasteInPlace": "Paste in Place",
   "select": "Kijelölés",
   "deselect": "Kijelölés megszüntetése",
   "duplicate": "Duplikálás",

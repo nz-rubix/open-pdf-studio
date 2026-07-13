@@ -21,6 +21,7 @@
   "copy": "نسخ",
   "cut": "قص",
   "paste": "لصق",
+  "pasteInPlace": "Paste in Place",
   "select": "تحديد",
   "deselect": "إلغاء التحديد",
   "duplicate": "تكرار",
