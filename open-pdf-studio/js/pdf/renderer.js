@@ -1126,6 +1126,11 @@ export async function renderContinuous(forceRebuild) {
   const pdfDoc = doc.pdfDoc;
   const scale = doc.scale;
 
+  // Install the cross-monitor DPI watcher (issue #263) even when a document is
+  // only ever viewed in continuous mode — initViewport (single path) may never
+  // run for it. Idempotent: re-arming replaces the previous listener.
+  import('./pdf-viewport.js').then(m => m.ensureDprWatcher()).catch(() => {});
+
   // Continuous mode uses its own per-page canvases inside #continuous-container,
   // not the shared #pdf-canvas. Disable the vector viewport singleton so its
   // RAF loop can't redraw a previously-active single-page document on top of

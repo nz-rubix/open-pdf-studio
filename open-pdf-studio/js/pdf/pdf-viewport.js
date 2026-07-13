@@ -70,6 +70,11 @@ export function initViewport(canvas, annotationRedrawFn) {
     _resizeObserver.observe(container);
   }
 
+  // Watch for cross-monitor DPI changes so the page re-renders sharp at the
+  // new devicePixelRatio (issue #263). Idempotent: re-arming replaces the
+  // previous listener, so repeated init calls never stack watchers.
+  _armDprWatcher();
+
   _startLoop();
 }
 
@@ -148,6 +153,83 @@ function _resizeCanvas() {
     }
 
     viewport.dirty = true;
+  }
+}
+
+// ─── Cross-monitor DPI change (issue #263) ─────────────────────────────────
+// When the window is dragged to a monitor with a different scale factor
+// (e.g. 100% ↔ 150% Windows scaling) window.devicePixelRatio changes, but on
+// WebView2 neither the `resize` event nor the container ResizeObserver fire
+// reliably — the CSS box keeps its logical size, so nothing recomputes the
+// backing store. The page then stays rendered at the OLD dpr: blurry when
+// moved to a higher-DPI screen, over-/under-sized when moved to a lower one.
+//
+// Detection: the canonical matchMedia('(resolution: <dpr>dppx)') pattern.
+// That query matches ONLY at exactly the current ratio, so its one-shot
+// `change` fires the instant the ratio shifts — the reliable Chromium/WebView2
+// signal for a DPI change (discrete `resize`-on-DPI is not guaranteed). The
+// threshold is baked into the query, so we re-arm at the new ratio after every
+// change. Stored on window so an HMR reload can remove the stale listener.
+let _dprDebounce = null;
+
+function _onDprChanged() {
+  // Re-arm immediately at the new ratio so a further jump mid-drag isn't
+  // missed while the debounce below is still pending.
+  _armDprWatcher();
+  // Coalesce the several ratio steps a slow drag across the monitor edge can
+  // emit into a single re-render once the drag settles.
+  if (_dprDebounce) clearTimeout(_dprDebounce);
+  _dprDebounce = setTimeout(_applyDprChange, 120);
+}
+
+// Public entry so modes that never touch initViewport (e.g. a session that
+// restores straight into continuous view) can still install the DPI watcher.
+export function ensureDprWatcher() { _armDprWatcher(); }
+
+function _armDprWatcher() {
+  if (typeof window.matchMedia !== 'function') return;
+  const prev = window.__pdfDprMql;
+  if (prev && prev.mql) {
+    try { prev.mql.removeEventListener('change', prev.handler); } catch { /* older engines */ }
+  }
+  const dpr = window.devicePixelRatio || 1;
+  const mql = window.matchMedia(`(resolution: ${dpr}dppx)`);
+  mql.addEventListener('change', _onDprChanged);
+  window.__pdfDprMql = { mql, handler: _onDprChanged };
+}
+
+async function _applyDprChange() {
+  _dprDebounce = null;
+  const doc = getActiveDocument();
+  if (doc && doc.viewMode === 'continuous') {
+    // Continuous/book/facing mode paints per-page canvases sized at
+    // getCanvasDPR() when they are built. Rebuild them at the new dpr so they
+    // stay crisp, and restore the logical scroll position across the rebuild
+    // (the innerHTML reset collapses scrollHeight → scrollTop would snap to 0).
+    try {
+      const scrollEl = document.getElementById('pdf-container');
+      const prevTop = scrollEl ? scrollEl.scrollTop : 0;
+      const prevH = scrollEl ? scrollEl.scrollHeight : 0;
+      const m = await import('./renderer.js');
+      await m.renderContinuous(true);
+      if (scrollEl && prevH > 0) {
+        scrollEl.scrollTop = (prevTop / prevH) * scrollEl.scrollHeight;
+      }
+    } catch { /* re-render is best-effort */ }
+    return;
+  }
+  // Single-page (viewport) mode. _resizeCanvas() re-sizes the backing store to
+  // the new dpr AND re-anchors the world-space center it captured first, so
+  // the current zoom and scroll/pan position are preserved across the switch.
+  _resizeCanvas();
+  viewport.dirty = true; // vector pages re-paint from the RAF loop at fresh dpr
+  if (viewport.pageType === 'raster') {
+    // Raster bitmaps are cached per zoom*dpr bucket; the new dpr lands in a new
+    // bucket, so kick the orchestrator to render a sharp bitmap for it.
+    import('./bitmap-orchestrator.js').then(orch => {
+      orch.ensureBitmapForCurrentView();
+      if (_canvas) orch.ensureTileForCurrentView(_canvas);
+    }).catch(() => {});
   }
 }
 
