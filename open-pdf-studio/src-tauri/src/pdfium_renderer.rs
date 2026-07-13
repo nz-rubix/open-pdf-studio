@@ -54,6 +54,32 @@ pub fn pdfium() -> &'static Pdfium {
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+/// Serialises ALL in-proc PDFium FFI work — document loading and page / region /
+/// thumbnail rendering — onto a single global lock.
+///
+/// PDFium's in-proc API is not safe to call concurrently from multiple threads.
+/// Even with pdfium-render's `thread_safe` feature (which only wraps each
+/// individual FFI call), interleaving a document *load* on one thread with a
+/// *render* on another — or two renders at once — corrupts the process heap.
+/// This surfaced on Linux as `free(): double free detected` /
+/// `malloc(): unaligned fastbin chunk` when a second document was opened while
+/// the first was still rendering. Linux hits this because every render runs
+/// in-proc: the multi-process worker pool is Windows-only. On Windows the pool
+/// isolates each render in its own process, so this lock is virtually
+/// uncontended there.
+///
+/// The guard is only ever held across synchronous FFI work — never across an
+/// `.await` — so it cannot stall or deadlock the async runtime. Callers that
+/// compose (e.g. `render_thumbnail_to_json` → `render_page_to_rgba`) must lock
+/// at exactly one level to avoid re-entrant self-deadlock; see those functions.
+static PDFIUM_INPROC_LOCK: Mutex<()> = Mutex::new(());
+
+/// Acquire the in-proc PDFium lock, recovering from a poisoned mutex (a prior
+/// panic mid-render) rather than permanently disabling all rendering.
+fn inproc_guard() -> std::sync::MutexGuard<'static, ()> {
+    PDFIUM_INPROC_LOCK.lock().unwrap_or_else(|p| p.into_inner())
+}
+
 /// Wrapper around a loaded PDFium document. Holds the parsed byte buffer
 /// alive for the document's lifetime via `Arc<Vec<u8>>`, and the raw
 /// `PdfDocument<'static>` (lifetime extended unsafely via the static
@@ -82,9 +108,14 @@ impl PdfiumDocumentHandle {
             std::slice::from_raw_parts(bytes.as_ptr(), bytes.len())
         };
 
-        let document = pdfium()
-            .load_pdf_from_byte_slice(bytes_ref, None)
-            .map_err(|e| format!("Failed to load PDF via PDFium: {}", e))?;
+        let document = {
+            // Loading is an in-proc PDFium FFI call: serialise it against all
+            // rendering so opening a document can't race an in-flight render.
+            let _guard = inproc_guard();
+            pdfium()
+                .load_pdf_from_byte_slice(bytes_ref, None)
+                .map_err(|e| format!("Failed to load PDF via PDFium: {}", e))?
+        };
 
         Ok(Self {
             document,
@@ -169,6 +200,9 @@ pub fn render_page_to_rgba(
     scale: f32,
     rotation: i32,
 ) -> Result<(u32, u32, Vec<u8>), String> {
+    // Serialise all in-proc PDFium work (see PDFIUM_INPROC_LOCK). Declared
+    // first so the guard outlives `pages`/`page`, whose Drop also calls PDFium.
+    let _guard = inproc_guard();
     let pages = doc.pages();
     let page = pages
         .get(page_index as i32)
@@ -319,13 +353,16 @@ pub fn render_thumbnail_to_json(
     max_width: u32,
     rotation: i32,
 ) -> Result<String, String> {
-    let pages = doc.pages();
-    let page = pages
-        .get(page_index as i32)
-        .map_err(|e| format!("Page {}: {}", page_index, e))?;
-
-    let w_pt = page.width().value;
-    let h_pt = page.height().value;
+    // Read the page width under the in-proc PDFium lock, then release it before
+    // render_page_to_rgba (which re-acquires the same, non-re-entrant lock).
+    let w_pt = {
+        let _guard = inproc_guard();
+        let pages = doc.pages();
+        let page = pages
+            .get(page_index as i32)
+            .map_err(|e| format!("Page {}: {}", page_index, e))?;
+        page.width().value
+    };
     // The parameter is named `max_width` and callers (left-panel.js thumbnail
     // path) treat it as "thumbnail width is exactly this many pixels".
     // Earlier this used `w_pt.max(h_pt)` (max-axis semantics) which made
@@ -410,6 +447,9 @@ pub fn render_page_region_to_rgba(
         ));
     }
 
+    // Serialise all in-proc PDFium work (see PDFIUM_INPROC_LOCK). Declared
+    // first so the guard outlives `pages`/`page`, whose Drop also calls PDFium.
+    let _guard = inproc_guard();
     let pages = doc.pages();
     let page = pages
         .get(page_index as i32)
