@@ -1724,10 +1724,11 @@ async function handleSavePdf(params) {
 
 async function handleSetViewMode(params) {
   const mode = params?.mode;
-  // 'book' = boekweergave (2-op-1 spread) — intern een continuous-variant met
-  // bookSpread=true; zie renderer.setViewMode.
-  if (mode !== 'single' && mode !== 'continuous' && mode !== 'book') {
-    return { ok: false, error: "params.mode must be 'single', 'continuous' or 'book'" };
+  // 'book' = boekweergave (doorlopende 2-op-1 spreads) — intern een continuous-
+  // variant met bookSpread=true. 'facing' = twee pagina's naast elkaar als één
+  // spread tegelijk, niet-doorlopend (facingSpread=true). Zie renderer.setViewMode.
+  if (mode !== 'single' && mode !== 'continuous' && mode !== 'book' && mode !== 'facing') {
+    return { ok: false, error: "params.mode must be 'single', 'continuous', 'book' or 'facing'" };
   }
   const stateMod = await import('./core/state.js');
   const doc = stateMod.getActiveDocument();
@@ -1738,8 +1739,9 @@ async function handleSetViewMode(params) {
   } catch (e) {
     return { ok: false, error: `setViewMode: ${e?.message ?? e}` };
   }
-  // bookSpread meegeven zodat een client 'book' van 'continuous' kan onderscheiden.
-  return { ok: true, viewMode: doc.viewMode, bookSpread: !!doc.bookSpread };
+  // bookSpread/facingSpread meegeven zodat een client 'book'/'facing' van
+  // 'continuous' kan onderscheiden.
+  return { ok: true, viewMode: doc.viewMode, bookSpread: !!doc.bookSpread, facingSpread: !!doc.facingSpread };
 }
 
 async function handleFitPage() {

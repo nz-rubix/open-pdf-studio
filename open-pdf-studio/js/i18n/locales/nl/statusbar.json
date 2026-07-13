@@ -64,5 +64,6 @@
   },
   "viewSingle": "Enkele pagina",
   "viewContinuous": "Doorlopend",
-  "viewBook": "Twee pagina’s"
+  "viewBook": "Twee pagina’s",
+  "viewFacing": "Twee pagina’s naast elkaar"
 }

@@ -57,5 +57,6 @@
   "renameFileExists": "A file with this name already exists.",
   "viewSingle": "Single Page",
   "viewContinuous": "Continuous",
-  "viewBook": "Two Pages"
+  "viewBook": "Two Pages",
+  "viewFacing": "Two Pages Side by Side"
 }

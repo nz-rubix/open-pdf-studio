@@ -616,6 +616,18 @@
   justify-self: end;
 }
 
+/* Facing (issue #164): twee pagina's naast elkaar als ÉÉN spread tegelijk,
+   niet-doorlopend. Zelfde 2-koloms grid als book-spread, maar renderContinuous
+   bouwt alleen de huidige spread en zet de grid-column per wrapper expliciet
+   (rechterpagina/oneven → kolom 2, linkerpagina/even → kolom 1). Geen
+   nth-child-regels dus, want er staan maar 1-2 wrappers in de DOM. */
+.continuous-container.facing-spread {
+  grid-template-columns: repeat(2, max-content);
+  grid-auto-flow: row;
+  justify-content: center;
+  align-items: start;
+}
+
 .page-wrapper {
   position: relative;
   display: inline-block;

@@ -1082,7 +1082,10 @@ function _bindContinuousScrollSync() {
   let pending = null;
   container.addEventListener('scroll', () => {
     const doc = getActiveDocument();
-    if (!doc || doc.viewMode !== 'continuous') return;
+    // Facing toont één spread zonder scroll-navigatie; scroll mag currentPage
+    // (het spread-anker) niet naar de rechterpagina verschuiven, anders breekt
+    // vorige/volgende. Daarom hier overslaan.
+    if (!doc || doc.viewMode !== 'continuous' || doc.facingSpread) return;
     if (pending) return;
     pending = setTimeout(() => {
       pending = null;
@@ -1093,7 +1096,7 @@ function _bindContinuousScrollSync() {
 
 function _syncCurrentPageFromScroll(container) {
   const doc = getActiveDocument();
-  if (!doc || doc.viewMode !== 'continuous') return;
+  if (!doc || doc.viewMode !== 'continuous' || doc.facingSpread) return;
   const box = container.getBoundingClientRect();
   const mid = box.top + box.height / 2;
   let bestPage = null;
@@ -1135,8 +1138,12 @@ export async function renderContinuous(forceRebuild) {
   // the doc flag HERE so every re-render path (zoom, search, tab switch,
   // thin-lines toggle) keeps the book layout without knowing about it.
   continuousContainer.classList.toggle('book-spread', !!doc.bookSpread);
+  // Facing (issue #164): één spread naast elkaar, niet-doorlopend. Eigen
+  // layout-klasse zodat de left/right-plaatsing per pagina expliciet gaat (zie
+  // de wrapper-lus onder) en niet afhangt van de DOM-kindindex zoals book-spread.
+  continuousContainer.classList.toggle('facing-spread', !!doc.facingSpread);
   if (continuousContainer.style.display !== 'none') {
-    continuousContainer.style.display = doc.bookSpread ? 'grid' : 'flex';
+    continuousContainer.style.display = (doc.bookSpread || doc.facingSpread) ? 'grid' : 'flex';
   }
 
   // Cleanup previous observer
@@ -1153,8 +1160,14 @@ export async function renderContinuous(forceRebuild) {
   clearLinkLayers();
   clearFormLayers();
 
+  // Facing-modus bouwt alleen de huidige spread (1-2 pagina's); doorlopend/boek
+  // bouwt alle pagina's. doc.currentPage is in facing het spread-anker.
+  const _pageList = doc.facingSpread
+    ? _spreadPagesFor(_spreadAnchor(doc.currentPage), pdfDoc.numPages)
+    : Array.from({ length: pdfDoc.numPages }, (_, i) => i + 1);
+
   // First pass: create all page wrappers with correct dimensions (no rendering)
-  for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+  for (const pageNum of _pageList) {
     const page = await pdfDoc.getPage(pageNum);
     const extraRotation = getPageRotation(pageNum);
     const vpOpts = { scale };
@@ -1170,6 +1183,15 @@ export async function renderContinuous(forceRebuild) {
     // per-step getPage() round-trip — see _applyContinuousZoomInstant.
     pageWrapper.dataset.baseW = viewport.width / scale;
     pageWrapper.dataset.baseH = viewport.height / scale;
+
+    // Facing: expliciete kolomplaatsing zodat het paar tegen de rug aansluit,
+    // onafhankelijk van hoeveel wrappers er in de DOM staan. Linkerpagina (even)
+    // → kolom 1; rechterpagina (oneven) en de alleenstaande pagina 1 → kolom 2.
+    if (doc.facingSpread) {
+      const rightSide = (pageNum === 1) || (pageNum % 2 === 1);
+      pageWrapper.style.gridColumn = rightSide ? '2' : '1';
+      pageWrapper.style.justifySelf = rightSide ? 'start' : 'end';
+    }
 
     // Placeholder container with correct dimensions
     const canvasContainer = document.createElement('div');
@@ -1235,8 +1257,9 @@ export async function renderContinuous(forceRebuild) {
   _bindContinuousScrollSync();
 
   // Fire-and-forget: pre-render low-res previews in background for fast scroll
-  // This runs without blocking — pages that scroll into view get full render via observer
-  if (pdfDoc.numPages > 1) {
+  // This runs without blocking — pages that scroll into view get full render via observer.
+  // Facing toont maar één spread (geen scroll), dus geen zin om alle pagina's te primen.
+  if (pdfDoc.numPages > 1 && !doc.facingSpread) {
     (async () => {
       for (let p = 1; p <= Math.min(pdfDoc.numPages, 200); p++) {
         if (_lowResCache.has(_lowResKey(p))) continue;
@@ -1263,6 +1286,29 @@ function setupContinuousPageEvents(canvas, pageNum) {
   });
 }
 
+// ─── Spread-pariteit (facing/boek) ──────────────────────────────────────────
+// Book-conventie: pagina 1 staat alleen (rechts), daarna de paren 2-3, 4-5, …
+// De "anker"-pagina van een spread is de LINKERpagina van het paar (even), of
+// pagina 1 voor de eerste spread. doc.currentPage bewaart in facing-modus altijd
+// dit anker, zodat vorige/volgende deterministisch per spread springen.
+function _spreadAnchor(p) {
+  if (p <= 1) return 1;
+  return (p % 2 === 0) ? p : p - 1; // even = linkerpagina; oneven = rechter → anker links
+}
+function _spreadPagesFor(anchor, numPages) {
+  if (anchor <= 1) return [1];
+  const pages = [anchor];
+  if (anchor + 1 <= numPages) pages.push(anchor + 1);
+  return pages;
+}
+function _nextSpreadAnchor(anchor, numPages) {
+  if (anchor <= 1) return numPages >= 2 ? 2 : 1;
+  return anchor + 2 <= numPages ? anchor + 2 : anchor;
+}
+function _prevSpreadAnchor(anchor) {
+  return anchor <= 2 ? 1 : anchor - 2;
+}
+
 // Switch view mode
 export async function setViewMode(mode) {
   const doc = getActiveDocument();
@@ -1274,11 +1320,27 @@ export async function setViewMode(mode) {
   // existing `viewMode === 'continuous'` branch (redraw dispatch, hit
   // testing, search, clipboard, tools, zoom) keeps working unchanged;
   // the doc.bookSpread flag drives the grid layout in renderContinuous().
+  //
+  // 'facing' (issue #164, 4e modus) toont ÉÉN spread van twee pagina's naast
+  // elkaar tegelijk, NIET-doorlopend: vorige/volgende bladert per spread. Ook
+  // dit is intern doc.viewMode='continuous' (zelfde per-pagina-canvas/tekstlaag/
+  // tool/hit-test-infrastructuur), maar met doc.facingSpread=true i.p.v.
+  // bookSpread — zo licht de doorlopend/boek-knop niet op en bouwt
+  // renderContinuous alleen de huidige spread i.p.v. alle pagina's.
   if (mode === 'book') {
     doc.viewMode = 'continuous';
     doc.bookSpread = true;
+    doc.facingSpread = false;
+  } else if (mode === 'facing') {
+    doc.viewMode = 'continuous';
+    doc.bookSpread = false;
+    doc.facingSpread = true;
+    // Normaliseer naar het spread-anker zodat navigatie consistent per spread
+    // springt (currentPage = linkerpagina van het huidige paar, of 1).
+    doc.currentPage = _spreadAnchor(doc.currentPage);
   } else {
     doc.viewMode = mode;
+    doc.facingSpread = false;
     if (mode === 'continuous') doc.bookSpread = false;
   }
   const singleContainer = document.getElementById('canvas-container');
@@ -1291,7 +1353,7 @@ export async function setViewMode(mode) {
     await renderPage(doc.currentPage);
   } else {
     singleContainer.style.display = 'none';
-    continuousContainer.style.display = doc.bookSpread ? 'grid' : 'flex';
+    continuousContainer.style.display = (doc.bookSpread || doc.facingSpread) ? 'grid' : 'flex';
     // CRUCIAAL: single-/rasterweergave zet #pdf-container inline op
     // `overflow:hidden` (het viewport-singleton bezit dan de pan/zoom).
     // Doorlopende/boekweergave scrollt juist NATIEF via deze container
@@ -1389,6 +1451,30 @@ export async function goToPage(pageNum) {
 
   if (pageNum < 1) pageNum = 1;
   if (pageNum > doc.pdfDoc.numPages) pageNum = doc.pdfDoc.numPages;
+
+  // Facing-modus (issue #164): niet-doorlopend, navigeert per SPREAD van twee
+  // pagina's. Alle bestaande navigatie (statusbalk, ribbon, toetsen, thumbnails,
+  // links) loopt via goToPage(currentPage ± 1) / goToPage(n); hier vertalen we
+  // die naar spread-stappen zodat élke aanroeper vanzelf per spread bladert.
+  if (doc.facingSpread) {
+    const numPages = doc.pdfDoc.numPages;
+    const curAnchor = _spreadAnchor(doc.currentPage);
+    let targetAnchor = _spreadAnchor(pageNum);
+    // Een vorige/volgende-knop levert currentPage ± 1: dat landt op de zíjpagina
+    // van de huidige spread (zelfde anker). Dat interpreteren we als "spring een
+    // hele spread in die richting".
+    if (targetAnchor === curAnchor && pageNum !== curAnchor) {
+      targetAnchor = pageNum > curAnchor
+        ? _nextSpreadAnchor(curAnchor, numPages)
+        : _prevSpreadAnchor(curAnchor);
+    }
+    doc.currentPage = targetAnchor;
+    hideProperties();
+    await renderContinuous();
+    updateActiveThumbnail();
+    updateAllStatus();
+    return;
+  }
 
   if (doc) doc.currentPage = pageNum;
   hideProperties();

@@ -2,7 +2,7 @@ import RibbonGroup from './RibbonGroup.jsx';
 import AdaptiveGroups from './AdaptiveGroups.jsx';
 import RibbonButton from './RibbonButton.jsx';
 import ThemePicker from './ThemePicker.jsx';
-import { singlePageIcon, continuousIcon, bookViewIcon, navigationIcon, propertiesIcon, annotationsListIcon, toolPaletteIcon, fullscreenIcon, fullscreenExitIcon, elementVisibilityIcon } from '../../data/ribbonIcons.js';
+import { singlePageIcon, continuousIcon, bookViewIcon, facingPagesIcon, navigationIcon, propertiesIcon, annotationsListIcon, toolPaletteIcon, fullscreenIcon, fullscreenExitIcon, elementVisibilityIcon } from '../../data/ribbonIcons.js';
 import { isFullscreen } from '../../stores/ribbonStore.js';
 import { toggleFullscreen } from '../../../ui/chrome/fullscreen.js';
 import { toggleSymbolPalette } from '../SymbolPalette.jsx';
@@ -33,14 +33,23 @@ export default function ViewTab() {
             onClick={() => setViewMode('single')} />
           <RibbonButton id="continuous" title={t('view.continuousTitle')} icon={continuousIcon} label={t('view.continuous')}
             active={(state.documents[state.activeDocumentIndex]?.viewMode || 'single') === 'continuous'
-              && !state.documents[state.activeDocumentIndex]?.bookSpread}
+              && !state.documents[state.activeDocumentIndex]?.bookSpread
+              && !state.documents[state.activeDocumentIndex]?.facingSpread}
             disabled={noPdf()} onClick={() => setViewMode('continuous')} />
           {/* Boekweergave bouwt op het doorlopende pad (grid-layout via
               bookSpread); nu dat pad weer werkt, is ook deze knop actief. */}
           <RibbonButton id="book-view" title={t('view.bookTitle')} icon={bookViewIcon} label={t('view.book')}
             active={(state.documents[state.activeDocumentIndex]?.viewMode === 'continuous')
-              && !!state.documents[state.activeDocumentIndex]?.bookSpread}
+              && !!state.documents[state.activeDocumentIndex]?.bookSpread
+              && !state.documents[state.activeDocumentIndex]?.facingSpread}
             disabled={noPdf()} onClick={() => setViewMode('book')} />
+          {/* Facing (issue #164): twee pagina's naast elkaar als één spread
+              tegelijk, niet-doorlopend — bladert per spread. Intern ook
+              continuous, maar met facingSpread i.p.v. bookSpread. */}
+          <RibbonButton id="facing-view" title={t('view.facingTitle')} icon={facingPagesIcon} label={t('view.facing')}
+            active={(state.documents[state.activeDocumentIndex]?.viewMode === 'continuous')
+              && !!state.documents[state.activeDocumentIndex]?.facingSpread}
+            disabled={noPdf()} onClick={() => setViewMode('facing')} />
         </RibbonGroup>
 
         <RibbonGroup label={t('view.display') || 'Display'}>

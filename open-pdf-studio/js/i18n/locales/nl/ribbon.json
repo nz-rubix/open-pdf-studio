@@ -161,6 +161,8 @@
     "continuous": "Doorlopend",
     "bookTitle": "Boekweergave (twee pagina’s naast elkaar, pagina 1 rechts) — binnenkort beschikbaar",
     "book": "Boek",
+    "facingTitle": "Twee pagina’s naast elkaar (één spread tegelijk, niet-doorlopend)",
+    "facing": "Naast elkaar",
     "panels": "Panelen",
     "navigationPanel": "Navigatiepaneel (F9)",
     "navigation": "Navigatie",
