@@ -574,7 +574,16 @@ async function renderThumbnailToDataURL(pdfDoc, pageNum) {
   try {
     if (doc?.filePath) {
       const prog = await import('../../pdf/progressive-render.js');
-      if (await prog.isHeavyPage(doc.filePath, pageNum)) {
+      const ptc = await import('../../pdf/page-type-cache.js');
+      // 'tile'-geclassificeerde pagina's dragen zware raster/beeld-XObjects
+      // (bv. een 35 MP JPEG). page_content_size ziet alleen de content-stream
+      // (~0 MB voor zo'n blad) dus isHeavyPage mist ze — maar de in-proc
+      // render_thumbnail hieronder decodeert hun beelden op VOLLE resolutie in
+      // het hoofdproces (~1 GB per blad; over meerdere bladen → heap-corruptie
+      // en crash tijdens openen). Route ze daarom net als zware pagina's via de
+      // worker-pool (aparte processen, crash-geïsoleerd), NIET in-proc.
+      const _isTile = ptc.getCachedPageType(doc.filePath, pageNum - 1) === 'tile';
+      if (_isTile || await prog.isHeavyPage(doc.filePath, pageNum)) {
         const pbc = await import('../../pdf/page-bitmap-cache.js');
         const rotation = (typeof getPageRotation === 'function' ? getPageRotation(pageNum) : 0) || 0;
         const best = pbc.getBestAvailableBitmap(doc.filePath, pageNum, rotation, 1);

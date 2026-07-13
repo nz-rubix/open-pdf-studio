@@ -753,6 +753,21 @@ impl DocumentHandle {
         )?;
         drop(font_registry);
 
+        // Ship-guard: een te grote command-buffer mag NIET naar de webview
+        // (JS-replay). De in-lus budget-cap in de interpreter stopt de groei bij
+        // pathologische bladen (miljoenen path-ops in een Form-XObject), maar de
+        // afgekapte buffer zou als geldig resultaat alsnog worden verscheept en
+        // het webview-geheugen vullen tot vastlopen. Weiger 'm hier met een Err;
+        // de aanroeper valt terug op het PDFium-rasterpad, dat zulke bladen
+        // tegel-voor-tegel wél aankan. (Zonder into_bytes()-kopie hierboven, dus
+        // geen extra geheugenpiek voor het afgewezen blad.)
+        if cmds.len() > crate::interpreter::EXTRACT_DRAW_COMMANDS_SHIP_LIMIT {
+            return Err(RenderError::RenderError(format!(
+                "pagina te complex voor vector-extractie ({} MB) — terugval op raster",
+                cmds.len() / (1024 * 1024)
+            )));
+        }
+
         // Prepend 16-byte header: x0, y0, width, height (all f32 LE)
         let cmd_bytes = cmds.into_bytes();
         let mut result = Vec::with_capacity(16 + cmd_bytes.len());

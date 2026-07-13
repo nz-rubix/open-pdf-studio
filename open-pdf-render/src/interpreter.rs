@@ -204,6 +204,24 @@ pub(crate) type ImageCache = std::collections::HashMap<lopdf::ObjectId, CachedDe
 
 pub struct Interpreter;
 
+/// Bovengrens voor de draw-command buffer die `extract_commands_with_text`
+/// opbouwt (in-lus piek-cap). Normale vector-bladen leveren enkele MB's;
+/// pathologische CAD-bladen (miljoenen path-ops, vaak verstopt in Form-XObjects
+/// met een piepkleine page-content-stream) liepen ongelimiteerd op tot >1,6 GB
+/// en veroorzaakten een heap-corruptie-crash in het hoofdproces bij het openen.
+/// Deze cap stopt de groei; de aanroeper (`parser::extract_draw_commands`)
+/// weigert de te grote buffer daarna via `EXTRACT_DRAW_COMMANDS_SHIP_LIMIT` en
+/// valt terug op het PDFium-rasterpad. 128 MB is ruim boven elk legitiem blad
+/// (die zijn enkele MB's) en houdt de piek per extractie laag.
+pub const EXTRACT_DRAW_COMMANDS_BUDGET_BYTES: usize = 128 * 1024 * 1024;
+
+/// Weiger-grens: een draw-command buffer groter dan dit gaat NIET naar de
+/// webview (JS-replay). Zulke bladen zijn te complex voor JS-replay (de buffer
+/// zelf + de replay zouden het webview-geheugen vullen tot vastlopen) en horen
+/// op het PDFium-rasterpad. Ligt onder de in-lus-cap zodat elk blad dat de cap
+/// raakte hier gegarandeerd wordt afgewezen.
+pub const EXTRACT_DRAW_COMMANDS_SHIP_LIMIT: usize = 96 * 1024 * 1024;
+
 impl Interpreter {
     /// Execute content stream, rendering all content including full-resolution images.
     pub fn execute(
@@ -1691,6 +1709,23 @@ impl Interpreter {
         let mut op_buf = lopdf::content::Operation { operator: String::new(), operands: Vec::new() };
         while op_stream.next_into(&mut op_buf) {
             let op = &op_buf;
+            // Output-budget-bewaking. Sommige "vector"-bladen hebben een piepkleine
+            // content-stream (honderden bytes) die naar een Form-XObject verwijst
+            // dat na afwikkeling MILJOENEN path-ops bevat (repetitief lijnwerk
+            // comprimeert naar niets maar expandeert enorm). Zonder deze grens
+            // groeide `buf` tot ~1,6 GB en, met de into_bytes()-kopie erbij, een
+            // piek van ~3 GB in het hoofdproces → heap-corruptie en crash bij het
+            // openen (page_content_size ziet die complexiteit niet, dus isHeavyPage
+            // ving ze niet af). Deze check staat bovenaan de lus en vuurt daarom
+            // ook in elke recursieve Form-XObject-afwikkeling. Bij overschrijding
+            // stoppen we met een Err; de aanroeper valt terug op het PDFium-
+            // rasterpad (dat zulke bladen tegel-voor-tegel wél aankan).
+            if buf.len() > EXTRACT_DRAW_COMMANDS_BUDGET_BYTES {
+                return Err(RenderError::RenderError(format!(
+                    "draw-command buffer overschrijdt budget ({} MB) — pagina te complex voor vector-extractie, terugval op raster",
+                    buf.len() / (1024 * 1024)
+                )));
+            }
             match op.operator.as_str() {
                 // Graphics state
                 "q" => {
