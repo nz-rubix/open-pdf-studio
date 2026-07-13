@@ -687,6 +687,18 @@ fn handle_tools_list() -> Value {
                     "required": ["pixelsPerUnit", "unit"],
                     "additionalProperties": false
                 }
+            },
+            {
+                "name": "app_get_takeoff",
+                "description": "Return take-off totals for the user's named schedules (Staten): per schedule the element count, the numeric column grand totals (e.g. area m2, length m, count), and per-group subtotals. Optionally target one schedule by id or name; otherwise all schedules are returned. Image/thumbnail columns are reported as counts, never as data-URLs.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "scheduleId": { "type": "string", "description": "Target one schedule by its id." },
+                        "name":       { "type": "string", "description": "Target one schedule by its display name." }
+                    },
+                    "additionalProperties": false
+                }
             }
         ]
     })
@@ -753,6 +765,7 @@ async fn handle_tools_call(state: &AppState, params: &Value) -> Result<Value, (i
         "app_fit_width"          => tool_app_request(state, "mcp:fit-width",          &arguments, Duration::from_secs(15)).await,
         "app_get_page_count"     => tool_app_request(state, "mcp:get-page-count",     &arguments, Duration::from_secs(5)).await,
         "app_set_measure_scale"  => tool_app_request(state, "mcp:set-measure-scale",  &arguments, Duration::from_secs(15)).await,
+        "app_get_takeoff"        => tool_app_request(state, "mcp:get-takeoff",        &arguments, Duration::from_secs(10)).await,
         other => Err((
             jsonrpc_error::METHOD_NOT_FOUND,
             format!("method not found: {other}"),
@@ -1540,6 +1553,7 @@ mod tests {
             "app_fit_width",
             "app_get_page_count",
             "app_set_measure_scale",
+            "app_get_takeoff",
         ] {
             assert!(names.contains(&tool), "missing tool: {tool} (got {names:?})");
             let descr = arr.iter().find(|t| t["name"] == tool).unwrap();

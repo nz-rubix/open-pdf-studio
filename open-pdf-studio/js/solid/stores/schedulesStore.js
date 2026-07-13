@@ -86,6 +86,31 @@ export function renameSchedule(id, name) {
   persist();
 }
 
+/** Vervang de config van een schedule (wizard). Reactief + persistent. */
+export function updateScheduleConfig(id, config) {
+  setSchedules(schedules().map(s => s.id === id
+    ? { ...s, config: JSON.parse(JSON.stringify(config || {})) }
+    : s));
+  persist();
+}
+
+/** Maak een lege (blanco) schedule zonder sjabloon — voor de "Nieuwe staat"-wizard. */
+export function addBlankSchedule(name) {
+  const item = {
+    id: newId(),
+    name: name || 'Staat',
+    templateId: null,
+    config: { categories: [], fields: [], filters: [], sort: [], itemize: true, format: {} },
+  };
+  setSchedules([...schedules(), item]);
+  persist();
+  return item;
+}
+
+// --- Wizard/configuratie-UI-state (welke staat wordt bewerkt) ---
+const [configuringId, setConfiguringId] = createSignal(null);
+export { configuringId, setConfiguringId };
+
 export function removeSchedule(id) {
   setSchedules(schedules().filter(s => s.id !== id));
   persist();

@@ -1878,6 +1878,40 @@ async function handleAssistantHistory() {
   return relay.getAssistantMessages();
 }
 
+/** Return take-off totals for a named schedule (or all schedules). Numeric
+ *  columns are summed into grand totals and per-group subtotals; image
+ *  columns are reported as counts, never as data-URLs. */
+async function handleGetTakeoff(params) {
+  const store = await import('./solid/stores/schedulesStore.js');
+  const all = store.schedules();
+  if (!all.length) return { ok: true, schedules: [], note: 'no schedules defined' };
+
+  const wanted = (s) => {
+    const r = store.buildResultForSchedule(s);
+    const numCols = r.columns.filter(c => c.kind === 'number');
+    return {
+      id: s.id,
+      name: s.name,
+      count: r.count,
+      columns: r.columns.map(c => ({ key: c.key, label: c.label, unit: c.unit || '', kind: c.kind })),
+      grandTotals: Object.fromEntries(numCols.map(c => [c.key, r.grandTotals[c.key] ?? null])),
+      groups: r.groups.map(g => ({
+        key: g.key,
+        count: g.rows.length,
+        subtotals: Object.fromEntries(numCols.map(c => [c.key, g.subtotals[c.key] ?? null])),
+      })),
+    };
+  };
+
+  const sel = params?.scheduleId
+    ? all.filter(s => s.id === params.scheduleId)
+    : (params?.name ? all.filter(s => s.name === params.name) : all);
+  if ((params?.scheduleId || params?.name) && !sel.length) {
+    return { ok: false, error: `schedule not found: ${params.scheduleId || params.name}` };
+  }
+  return { ok: true, schedules: sel.map(wanted) };
+}
+
 const HANDLERS = {
   'mcp:open-pdf':           handleOpenPdf,
   'mcp:set-zoom':           handleSetZoom,
@@ -1923,6 +1957,8 @@ const HANDLERS = {
   'mcp:get-page-count':     handleGetPageCount,
   // App control: measurement scale
   'mcp:set-measure-scale':  handleSetMeasureScale,
+  // Take-off / schedules
+  'mcp:get-takeoff':        handleGetTakeoff,
   // OpenAEC assistant — test the AI end-to-end
   'mcp:ai-complete':        handleAiComplete,
   // OpenAEC account/API introspection

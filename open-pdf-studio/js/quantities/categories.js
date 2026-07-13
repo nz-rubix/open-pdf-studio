@@ -90,6 +90,14 @@ function lengthValue(el) {
   const ppu = (typeof el.__pxPerUnit === 'number' && el.__pxPerUnit > 0) ? el.__pxPerUnit : 1;
   return px / ppu;
 }
+// Leesbare naam voor een afbeelding/stempel: expliciete stempelnaam, anders de
+// bestandsnaam uit een gekoppeld pad, anders het label. Puur (geen IO).
+function imageName(el) {
+  if (el.stampName) return el.stampName;
+  const p = el.linkedPath || el.fileName || '';
+  const base = String(p).split(/[\\/]/).pop();
+  return base || el.label || el.subject || '';
+}
 function realArea(el) {
   const a = areaValue(el);
   if (a == null) return null;
@@ -131,9 +139,12 @@ export const FIELD_REGISTRY = {
     F('fontSize', 'Grootte', 'number', el => Math.round((el.fontSize || 0) * 10) / 10, 'pt', 1),
   ],
   'symbol': [...COMMON,
-    F('symbolId', 'Symbool', 'text', el => el.symbolId || el.stampType || ''),
+    F('thumbnail', 'Voorbeeld', 'image', el => el.imageData || null),
+    F('symbolId', 'Symbool', 'text', el => el.symbolId || el.stampType || el.stampName || ''),
   ],
   'image': [...COMMON,
+    F('thumbnail', 'Voorbeeld', 'image', el => el.imageData || null),
+    F('imageName', 'Bestandsnaam', 'text', imageName),
     F('width', 'Breedte', 'number', el => el.originalWidth || el.width || 0, 'px', 0),
     F('height', 'Hoogte', 'number', el => el.originalHeight || el.height || 0, 'px', 0),
   ],

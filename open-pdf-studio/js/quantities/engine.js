@@ -19,12 +19,15 @@ function cmp(a, b) {
 }
 
 function applyFmt(f, fmt) {
+  const isImage = f.kind === 'image';
   const base = {
     ...f,
     decimals: f.dec != null ? f.dec : (f.kind === 'number' ? 2 : 0),
     align: f.kind === 'number' ? 'right' : 'left',
-    total: true,
+    // Beeldkolommen tellen nooit mee in som/subtotalen.
+    total: !isImage,
   };
+  if (isImage) return { ...base, total: false };
   if (!fmt) return base;
   return {
     ...base,

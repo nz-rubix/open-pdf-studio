@@ -57,6 +57,16 @@ export const STANDARD_SCHEDULE_TEMPLATES = [
     },
   },
   {
+    id: 'image',
+    nameKey: 'schedules.tpl.image',
+    config: {
+      categories: ['image', 'symbol'],
+      fields: ['thumbnail', 'imageName', 'page', 'count'],
+      sort: [{ field: 'imageName', dir: 'asc', group: true, header: true, footer: true }],
+      itemize: true,
+    },
+  },
+  {
     id: 'full',
     nameKey: 'schedules.tpl.full',
     config: {
@@ -75,8 +85,16 @@ export function getTemplateById(id) {
 // --- Cel-formattering (gelijk aan SchedulePanel zodat plaatsen consistent is) ---
 export function formatCell(val, col) {
   if (val == null || val === '') return '';
+  // Beeldkolom: geef de rauwe data-URL door zodat de canvas-renderer (en de
+  // HTML-tabel) er een echte thumbnail van kan tekenen.
+  if (col && col.kind === 'image') return String(val);
   if (typeof val === 'number') return Number.isFinite(val) ? val.toFixed(col.decimals ?? 0) : '';
   return String(val);
+}
+
+/** True als een cel-string een teken-bare afbeelding (data-URL) is. */
+export function isImageCell(s) {
+  return typeof s === 'string' && s.startsWith('data:image');
 }
 
 export function fmtTotal(val, col) {

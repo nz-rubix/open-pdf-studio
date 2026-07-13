@@ -1455,3 +1455,73 @@
 .schedules-item-del:hover {
   color: #e81123;
 }
+
+.schedules-entry {
+  border-top: 1px solid var(--theme-panel-border);
+}
+.schedules-entry .schedules-item { border-top: none; }
+
+.schedules-expand {
+  opacity: 1 !important;
+  width: 14px;
+  font-size: 10px;
+}
+
+/* Inline voorbeeld-tabel (staten-paneel) met thumbnails */
+.schedules-preview {
+  padding: 4px 6px 8px;
+  overflow-x: auto;
+  background: var(--theme-panel-bg, #fff);
+}
+
+.schedules-preview-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 10px;
+  color: var(--theme-text, #000);
+}
+.schedules-preview-table th,
+.schedules-preview-table td {
+  border: 1px solid var(--theme-panel-border, #ddd);
+  padding: 1px 4px;
+  text-align: left;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.schedules-preview-table th {
+  background: var(--theme-panel-tab-bg, #f0f0f0);
+  font-weight: 600;
+}
+.schedules-preview-table .sp-num { text-align: right; }
+.schedules-preview-table .sp-group td {
+  background: #eef2f7;
+  font-weight: 600;
+}
+.schedules-preview-table .sp-count { color: var(--theme-text-secondary, #888); font-weight: 400; }
+.schedules-preview-table .sp-total td {
+  background: var(--theme-panel-tab-bg, #f4f4f4);
+  font-weight: 600;
+}
+.schedules-preview-table .sp-grand td {
+  background: var(--theme-panel-tab-hover, #e6e6e6);
+}
+.sp-thumb {
+  display: block;
+  max-width: 40px;
+  max-height: 34px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  image-rendering: auto;
+}
+.schedules-preview-foot {
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--theme-text-secondary, #888);
+}
+
+/* Wizard-specifiek (bouwt op .q-props-dialog) */
+.schedule-wizard { width: 560px; max-width: 92vw; }
+.sched-wizard-steps { flex-wrap: wrap; }
+.sched-wizard-footer { display: flex; gap: 6px; justify-content: flex-end; }
+.sched-wizard-done { font-weight: 600; }

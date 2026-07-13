@@ -27,6 +27,21 @@ import { hiddenTypes as evHiddenTypes, halftoneTypes as evHalftoneTypes } from '
 // Re-export everything that external code needs
 export { drawPolygonShape, drawCloudShape, buildPolygonPath, buildCloudPath } from './rendering/shapes.js';
 
+// Thumbnail-cache voor scheduleTable-beeldcellen: data-URL → HTMLImageElement.
+// Klein en gedeeld; bij eerste laden triggeren we één redraw zodat de reeds
+// gedecodeerde thumbnail meteen verschijnt (performant: geen her-decode).
+const _scheduleThumbCache = new Map();
+function getScheduleThumb(url) {
+  if (!url) return null;
+  const hit = _scheduleThumbCache.get(url);
+  if (hit) return hit.complete ? hit : null;
+  const img = new Image();
+  _scheduleThumbCache.set(url, img);
+  img.onload = () => { try { redrawAnnotations(); } catch (_) {} };
+  img.src = url;
+  return null;
+}
+
 // Puff-maat (koorde in pt) voor wolkranden op basis van de /BE-intensiteit:
 // I<=1 = "kleine wolk", anders "grote wolk" (kalibratie op externe editors).
 function cloudPuffSize(annotation) {
@@ -1798,7 +1813,12 @@ export function drawAnnotation(ctx, annotation) {
         const rows = annotation.rows;
         const ncols = Math.max(1, columns.length);
         const tw = annotation.width || Math.max(300, ncols * 90);
-        const rowH = 18, headerH = 22, pad = 6;
+        // Beeldcellen (data:image data-URL's) krijgen hogere rijen zodat de
+        // thumbnail herkenbaar zichtbaar is; anders de compacte standaardhoogte.
+        const isImg = (v) => typeof v === 'string' && v.startsWith('data:image');
+        const hasImages = rows.some(row => !row.group && !row.total
+          && Array.isArray(row.cells) && row.cells.some(isImg));
+        const rowH = hasImages ? 40 : 18, headerH = 22, pad = 6;
         const colW = tw / ncols;
         const bodyH = headerH + rows.length * rowH;
 
@@ -1841,7 +1861,24 @@ export function drawAnnotation(ctx, annotation) {
             ctx.fillText(clip(cells[0] || '', tw - pad * 2), annotation.x + pad, ry + rowH / 2);
           } else {
             for (let i = 0; i < ncols; i++) {
-              const val = cells[i] != null ? String(cells[i]) : '';
+              const raw = cells[i];
+              if (isImg(raw)) {
+                // Teken de echte thumbnail in de cel (aspect-behoudend, gecentreerd).
+                const thumb = getScheduleThumb(raw);
+                const cellX = annotation.x + i * colW;
+                const maxW = colW - pad * 2, maxH = rowH - 6;
+                if (thumb && thumb.width && thumb.height) {
+                  const sc = Math.min(maxW / thumb.width, maxH / thumb.height, 1);
+                  const dw = thumb.width * sc, dh = thumb.height * sc;
+                  ctx.drawImage(thumb, cellX + (colW - dw) / 2, ry + (rowH - dh) / 2, dw, dh);
+                } else {
+                  ctx.fillStyle = '#bbb';
+                  ctx.fillText('…', cellX + pad, ry + rowH / 2);
+                  ctx.fillStyle = '#000';
+                }
+                continue;
+              }
+              const val = raw != null ? String(raw) : '';
               ctx.fillText(clip(val, colW - pad * 2), annotation.x + i * colW + pad, ry + rowH / 2);
             }
           }
