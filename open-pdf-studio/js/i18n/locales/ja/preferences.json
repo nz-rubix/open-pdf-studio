@@ -21,7 +21,9 @@
     "author": "著者",
     "defaultAuthorName": "著者名",
     "language": "言語",
-    "interfaceLanguage": "インターフェース言語"
+    "interfaceLanguage": "インターフェース言語",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "全般の既定値",

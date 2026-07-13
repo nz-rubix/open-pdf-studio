@@ -21,7 +21,9 @@
     "author": "작성자",
     "defaultAuthorName": "작성자 이름",
     "language": "언어",
-    "interfaceLanguage": "인터페이스 언어"
+    "interfaceLanguage": "인터페이스 언어",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "일반 기본값",

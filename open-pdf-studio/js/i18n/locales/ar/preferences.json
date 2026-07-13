@@ -21,7 +21,9 @@
     "author": "المؤلف",
     "defaultAuthorName": "اسم المؤلف",
     "language": "اللغة",
-    "interfaceLanguage": "لغة الواجهة"
+    "interfaceLanguage": "لغة الواجهة",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "الإعدادات الافتراضية العامة",

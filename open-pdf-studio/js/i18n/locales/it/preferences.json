@@ -21,7 +21,9 @@
     "author": "Autore",
     "defaultAuthorName": "Nome autore",
     "language": "Lingua",
-    "interfaceLanguage": "Lingua dell'interfaccia"
+    "interfaceLanguage": "Lingua dell'interfaccia",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "Predefiniti generali",

@@ -21,7 +21,9 @@
     "author": "Autor",
     "defaultAuthorName": "Jméno autora",
     "language": "Jazyk",
-    "interfaceLanguage": "Jazyk rozhraní"
+    "interfaceLanguage": "Jazyk rozhraní",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "Obecné výchozí hodnoty",

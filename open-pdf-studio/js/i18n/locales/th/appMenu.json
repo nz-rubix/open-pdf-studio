@@ -85,5 +85,6 @@
     "dpi150": "150 DPI",
     "dpi300": "300 DPI (พิมพ์)",
     "dpi600": "600 DPI (คุณภาพสูง)"
-  }
+  },
+  "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

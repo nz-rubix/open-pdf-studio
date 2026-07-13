@@ -21,7 +21,9 @@
     "author": "Autor",
     "defaultAuthorName": "Meno autora",
     "language": "Jazyk",
-    "interfaceLanguage": "Jazyk rozhrania"
+    "interfaceLanguage": "Jazyk rozhrania",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "Všeobecné predvolené nastavenia",

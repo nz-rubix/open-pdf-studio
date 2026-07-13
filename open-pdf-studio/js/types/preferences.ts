@@ -175,6 +175,9 @@ export interface Preferences {
   restoreLastSession: boolean;
   dontAskDefaultPdf: boolean;
 
+  // Screenshot annotate: intercept the system PrtScn key as a global hotkey
+  interceptPrintScreen: boolean;
+
   // Display
   showHandles: boolean;
   handleSize: number;

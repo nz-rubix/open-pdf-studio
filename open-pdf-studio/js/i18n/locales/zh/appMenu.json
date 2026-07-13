@@ -85,5 +85,6 @@
     "dpi150": "150 DPI",
     "dpi300": "300 DPI（打印）",
     "dpi600": "600 DPI（高质量）"
-  }
+  },
+  "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

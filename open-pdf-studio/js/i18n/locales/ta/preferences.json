@@ -21,7 +21,9 @@
     "author": "ஆசிரியர்",
     "defaultAuthorName": "ஆசிரியர் பெயர்",
     "language": "மொழி",
-    "interfaceLanguage": "இடைமுகப்பு மொழி"
+    "interfaceLanguage": "இடைமுகப்பு மொழி",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "பொது இயல்புநிலைகள்",

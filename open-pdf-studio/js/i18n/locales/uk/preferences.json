@@ -21,7 +21,9 @@
     "author": "Автор",
     "defaultAuthorName": "Ім'я автора",
     "language": "Мова",
-    "interfaceLanguage": "Мова інтерфейсу"
+    "interfaceLanguage": "Мова інтерфейсу",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "Загальні типові значення",

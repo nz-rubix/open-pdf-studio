@@ -43,6 +43,7 @@ const ICONS = {
   about: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
   exit: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>',
   extensions: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>',
+  annotateScreenshot: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><circle cx="12" cy="13" r="3"/></svg>',
 };
 
 function actionAndClose(fn) {
@@ -106,6 +107,8 @@ export default function AppMenu() {
             <MenuItem icon={ICONS.saveAs} label={t('saveAs')} shortcut="Ctrl+Shift+S" onClick={() => actionAndClose(savePDFAs)} />
             <MenuItem icon={ICONS.cloudSave} label={t('saveToCloud') || 'Opslaan in OpenAEC Cloud'} onClick={() => actionAndClose(() => import('../../../pdf/cloud-save.js').then((m) => m.saveToOpenAecCloud()))} />
             <MenuItem icon={ICONS.print} label={t('print')} shortcut="Ctrl+P" onClick={() => actionAndClose(showPrintDialog)} />
+            <Divider />
+            <MenuItem icon={ICONS.annotateScreenshot} label={t('annotateScreenshot')} onClick={() => actionAndClose(() => import('../../../tools/screenshot-annotate.js').then((m) => m.annotateClipboardScreenshot()))} />
             <Divider />
             <MenuItem icon={ICONS.import} label={t('import')} active={getActivePanel() === 'import'} onClick={() => setActivePanel('import')} />
             <MenuItem icon={ICONS.export} label={t('export')} active={getActivePanel() === 'export'} onClick={() => setActivePanel('export')} />

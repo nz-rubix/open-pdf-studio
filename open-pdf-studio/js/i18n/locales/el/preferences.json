@@ -21,7 +21,9 @@
     "author": "Συγγραφέας",
     "defaultAuthorName": "Όνομα συγγραφέα",
     "language": "Γλώσσα",
-    "interfaceLanguage": "Γλώσσα διεπαφής"
+    "interfaceLanguage": "Γλώσσα διεπαφής",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "Γενικές προεπιλογές",

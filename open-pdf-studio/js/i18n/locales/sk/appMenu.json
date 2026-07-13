@@ -85,5 +85,6 @@
     "dpi150": "150 DPI",
     "dpi300": "300 DPI (tla\u010d)",
     "dpi600": "600 DPI (vysok\u00e1 kvalita)"
-  }
+  },
+  "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

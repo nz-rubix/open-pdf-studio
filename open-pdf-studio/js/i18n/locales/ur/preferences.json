@@ -21,7 +21,9 @@
     "author": "مصنف",
     "defaultAuthorName": "مصنف کا نام",
     "language": "زبان",
-    "interfaceLanguage": "انٹرفیس کی زبان"
+    "interfaceLanguage": "انٹرفیس کی زبان",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "عمومی ڈیفالٹس",

@@ -252,6 +252,10 @@ export const DEFAULT_PREFERENCES: Preferences = {
   restoreLastSession: false,
   dontAskDefaultPdf: false,
 
+  // Screenshot annotate: intercept the system PrtScn key as a global hotkey
+  // (opt-in; off by default because a global hotkey is intrusive).
+  interceptPrintScreen: false,
+
   // Display
   showHandles: true,
   handleSize: 8,

@@ -85,5 +85,6 @@
     "dpi150": "150 DPI",
     "dpi300": "300 DPI (Chapisha)",
     "dpi600": "600 DPI (Ubora wa Juu)"
-  }
+  },
+  "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

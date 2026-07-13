@@ -21,7 +21,9 @@
     "author": "Forfatter",
     "defaultAuthorName": "Forfatternavn",
     "language": "Språk",
-    "interfaceLanguage": "Grensesnittspråk"
+    "interfaceLanguage": "Grensesnittspråk",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "Generelle standardverdier",

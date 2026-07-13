@@ -21,7 +21,9 @@
     "author": "Tekijä",
     "defaultAuthorName": "Tekijän nimi",
     "language": "Kieli",
-    "interfaceLanguage": "Käyttöliittymän kieli"
+    "interfaceLanguage": "Käyttöliittymän kieli",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "Yleiset oletukset",

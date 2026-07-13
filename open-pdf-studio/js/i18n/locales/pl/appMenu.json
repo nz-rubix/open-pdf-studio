@@ -85,5 +85,6 @@
     "dpi150": "150 DPI",
     "dpi300": "300 DPI (Druk)",
     "dpi600": "600 DPI (Wysoka jako\u015b\u0107)"
-  }
+  },
+  "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

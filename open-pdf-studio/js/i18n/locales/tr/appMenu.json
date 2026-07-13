@@ -85,5 +85,6 @@
     "dpi150": "150 DPI",
     "dpi300": "300 DPI (Baskı)",
     "dpi600": "600 DPI (Yüksek Kalite)"
-  }
+  },
+  "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

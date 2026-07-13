@@ -21,7 +21,9 @@
     "author": "Autor",
     "defaultAuthorName": "Nume autor",
     "language": "Limba",
-    "interfaceLanguage": "Limba interfetei"
+    "interfaceLanguage": "Limba interfetei",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "Valori implicite generale",

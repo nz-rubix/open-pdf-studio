@@ -115,5 +115,6 @@
     "uninstallSuccess": "\"{{name}}\" has been uninstalled",
     "uninstallError": "Failed to uninstall extension",
     "by": "by"
-  }
+  },
+  "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

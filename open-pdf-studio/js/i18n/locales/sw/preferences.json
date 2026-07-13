@@ -21,7 +21,9 @@
     "author": "Mwandishi",
     "defaultAuthorName": "Jina la Mwandishi",
     "language": "Lugha",
-    "interfaceLanguage": "Lugha ya Kiolesura"
+    "interfaceLanguage": "Lugha ya Kiolesura",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "Chaguo-msingi za Jumla",

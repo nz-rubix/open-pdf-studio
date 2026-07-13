@@ -21,7 +21,9 @@
     "author": "作者",
     "defaultAuthorName": "作者姓名",
     "language": "语言",
-    "interfaceLanguage": "界面语言"
+    "interfaceLanguage": "界面语言",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "常规默认值",

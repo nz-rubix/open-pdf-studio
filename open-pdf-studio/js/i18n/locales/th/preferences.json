@@ -21,7 +21,9 @@
     "author": "ผู้เขียน",
     "defaultAuthorName": "ชื่อผู้เขียน",
     "language": "ภาษา",
-    "interfaceLanguage": "ภาษาของส่วนติดต่อ"
+    "interfaceLanguage": "ภาษาของส่วนติดต่อ",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "ค่าเริ่มต้นทั่วไป",

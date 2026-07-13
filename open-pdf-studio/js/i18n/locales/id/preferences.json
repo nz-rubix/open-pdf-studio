@@ -21,7 +21,9 @@
     "author": "Penulis",
     "defaultAuthorName": "Nama Penulis",
     "language": "Bahasa",
-    "interfaceLanguage": "Bahasa Antarmuka"
+    "interfaceLanguage": "Bahasa Antarmuka",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "Bawaan Umum",

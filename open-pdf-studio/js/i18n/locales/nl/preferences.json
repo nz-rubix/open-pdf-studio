@@ -21,7 +21,9 @@
     "author": "Auteur",
     "defaultAuthorName": "Auteursnaam",
     "language": "Taal",
-    "interfaceLanguage": "Interfacetaal"
+    "interfaceLanguage": "Interfacetaal",
+    "screenshot": "Schermafbeelding",
+    "interceptPrintScreen": "PrtScn onderscheppen voor schermafbeelding-annotatie"
   },
   "annotations": {
     "generalDefaults": "Algemene standaardwaarden",

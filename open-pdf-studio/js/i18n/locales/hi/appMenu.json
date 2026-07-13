@@ -85,5 +85,6 @@
     "dpi150": "150 DPI",
     "dpi300": "300 DPI (प्रिंट)",
     "dpi600": "600 DPI (उच्च गुणवत्ता)"
-  }
+  },
+  "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

@@ -85,5 +85,6 @@
     "dpi150": "150 DPI",
     "dpi300": "300 DPI (Cetakan)",
     "dpi600": "600 DPI (Kualiti Tinggi)"
-  }
+  },
+  "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

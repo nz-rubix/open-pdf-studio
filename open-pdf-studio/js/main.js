@@ -235,6 +235,12 @@ async function init() {
   // Load installed plugins (extension palettes, custom annotation types, etc.)
   initPlugins();
 
+  // Screenshot-annotate mode: wire the PrtScn hotkey event and apply the
+  // (opt-in) preference. No-op outside Tauri. Lazy so it never blocks startup.
+  import('./tools/screenshot-annotate.js')
+    .then(m => m.initScreenshotAnnotate())
+    .catch(() => {});
+
   // Wire MCP <-> WebView bridge BEFORE show()/setFocus(). The bridge is just
   // event-listener registration on window.__TAURI__.event — it does not need
   // the window to be visible or DOM-ready. Wiring it here means the in-process

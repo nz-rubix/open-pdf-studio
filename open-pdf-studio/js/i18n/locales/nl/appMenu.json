@@ -116,5 +116,6 @@
     "uninstallSuccess": "\"{{name}}\" is verwijderd",
     "uninstallError": "Extensie verwijderen mislukt",
     "by": "door"
-  }
+  },
+  "annotateScreenshot": "Klembord-schermafbeelding annoteren"
 }

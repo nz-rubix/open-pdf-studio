@@ -21,7 +21,9 @@
     "author": "Pengarang",
     "defaultAuthorName": "Nama Pengarang",
     "language": "Bahasa",
-    "interfaceLanguage": "Bahasa Antaramuka"
+    "interfaceLanguage": "Bahasa Antaramuka",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "Lalai Umum",

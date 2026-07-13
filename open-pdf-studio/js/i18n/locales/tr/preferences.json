@@ -21,7 +21,9 @@
     "author": "Yazar",
     "defaultAuthorName": "Yazar Adı",
     "language": "Dil",
-    "interfaceLanguage": "Arayüz Dili"
+    "interfaceLanguage": "Arayüz Dili",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "Genel Varsayılanlar",

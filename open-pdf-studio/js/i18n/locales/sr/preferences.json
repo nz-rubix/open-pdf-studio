@@ -21,7 +21,9 @@
     "author": "Аутор",
     "defaultAuthorName": "Име аутора",
     "language": "Језик",
-    "interfaceLanguage": "Језик интерфејса"
+    "interfaceLanguage": "Језик интерфејса",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "Опште подразумеване вредности",

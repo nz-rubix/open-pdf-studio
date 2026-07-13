@@ -21,7 +21,9 @@
     "author": "লেখক",
     "defaultAuthorName": "লেখকের নাম",
     "language": "ভাষা",
-    "interfaceLanguage": "ইন্টারফেস ভাষা"
+    "interfaceLanguage": "ইন্টারফেস ভাষা",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "সাধারণ ডিফল্ট",

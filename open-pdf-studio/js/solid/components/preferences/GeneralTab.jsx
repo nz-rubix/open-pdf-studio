@@ -49,6 +49,15 @@ export default function GeneralTab(props) {
         </div>
       </fieldset>
       <fieldset class="pref-fieldset">
+        <legend>{t('general.screenshot')}</legend>
+        <div class="pref-row pref-checkbox-row">
+          <label class="pref-checkbox-label">
+            <input type="checkbox" checked={p.interceptPrintScreen[0]()} onChange={e => p.interceptPrintScreen[1](e.target.checked)} />
+            <span>{t('general.interceptPrintScreen')}</span>
+          </label>
+        </div>
+      </fieldset>
+      <fieldset class="pref-fieldset">
         <legend>{t('general.author')}</legend>
         <div class="pref-row">
           <label>{t('general.defaultAuthorName')}</label>

@@ -21,7 +21,9 @@
     "author": "מחבר",
     "defaultAuthorName": "שם מחבר",
     "language": "שפה",
-    "interfaceLanguage": "שפת ממשק"
+    "interfaceLanguage": "שפת ממשק",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "ברירות מחדל כלליות",

@@ -35,6 +35,9 @@ zip = "2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-store = "2"
+# Reads a bitmap off the system clipboard for the screenshot-annotate feature
+# (Windows PrtScn puts the capture on the clipboard). Cross-platform.
+tauri-plugin-clipboard-manager = "2"
 reqwest = { version = "0.12", features = ["rustls-tls", "json", "multipart"], default-features = false }
 open-pdf-render = { path = "../../open-pdf-render" }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
@@ -68,6 +71,9 @@ tauri-plugin-updater = "2"
 # Drag-out window detach — desktop only (the crate has no mobile platform
 # backend and fails to compile for Android/iOS).
 tauri-plugin-drag = "2.1.1"
+# Global system hotkey (PrtScn) for the opt-in screenshot-annotate feature.
+# Desktop only.
+tauri-plugin-global-shortcut = "2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Graphics_Printing", "Win32_Graphics_Gdi", "Win32_Storage_Xps", "Win32_Foundation", "Win32_System_Com", "Win32_UI_Shell"] }

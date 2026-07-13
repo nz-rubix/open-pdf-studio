@@ -146,6 +146,12 @@ export function applyPreferences() {
 
   // Apply language
   changeLanguage(state.preferences.language || 'auto');
+
+  // Apply the opt-in PrtScn global hotkey for screenshot-annotate mode
+  // (lazy import to avoid a static import cycle with the loader/tools layer).
+  import('../tools/screenshot-annotate.js')
+    .then((m) => m.applyPrintScreenHotkeyPref())
+    .catch(() => {});
 }
 
 // Show preferences dialog (bridges to Solid.js dialog)

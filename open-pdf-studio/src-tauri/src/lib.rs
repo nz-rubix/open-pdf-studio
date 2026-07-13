@@ -2144,6 +2144,61 @@ fn get_page_dimensions(
         .collect()
 }
 
+// ─── Screenshot-annotate feature ────────────────────────────────────────────
+// Read the current clipboard bitmap and return it as PNG bytes. Used by the
+// "annotate clipboard screenshot" flow: Windows PrtScn (and the Snipping Tool)
+// place the capture on the clipboard, and reading it in Rust via the
+// clipboard-manager plugin is far more reliable than navigator.clipboard.read()
+// inside WebView2. Returns an error when the clipboard holds no image.
+#[tauri::command]
+fn read_clipboard_image_png(app: tauri::AppHandle) -> Result<tauri::ipc::Response, String> {
+    use image::ImageEncoder;
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+
+    let img = app
+        .clipboard()
+        .read_image()
+        .map_err(|e| format!("no image on clipboard: {e}"))?;
+    let width = img.width();
+    let height = img.height();
+    let rgba = img.rgba();
+    if width == 0 || height == 0 || rgba.is_empty() {
+        return Err("clipboard image is empty".into());
+    }
+
+    let mut png: Vec<u8> = Vec::new();
+    image::codecs::png::PngEncoder::new(&mut png)
+        .write_image(rgba, width, height, image::ExtendedColorType::Rgba8)
+        .map_err(|e| format!("PNG encode failed: {e}"))?;
+    Ok(tauri::ipc::Response::new(png))
+}
+
+// Register/unregister the PrtScn global hotkey based on the user preference.
+// Called from the frontend when the "intercept PrtScn" preference changes and
+// at startup. Idempotent. Desktop only — the global-shortcut plugin has no
+// mobile backend, so on Android this is a no-op stub (see below).
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+fn set_prtscn_hotkey(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut};
+
+    let shortcut = Shortcut::new(None, Code::PrintScreen);
+    let gs = app.global_shortcut();
+    let is_registered = gs.is_registered(shortcut);
+    if enabled && !is_registered {
+        gs.register(shortcut).map_err(|e| e.to_string())?;
+    } else if !enabled && is_registered {
+        gs.unregister(shortcut).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+fn set_prtscn_hotkey(_app: tauri::AppHandle, _enabled: bool) -> Result<(), String> {
+    Ok(())
+}
+
 /// Mobile entry point: tauri vereist een argumentloze functie; de desktop-
 /// varianten geven StartupOpts (mcp-server/poort) door via main.rs.
 #[cfg(mobile)]
@@ -2265,6 +2320,7 @@ pub fn run(opts: StartupOpts) {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_store::Builder::default().build());
     // Drag-out window detach is desktop-only (no mobile backend in the crate).
     #[cfg(not(target_os = "android"))]
@@ -2302,6 +2358,32 @@ pub fn run(opts: StartupOpts) {
                 }));
         }
         builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+
+    // Global system hotkey (PrtScn) for the opt-in "screenshot annotate"
+    // feature. The shortcut is NOT registered here — the plugin only installs
+    // the dispatch handler. The frontend calls `set_prtscn_hotkey(true)` when
+    // the user enables the preference, which actually registers PrtScn. On
+    // press we bring the main window to the foreground and notify the WebView,
+    // which reads the clipboard image onto a fresh annotate canvas. Desktop
+    // only (the crate has no mobile backend).
+    #[cfg(not(target_os = "android"))]
+    {
+        use tauri_plugin_global_shortcut::ShortcutState;
+        builder = builder.plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() == ShortcutState::Pressed {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.unminimize();
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                        let _ = app.emit("prtscn-screenshot", ());
+                    }
+                })
+                .build(),
+        );
     }
 
     builder
@@ -2499,6 +2581,8 @@ pub fn run(opts: StartupOpts) {
             window_mgmt::exit_detached_process,
             window_mgmt::drag_icon_path,
             window_mgmt::detach_diag,
+            read_clipboard_image_png,
+            set_prtscn_hotkey,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

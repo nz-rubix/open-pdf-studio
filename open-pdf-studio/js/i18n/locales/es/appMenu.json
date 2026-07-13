@@ -85,5 +85,6 @@
     "dpi150": "150 DPI",
     "dpi300": "300 DPI (Impresi\u00f3n)",
     "dpi600": "600 DPI (Alta calidad)"
-  }
+  },
+  "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

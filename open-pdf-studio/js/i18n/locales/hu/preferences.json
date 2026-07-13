@@ -21,7 +21,9 @@
     "author": "Szerző",
     "defaultAuthorName": "Szerzőnév",
     "language": "Nyelv",
-    "interfaceLanguage": "Felület nyelve"
+    "interfaceLanguage": "Felület nyelve",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "Általános alapértelmezések",

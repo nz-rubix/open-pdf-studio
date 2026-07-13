@@ -21,7 +21,9 @@
     "author": "نویسنده",
     "defaultAuthorName": "نام نویسنده",
     "language": "زبان",
-    "interfaceLanguage": "زبان رابط کاربری"
+    "interfaceLanguage": "زبان رابط کاربری",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "پیش‌فرض‌های عمومی",

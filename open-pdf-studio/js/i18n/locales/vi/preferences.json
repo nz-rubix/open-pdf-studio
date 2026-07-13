@@ -21,7 +21,9 @@
     "author": "Tác giả",
     "defaultAuthorName": "Tên Tác giả",
     "language": "Ngôn ngữ",
-    "interfaceLanguage": "Ngôn ngữ Giao diện"
+    "interfaceLanguage": "Ngôn ngữ Giao diện",
+    "screenshot": "Screenshot",
+    "interceptPrintScreen": "Intercept PrtScn for screenshot annotation"
   },
   "annotations": {
     "generalDefaults": "Mặc định Chung",
