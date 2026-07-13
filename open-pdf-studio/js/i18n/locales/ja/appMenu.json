@@ -61,7 +61,9 @@
   "importPanel": {
     "title": "インポート",
     "importXfdf": "注釈をインポート (XFDF)",
-    "importXfdfDesc": "XFDF ファイルから現在のドキュメントに注釈をインポートします"
+    "importXfdfDesc": "XFDF ファイルから現在のドキュメントに注釈をインポートします",
+    "importBcf": "Import Issues (BCF)",
+    "importBcfDesc": "Import BCF topics from another BIM tool as annotations"
   },
   "exportPanel": {
     "title": "エクスポート",
@@ -84,7 +86,9 @@
     "dpi72": "72 DPI（画面）",
     "dpi150": "150 DPI",
     "dpi300": "300 DPI（印刷）",
-    "dpi600": "600 DPI（高品質）"
+    "dpi600": "600 DPI（高品質）",
+    "exportBcf": "Export Issues (BCF)",
+    "exportBcfDesc": "Export annotations as BCF 2.1 topics for other BIM tools"
   },
   "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

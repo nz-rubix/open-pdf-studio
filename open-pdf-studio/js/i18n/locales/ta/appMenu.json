@@ -61,7 +61,9 @@
   "importPanel": {
     "title": "இறக்குமதி",
     "importXfdf": "குறிப்புரைகளை இறக்குமதி செய் (XFDF)",
-    "importXfdfDesc": "XFDF கோப்பிலிருந்து தற்போதைய ஆவணத்திற்குக் குறிப்புரைகளை இறக்குமதி செய்"
+    "importXfdfDesc": "XFDF கோப்பிலிருந்து தற்போதைய ஆவணத்திற்குக் குறிப்புரைகளை இறக்குமதி செய்",
+    "importBcf": "Import Issues (BCF)",
+    "importBcfDesc": "Import BCF topics from another BIM tool as annotations"
   },
   "exportPanel": {
     "title": "ஏற்றுமதி",
@@ -84,7 +86,9 @@
     "dpi72": "72 DPI (திரை)",
     "dpi150": "150 DPI",
     "dpi300": "300 DPI (அச்சு)",
-    "dpi600": "600 DPI (உயர் தரம்)"
+    "dpi600": "600 DPI (உயர் தரம்)",
+    "exportBcf": "Export Issues (BCF)",
+    "exportBcfDesc": "Export annotations as BCF 2.1 topics for other BIM tools"
   },
   "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

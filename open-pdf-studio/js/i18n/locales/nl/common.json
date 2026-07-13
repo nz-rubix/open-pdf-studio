@@ -134,5 +134,11 @@
   "failedToCreateDocument": "Document aanmaken mislukt: {{error}}",
   "failedToReplacePage": "Pagina vervangen mislukt: {{error}}",
   "failedToMergeFile": "Samenvoegen mislukt: {{file}}\n{{error}}",
-  "failedToInsertPagesFromFile": "Kan pagina's niet invoegen uit bestand: {{error}}"
+  "failedToInsertPagesFromFile": "Kan pagina's niet invoegen uit bestand: {{error}}",
+  "bcfExported": "{{count}} issue(s) geëxporteerd naar BCF",
+  "bcfImported": "{{count}} issue(s) geïmporteerd uit BCF",
+  "bcfExportFailed": "BCF-export mislukt.",
+  "bcfImportFailed": "BCF-bestand kon niet worden gelezen.",
+  "bcfInvalidFile": "Ongeldig of niet-ondersteund BCF-bestand.",
+  "bcfNoTopics": "Geen topics gevonden in BCF-bestand."
 }

@@ -24,7 +24,7 @@
     "license": "Αδειοδοτημένο υπό MIT. Δωρεάν για προσωπική και εμπορική χρήση.",
     "website": "Ιστοσελίδα",
     "contact": "Επικοινωνία",
-    "copyright": "\u00a9 2026 OpenAEC Foundation. Αδειοδοτημένο υπό MIT.",
+    "copyright": "© 2026 OpenAEC Foundation. Αδειοδοτημένο υπό MIT.",
     "version": "Έκδοση"
   },
   "openPanel": {
@@ -61,7 +61,9 @@
   "importPanel": {
     "title": "Εισαγωγή",
     "importXfdf": "Εισαγωγή σχολιασμών (XFDF)",
-    "importXfdfDesc": "Εισαγωγή σχολιασμών από αρχείο XFDF στο τρέχον έγγραφο"
+    "importXfdfDesc": "Εισαγωγή σχολιασμών από αρχείο XFDF στο τρέχον έγγραφο",
+    "importBcf": "Import Issues (BCF)",
+    "importBcfDesc": "Import BCF topics from another BIM tool as annotations"
   },
   "exportPanel": {
     "title": "Εξαγωγή",
@@ -84,7 +86,9 @@
     "dpi72": "72 DPI (Οθόνη)",
     "dpi150": "150 DPI",
     "dpi300": "300 DPI (Εκτύπωση)",
-    "dpi600": "600 DPI (Υψηλή ποιότητα)"
+    "dpi600": "600 DPI (Υψηλή ποιότητα)",
+    "exportBcf": "Export Issues (BCF)",
+    "exportBcfDesc": "Export annotations as BCF 2.1 topics for other BIM tools"
   },
   "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

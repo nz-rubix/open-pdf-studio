@@ -110,5 +110,11 @@
     "destination": "Destination: {{name}}",
     "internalLink": "Intern länk"
   },
-  "failedToInsertPagesFromFile": "Failed to insert pages from file: {{error}}"
+  "failedToInsertPagesFromFile": "Failed to insert pages from file: {{error}}",
+  "bcfExported": "Exported {{count}} issue(s) to BCF",
+  "bcfImported": "Imported {{count}} issue(s) from BCF",
+  "bcfExportFailed": "BCF export failed.",
+  "bcfImportFailed": "Could not read BCF file.",
+  "bcfInvalidFile": "Invalid or unsupported BCF file.",
+  "bcfNoTopics": "No topics found in BCF file."
 }

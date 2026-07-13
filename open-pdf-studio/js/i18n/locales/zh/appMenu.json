@@ -17,14 +17,14 @@
     "tagline": "IT Without Chains",
     "description": "一款用于查看、批注和编辑 PDF 文档的专业 PDF 编辑器。基于开源技术构建。",
     "companyName": "OpenAEC Foundation",
-    "companyDescription": "源自拉丁语\u201c分享与分发\u201d\u2014\u2014我们通过专业的开源解决方案将企业从供应商锁定中解放出来。透明的定价，透明的代码。",
+    "companyDescription": "源自拉丁语“分享与分发”——我们通过专业的开源解决方案将企业从供应商锁定中解放出来。透明的定价，透明的代码。",
     "featureFree": "永久免费，无需订阅",
     "featureOpen": "开源，代码透明",
     "featureNoLock": "无供应商锁定，开放格式",
     "license": "基于 MIT 许可证。个人和商业用途均免费。",
     "website": "网站",
     "contact": "联系方式",
-    "copyright": "\u00a9 2026 OpenAEC Foundation. 基于 MIT 许可证。",
+    "copyright": "© 2026 OpenAEC Foundation. 基于 MIT 许可证。",
     "version": "版本"
   },
   "openPanel": {
@@ -61,7 +61,9 @@
   "importPanel": {
     "title": "导入",
     "importXfdf": "导入批注 (XFDF)",
-    "importXfdfDesc": "从 XFDF 文件导入批注到当前文档"
+    "importXfdfDesc": "从 XFDF 文件导入批注到当前文档",
+    "importBcf": "Import Issues (BCF)",
+    "importBcfDesc": "Import BCF topics from another BIM tool as annotations"
   },
   "exportPanel": {
     "title": "导出",
@@ -84,7 +86,9 @@
     "dpi72": "72 DPI（屏幕）",
     "dpi150": "150 DPI",
     "dpi300": "300 DPI（打印）",
-    "dpi600": "600 DPI（高质量）"
+    "dpi600": "600 DPI（高质量）",
+    "exportBcf": "Export Issues (BCF)",
+    "exportBcfDesc": "Export annotations as BCF 2.1 topics for other BIM tools"
   },
   "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

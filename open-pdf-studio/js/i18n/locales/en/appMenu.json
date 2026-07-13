@@ -24,7 +24,7 @@
     "companyDescription": "Developing, supporting, and promoting open source software for the construction industry and beyond. Transparent pricing, transparent code.",
     "website": "Website",
     "contact": "Contact",
-    "copyright": "\u00a9 2026 OpenAEC Foundation",
+    "copyright": "© 2026 OpenAEC Foundation",
     "license": "Licensed under MIT. Free for personal and commercial use.",
     "version": "Version"
   },
@@ -73,7 +73,9 @@
   "importPanel": {
     "title": "Import",
     "importXfdf": "Import Annotations (XFDF)",
-    "importXfdfDesc": "Import annotations from an XFDF file into the current document"
+    "importXfdfDesc": "Import annotations from an XFDF file into the current document",
+    "importBcf": "Import Issues (BCF)",
+    "importBcfDesc": "Import BCF topics from another BIM tool as annotations"
   },
   "exportPanel": {
     "title": "Export",
@@ -96,7 +98,9 @@
     "dpi72": "72 DPI (Screen)",
     "dpi150": "150 DPI",
     "dpi300": "300 DPI (Print)",
-    "dpi600": "600 DPI (High Quality)"
+    "dpi600": "600 DPI (High Quality)",
+    "exportBcf": "Export Issues (BCF)",
+    "exportBcfDesc": "Export annotations as BCF 2.1 topics for other BIM tools"
   },
   "extensionsPanel": {
     "title": "Extensions",

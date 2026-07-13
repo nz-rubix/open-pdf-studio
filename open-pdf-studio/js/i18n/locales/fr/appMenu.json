@@ -61,7 +61,9 @@
   "importPanel": {
     "title": "Importer",
     "importXfdf": "Importer des annotations (XFDF)",
-    "importXfdfDesc": "Importer des annotations depuis un fichier XFDF dans le document actuel"
+    "importXfdfDesc": "Importer des annotations depuis un fichier XFDF dans le document actuel",
+    "importBcf": "Import Issues (BCF)",
+    "importBcfDesc": "Import BCF topics from another BIM tool as annotations"
   },
   "exportPanel": {
     "title": "Exporter",
@@ -84,7 +86,9 @@
     "dpi72": "72 DPI (Écran)",
     "dpi150": "150 DPI",
     "dpi300": "300 DPI (Impression)",
-    "dpi600": "600 DPI (Haute qualité)"
+    "dpi600": "600 DPI (Haute qualité)",
+    "exportBcf": "Export Issues (BCF)",
+    "exportBcfDesc": "Export annotations as BCF 2.1 topics for other BIM tools"
   },
   "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

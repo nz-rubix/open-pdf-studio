@@ -7,7 +7,7 @@
   "print": "Stampa",
   "import": "Importa",
   "export": "Esporta",
-  "docProperties": "Propriet\u00e0 del documento",
+  "docProperties": "Proprietà del documento",
   "preferences": "Preferenze",
   "about": "Informazioni",
   "exit": "Esci",
@@ -24,7 +24,7 @@
     "license": "Concesso in licenza sotto MIT. Gratuito per uso personale e commerciale.",
     "website": "Sito web",
     "contact": "Contatto",
-    "copyright": "\u00a9 2026 OpenAEC Foundation. Concesso in licenza sotto MIT.",
+    "copyright": "© 2026 OpenAEC Foundation. Concesso in licenza sotto MIT.",
     "version": "Versione"
   },
   "openPanel": {
@@ -61,7 +61,9 @@
   "importPanel": {
     "title": "Importa",
     "importXfdf": "Importa annotazioni (XFDF)",
-    "importXfdfDesc": "Importa annotazioni da un file XFDF nel documento corrente"
+    "importXfdfDesc": "Importa annotazioni da un file XFDF nel documento corrente",
+    "importBcf": "Import Issues (BCF)",
+    "importBcfDesc": "Import BCF topics from another BIM tool as annotations"
   },
   "exportPanel": {
     "title": "Esporta",
@@ -79,12 +81,14 @@
     "customRange": "Personalizzato:",
     "rangePlaceholder": "es. 1-5, 8, 11-13",
     "format": "Formato",
-    "jpegQuality": "Qualit\u00e0 JPEG",
+    "jpegQuality": "Qualità JPEG",
     "resolution": "Risoluzione",
     "dpi72": "72 DPI (Schermo)",
     "dpi150": "150 DPI",
     "dpi300": "300 DPI (Stampa)",
-    "dpi600": "600 DPI (Alta qualit\u00e0)"
+    "dpi600": "600 DPI (Alta qualità)",
+    "exportBcf": "Export Issues (BCF)",
+    "exportBcfDesc": "Export annotations as BCF 2.1 topics for other BIM tools"
   },
   "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

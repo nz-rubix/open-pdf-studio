@@ -61,7 +61,9 @@
   "importPanel": {
     "title": "Uvoz",
     "importXfdf": "Uvezi oznake (XFDF)",
-    "importXfdfDesc": "Uvezite oznake iz XFDF datoteke u trenutni dokument"
+    "importXfdfDesc": "Uvezite oznake iz XFDF datoteke u trenutni dokument",
+    "importBcf": "Import Issues (BCF)",
+    "importBcfDesc": "Import BCF topics from another BIM tool as annotations"
   },
   "exportPanel": {
     "title": "Izvoz",
@@ -84,7 +86,9 @@
     "dpi72": "72 DPI (Zaslon)",
     "dpi150": "150 DPI",
     "dpi300": "300 DPI (Ispis)",
-    "dpi600": "600 DPI (Visoka kvaliteta)"
+    "dpi600": "600 DPI (Visoka kvaliteta)",
+    "exportBcf": "Export Issues (BCF)",
+    "exportBcfDesc": "Export annotations as BCF 2.1 topics for other BIM tools"
   },
   "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

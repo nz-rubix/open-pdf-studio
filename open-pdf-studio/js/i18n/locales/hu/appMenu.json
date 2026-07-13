@@ -61,7 +61,9 @@
   "importPanel": {
     "title": "Importálás",
     "importXfdf": "Annotációk importálása (XFDF)",
-    "importXfdfDesc": "Annotációk importálása XFDF fájlból az aktuális dokumentumba"
+    "importXfdfDesc": "Annotációk importálása XFDF fájlból az aktuális dokumentumba",
+    "importBcf": "Import Issues (BCF)",
+    "importBcfDesc": "Import BCF topics from another BIM tool as annotations"
   },
   "exportPanel": {
     "title": "Exportálás",
@@ -84,7 +86,9 @@
     "dpi72": "72 DPI (Képernyő)",
     "dpi150": "150 DPI",
     "dpi300": "300 DPI (Nyomtatás)",
-    "dpi600": "600 DPI (Magas minőség)"
+    "dpi600": "600 DPI (Magas minőség)",
+    "exportBcf": "Export Issues (BCF)",
+    "exportBcfDesc": "Export annotations as BCF 2.1 topics for other BIM tools"
   },
   "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

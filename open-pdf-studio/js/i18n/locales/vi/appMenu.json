@@ -24,7 +24,7 @@
     "license": "Được cấp phép theo MIT. Miễn phí cho sử dụng cá nhân và thương mại.",
     "website": "Trang web",
     "contact": "Liên hệ",
-    "copyright": "\u00a9 2026 OpenAEC Foundation. Giấy phép MIT.",
+    "copyright": "© 2026 OpenAEC Foundation. Giấy phép MIT.",
     "version": "Phiên bản"
   },
   "openPanel": {
@@ -61,7 +61,9 @@
   "importPanel": {
     "title": "Nhập",
     "importXfdf": "Nhập Chú thích (XFDF)",
-    "importXfdfDesc": "Nhập chú thích từ tệp XFDF vào tài liệu hiện tại"
+    "importXfdfDesc": "Nhập chú thích từ tệp XFDF vào tài liệu hiện tại",
+    "importBcf": "Import Issues (BCF)",
+    "importBcfDesc": "Import BCF topics from another BIM tool as annotations"
   },
   "exportPanel": {
     "title": "Xuất",
@@ -84,7 +86,9 @@
     "dpi72": "72 DPI (Màn hình)",
     "dpi150": "150 DPI",
     "dpi300": "300 DPI (In ấn)",
-    "dpi600": "600 DPI (Chất lượng cao)"
+    "dpi600": "600 DPI (Chất lượng cao)",
+    "exportBcf": "Export Issues (BCF)",
+    "exportBcfDesc": "Export annotations as BCF 2.1 topics for other BIM tools"
   },
   "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

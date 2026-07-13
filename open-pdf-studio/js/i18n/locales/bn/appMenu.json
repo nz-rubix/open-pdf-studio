@@ -24,7 +24,7 @@
     "license": "MIT লাইসেন্সের অধীনে। ব্যক্তিগত এবং বাণিজ্যিক ব্যবহারের জন্য বিনামূল্যে।",
     "website": "ওয়েবসাইট",
     "contact": "যোগাযোগ",
-    "copyright": "\u00a9 2026 OpenAEC Foundation. MIT লাইসেন্সের অধীনে।",
+    "copyright": "© 2026 OpenAEC Foundation. MIT লাইসেন্সের অধীনে।",
     "version": "সংস্করণ"
   },
   "openPanel": {
@@ -61,7 +61,9 @@
   "importPanel": {
     "title": "আমদানি",
     "importXfdf": "টীকা আমদানি (XFDF)",
-    "importXfdfDesc": "একটি XFDF ফাইল থেকে বর্তমান নথিতে টীকা আমদানি করুন"
+    "importXfdfDesc": "একটি XFDF ফাইল থেকে বর্তমান নথিতে টীকা আমদানি করুন",
+    "importBcf": "Import Issues (BCF)",
+    "importBcfDesc": "Import BCF topics from another BIM tool as annotations"
   },
   "exportPanel": {
     "title": "রপ্তানি",
@@ -84,7 +86,9 @@
     "dpi72": "72 DPI (স্ক্রিন)",
     "dpi150": "150 DPI",
     "dpi300": "300 DPI (মুদ্রণ)",
-    "dpi600": "600 DPI (উচ্চ গুণমান)"
+    "dpi600": "600 DPI (উচ্চ গুণমান)",
+    "exportBcf": "Export Issues (BCF)",
+    "exportBcfDesc": "Export annotations as BCF 2.1 topics for other BIM tools"
   },
   "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

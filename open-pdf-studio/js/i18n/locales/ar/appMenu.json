@@ -24,7 +24,7 @@
     "license": "مرخص بموجب MIT. مجاني للاستخدام الشخصي والتجاري.",
     "website": "الموقع الإلكتروني",
     "contact": "اتصل بنا",
-    "copyright": "\u00a9 2026 OpenAEC Foundation. مرخص بموجب MIT.",
+    "copyright": "© 2026 OpenAEC Foundation. مرخص بموجب MIT.",
     "version": "الإصدار"
   },
   "openPanel": {
@@ -61,7 +61,9 @@
   "importPanel": {
     "title": "استيراد",
     "importXfdf": "استيراد التعليقات (XFDF)",
-    "importXfdfDesc": "استيراد التعليقات من ملف XFDF إلى المستند الحالي"
+    "importXfdfDesc": "استيراد التعليقات من ملف XFDF إلى المستند الحالي",
+    "importBcf": "Import Issues (BCF)",
+    "importBcfDesc": "Import BCF topics from another BIM tool as annotations"
   },
   "exportPanel": {
     "title": "تصدير",
@@ -84,7 +86,9 @@
     "dpi72": "72 DPI (شاشة)",
     "dpi150": "150 DPI",
     "dpi300": "300 DPI (طباعة)",
-    "dpi600": "600 DPI (جودة عالية)"
+    "dpi600": "600 DPI (جودة عالية)",
+    "exportBcf": "Export Issues (BCF)",
+    "exportBcfDesc": "Export annotations as BCF 2.1 topics for other BIM tools"
   },
   "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

@@ -73,7 +73,9 @@
   "importPanel": {
     "title": "Importeren",
     "importXfdf": "Annotaties importeren (XFDF)",
-    "importXfdfDesc": "Annotaties importeren uit een XFDF-bestand in het huidige document"
+    "importXfdfDesc": "Annotaties importeren uit een XFDF-bestand in het huidige document",
+    "importBcf": "Issues importeren (BCF)",
+    "importBcfDesc": "BCF-topics uit een andere BIM-tool importeren als annotaties"
   },
   "exportPanel": {
     "title": "Exporteren",
@@ -96,7 +98,9 @@
     "dpi72": "72 DPI (Scherm)",
     "dpi150": "150 DPI",
     "dpi300": "300 DPI (Afdruk)",
-    "dpi600": "600 DPI (Hoge kwaliteit)"
+    "dpi600": "600 DPI (Hoge kwaliteit)",
+    "exportBcf": "Issues exporteren (BCF)",
+    "exportBcfDesc": "Annotaties exporteren als BCF 2.1-topics voor andere BIM-tools"
   },
   "extensions": "Extensies",
   "extensionsPanel": {
