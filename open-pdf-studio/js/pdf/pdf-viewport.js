@@ -724,12 +724,23 @@ function _render() {
     }
     _ctx.restore();
   } else {
+    // No whole-page bitmap yet (vector page, or the brief window right after a
+    // rotation cleared the stale raster). Fill the white page background in
+    // SCREEN space at the POST-rotation extent (displayPageW/H) — identical to
+    // the raster branch above. The previous user-space fill used the un-swapped
+    // pageW × pageH with a Y-flip by pageH, so a 90°/270° page got its white
+    // rectangle painted in the OLD orientation while the vector/raster content
+    // drew rotated on top — the leftover white "spookvlak" of issue #262. The
+    // vector command pass below keeps its own PDF user-space transform, so it
+    // still lines up with the page content.
     _ctx.save();
-    _ctx.setTransform(viewport.zoom * dpr, 0, 0, viewport.zoom * dpr, viewport.offsetX * dpr, viewport.offsetY * dpr);
-    _ctx.transform(1, 0, 0, -1, 0, viewport.pageH);
-    _ctx.translate(-viewport.originX, -viewport.originY); // MediaBox origin offset
+    _ctx.setTransform(1, 0, 0, 1, 0, 0); // identity (device-pixel space)
+    const destX = viewport.offsetX * dpr;
+    const destY = viewport.offsetY * dpr;
+    const destW = displayPageW * viewport.zoom * dpr;
+    const destH = displayPageH * viewport.zoom * dpr;
     _ctx.fillStyle = '#ffffff';
-    _ctx.fillRect(viewport.originX, viewport.originY, viewport.pageW, viewport.pageH);
+    _ctx.fillRect(destX, destY, destW, destH);
     _ctx.restore();
   }
 
@@ -855,15 +866,22 @@ export function setPage(filePath, pageNum, pageW, pageH, originX, originY, rotat
   // page navigation but changes when a different file is opened.
   const isNewDocument = viewport.filePath !== filePath;
   const isPageChange = viewport.pageNum !== pageNum;
+  // Rotating the CURRENT page keeps the same file + page number, so without an
+  // explicit rotation check neither branch below would fire — the stale bitmap
+  // (rendered in the OLD orientation) would keep painting behind the newly
+  // rotated page and the fit/offset would stay sized to the old footprint. That
+  // leftover, wrong-orientation raster/white rectangle is the "spookvlak"
+  // reported in issue #262. Treat a rotation delta like a page change.
+  const isRotationChange = (viewport.rotation || 0) !== ((rotation || 0) % 360);
 
-  // Clear stale raster state on page or document change so the unified
-  // render loop doesn't keep painting the PREVIOUS page's bitmap (stretched
+  // Clear stale raster state on page, document OR rotation change so the
+  // unified render loop doesn't keep painting the PREVIOUS bitmap (stretched
   // to the NEW page's pageW × zoom rectangle) until the async bitmap-
-  // orchestrator fills the cache for the new page. Without this clear, the
-  // user sees the previous page's content "lag" through to the new page
-  // for ~10-50ms — visible glitch on raster-classified PDFs (Tekst.pdf,
-  // rapport-constructie.pdf, etc.).
-  if (isNewDocument || isPageChange) {
+  // orchestrator fills the cache for the new orientation. Without this clear,
+  // the user sees the previous content "lag" through for ~10-50ms — visible
+  // glitch on raster-classified PDFs (Tekst.pdf, rapport-constructie.pdf) and
+  // a persistent old-orientation ghost after rotating.
+  if (isNewDocument || isPageChange || isRotationChange) {
     viewport.currentBitmap = null;
     viewport.currentTile = null;
     viewport.currentTileMeta = null;
@@ -887,8 +905,11 @@ export function setPage(filePath, pageNum, pageW, pageH, originX, originY, rotat
     _anchorActive = true;
     _strictAnchor = false;
     viewport.dirty = true;
-  } else if (isNewDocument) {
-    // First time we're seeing this file → fit to viewport
+  } else if (isNewDocument || isRotationChange) {
+    // First time we're seeing this file → fit to viewport. Rotating the
+    // current page swaps its footprint (portrait ⇄ landscape), so re-fit as
+    // well: keeping the old zoom/offset would leave the page sized/positioned
+    // for the previous orientation, exposing an old-orientation gap.
     fitToViewport();
   } else {
     // Same document, different page → keep the user's zoom and let

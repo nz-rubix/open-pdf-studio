@@ -681,8 +681,11 @@ const LOW_RES_SCALE = 0.5; // Render at 50% for fast preview
 // Cache-key MUST include the document — a bare pageNum key served page N of
 // whichever document happened to fill the cache first (wrong preview after a
 // tab switch).
+// Rotation is part of the key so a rotated page doesn't reuse the pre-rotation
+// (old-orientation) preview canvas — that stale preview flashed in the OLD
+// orientation on the continuous-view rebuild after rotating (issue #262).
 function _lowResKey(pageNum) {
-  return `${getActiveDocument()?.filePath || 'blank'}|${pageNum}`;
+  return `${getActiveDocument()?.filePath || 'blank'}|${pageNum}|${getPageRotation(pageNum) || 0}`;
 }
 
 // Render a quick low-res preview of a page (fast, <50ms per page)
@@ -876,6 +879,11 @@ async function renderContinuousPage(pageNum) {
         path: doc.filePath,
         pageIndex: pageNum - 1,
         scale: renderScale,
+        // Pass the user page rotation so PDFium rasterises in the SAME
+        // orientation as the wrapper/canvas box (sized from PDF.js's rotated
+        // viewport). Omitting it rendered the page un-rotated into a rotated
+        // box — the old-orientation remnant of issue #262 in continuous view.
+        rotation: extraRotation || 0,
       });
       console.timeEnd(label + ' invoke-render');
       if (_isStaleDoc(doc)) { console.timeEnd(label); return; }
