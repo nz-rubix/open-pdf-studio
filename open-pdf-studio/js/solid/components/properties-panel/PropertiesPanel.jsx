@@ -1,5 +1,7 @@
 import { Show, onMount } from 'solid-js';
-import { panelVisible, panelCollapsed, setPanelCollapsed, annotProps, sectionVis, updateAnnotProp, cycleSelectNext, nativePanelHidden, hydrateCollapsedSections } from '../../stores/propertiesStore.js';
+import { panelVisible, panelCollapsed, setPanelCollapsed, annotProps, sectionVis, updateAnnotProp, cycleSelectNext, nativePanelHidden, hydrateCollapsedSections, getCurrentAnnotation } from '../../stores/propertiesStore.js';
+import { openDialog } from '../../stores/dialogStore.js';
+import { startScaleMeasureFlow } from '../../../tools/tools/scale-measure-tool.js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
 import PanelHeader from './PanelHeader.jsx';
 import DocInfoView from './DocInfoView.jsx';
@@ -21,6 +23,25 @@ import CustomPluginPanel from './CustomPluginPanel.jsx';
 import CollapsibleSection from './CollapsibleSection.jsx';
 import ParametricSymbolSection from './ParametricSymbolSection.jsx';
 import WallSection from './WallSection.jsx';
+
+// "Meet op tekening" for an EXISTING scale region: temporary 2-click
+// distance pick → small "real length" dialog → the region's scale is
+// updated in place (see MeasuredLengthDialog, target kind 'annotation').
+function measureScaleOnDrawing() {
+  const ann = getCurrentAnnotation();
+  if (!ann || ann.type !== 'scaleRegion') return;
+  const annotationId = ann.id;
+  const defaultUnit = ann.units || 'mm';
+  startScaleMeasureFlow({
+    onDone: (pixelDistance) => {
+      openDialog('measured-length', {
+        pixelDistance,
+        target: { kind: 'annotation', annotationId, defaultUnit },
+      });
+    },
+    onCancel: () => {},
+  });
+}
 
 export default function PropertiesPanel() {
   const { t } = useTranslation('properties');
@@ -120,6 +141,13 @@ export default function PropertiesPanel() {
                       return list.map(s => <option value={s}>{s}</option>);
                     })()}
                   </select>
+                </div>
+                <div class="property-group">
+                  <button class="pref-btn" style="width:100%"
+                    disabled={annotProps.locked === true || annotProps.locked === 'mixed'}
+                    onClick={measureScaleOnDrawing}>
+                    {t('scaleRegion.measure') || 'Meet op tekening'}
+                  </button>
                 </div>
                 <div class="property-group">
                   <label>{t('scaleRegion.unit') || 'Unit'}</label>

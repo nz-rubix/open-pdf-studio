@@ -1,8 +1,9 @@
 import { createSignal, Show } from 'solid-js';
 import Dialog from '../Dialog.jsx';
 import PrefSelect from '../preferences/PrefSelect.jsx';
-import { closeDialog } from '../../stores/dialogStore.js';
+import { closeDialog, openDialog } from '../../stores/dialogStore.js';
 import { getActiveDocument } from '../../../core/state.js';
+import { startScaleMeasureFlow } from '../../../tools/tools/scale-measure-tool.js';
 import { recordAdd } from '../../../core/undo-manager.js';
 import { redrawAnnotations, redrawContinuous } from '../../../annotations/rendering.js';
 import { recalculateAllMeasurements } from '../../../annotations/measurement.js';
@@ -29,23 +30,57 @@ function findAnnotation(id) {
 export default function ScaleRegionDialog(props) {
   const { t } = useTranslation('properties');
   const data = props.data || {};
-  const [scaleString, setScaleString] = createSignal('1:100');
-  const [units, setUnits] = createSignal('mm');
-  const [label, setLabel] = createSignal('');
+  // The "Meet op tekening" flow closes this dialog, lets the user measure a
+  // distance and reopens it with data.initial (previous values + computed
+  // scale) so nothing the user typed is lost.
+  const initial = data.initial || {};
+  const initialScale = initial.scaleString || '1:100';
+  const [scaleString, setScaleString] = createSignal(initialScale);
+  const [units, setUnits] = createSignal(initial.units || 'mm');
+  const [label, setLabel] = createSignal(initial.label || '');
   // True when the user picked "Aangepast…" — shows the free-text scale input.
-  const [customScale, setCustomScale] = createSignal(false);
+  // A computed scale like "1:53.42" is not a preset, so it starts as custom.
+  const [customScale, setCustomScale] = createSignal(!PRESET_SCALES.includes(initialScale));
 
-  // Scale must match "<int>:<int>" with both parts > 0. Anything else
+  // Scale must match "<number>:<number>" with both parts > 0 (decimals
+  // allowed — a measured scale can be e.g. "1:53.42"). Anything else
   // (typos, blank, "1:" etc.) falls back to 1:100 so we never store
   // an invalid scaleString that would break measurement calculations.
   function normalizeScaleString(raw) {
     const trimmed = String(raw || '').trim().replace(/\s+/g, '');
-    const m = trimmed.match(/^(\d+):(\d+)$/);
+    const m = trimmed.match(/^(\d+(?:[.,]\d+)?):(\d+(?:[.,]\d+)?)$/);
     if (!m) return '1:100';
-    const a = parseInt(m[1], 10);
-    const b = parseInt(m[2], 10);
+    const a = parseFloat(m[1].replace(',', '.'));
+    const b = parseFloat(m[2].replace(',', '.'));
     if (!isFinite(a) || !isFinite(b) || a <= 0 || b <= 0) return '1:100';
     return `${a}:${b}`;
+  }
+
+  // "Meet op tekening": hide this dialog, let the user click two points on
+  // the drawing, ask for the real length, then reopen this dialog with the
+  // computed scale filled in. Apply stays the confirmation step.
+  function handleMeasure() {
+    const payload = {
+      annotationId: data.annotationId,
+      pageNum: data.pageNum,
+      restore: { label: label(), units: units(), scaleString: scaleString() },
+    };
+    closeDialog('scale-region');
+    startScaleMeasureFlow({
+      onDone: (pixelDistance) => {
+        openDialog('measured-length', {
+          pixelDistance,
+          target: { kind: 'scaleRegionDialog', ...payload },
+        });
+      },
+      onCancel: () => {
+        openDialog('scale-region', {
+          annotationId: payload.annotationId,
+          pageNum: payload.pageNum,
+          initial: payload.restore,
+        });
+      },
+    });
   }
 
   function handleApply() {
@@ -129,6 +164,14 @@ export default function ScaleRegionDialog(props) {
               style="width:100%;box-sizing:border-box;margin-top:4px"
             />
           </Show>
+          {/* Derive the scale by measuring a known distance on the drawing:
+              hides this dialog, 2-click pick, asks for the real length,
+              reopens with the computed scale filled in. */}
+          <button class="ai-plan-btn"
+            style="width:100%;margin-top:6px;padding:5px 16px;background:var(--theme-bg,#e0e0e0);color:var(--theme-text,#333);border-color:var(--theme-border,#ccc)"
+            onClick={handleMeasure}>
+            {t('scaleRegion.measure') || 'Meet op tekening'}
+          </button>
         </div>
 
         <div class="ai-login-field">

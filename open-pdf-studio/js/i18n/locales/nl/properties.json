@@ -317,7 +317,13 @@
     "title": "Schaalgebied",
     "scale": "Schaal",
     "unit": "Eenheid",
-    "label": "Label"
+    "label": "Label",
+    "custom": "Aangepast…",
+    "measure": "Meet op tekening",
+    "measureTitle": "Werkelijke lengte",
+    "measureQuestion": "Wat is de werkelijke lengte van deze afstand?",
+    "measuredOnPaper": "Gemeten op papier",
+    "computedScale": "Berekende schaal"
   },
   "measurement": {
     "title": "Meting",

@@ -1,4 +1,16 @@
 {
+  "scaleRegion": {
+    "title": "Scale Region",
+    "scale": "Scale",
+    "unit": "Unit",
+    "label": "Label",
+    "custom": "Custom…",
+    "measure": "Measure on drawing",
+    "measureTitle": "Real length",
+    "measureQuestion": "What is the real length of this distance?",
+    "measuredOnPaper": "Measured on paper",
+    "computedScale": "Calculated scale"
+  },
   "title": "Propiedades",
   "general": {
     "title": "General",

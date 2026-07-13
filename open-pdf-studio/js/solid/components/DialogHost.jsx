@@ -32,6 +32,7 @@ import ExtensionsDialog from './dialogs/ExtensionsDialog.jsx';
 import ConfirmDialog from './dialogs/ConfirmDialog.jsx';
 import ViewportScaleDialog from './dialogs/ViewportScaleDialog.jsx';
 import ScaleRegionDialog from './dialogs/ScaleRegionDialog.jsx';
+import MeasuredLengthDialog from './dialogs/MeasuredLengthDialog.jsx';
 import TitleBlockDialog from './dialogs/TitleBlockDialog.jsx';
 import CompareDialog from './compare/CompareDialog.jsx';
 import TextEditOverlay from './TextEditOverlay.jsx';
@@ -76,6 +77,7 @@ const DIALOG_MAP = {
   'title-block-edit': TitleBlockDialog,
   'viewport-scale': ViewportScaleDialog,
   'scale-region': ScaleRegionDialog,
+  'measured-length': MeasuredLengthDialog,
   'compare': CompareDialog,
 };
 

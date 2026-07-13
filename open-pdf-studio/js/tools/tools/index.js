@@ -15,6 +15,7 @@ import { filledAreaTool } from './filled-area-tool.js';
 import { measureAngleTool } from './angle-tool.js';
 import { commentTool, textTool, stampTool, signatureTool, editTextTool } from './text-tool.js';
 import { calibrationPickTool } from './calibration-pick-tool.js';
+import { scaleMeasureTool } from './scale-measure-tool.js';
 import { pluginClickTool } from './plugin-tool.js';
 import { viewportTool } from './viewport-tool.js';
 import { scaleRegionTool } from './scale-region-tool.js';
@@ -71,6 +72,9 @@ export function registerAllTools() {
 
   // Calibration
   registerTool('calibrationPick', calibrationPickTool);
+
+  // Temporary 2-click distance pick for scale regions ("Meet op tekening")
+  registerTool('scaleMeasure', scaleMeasureTool);
 
   // Scale bar
   registerTool('scaleBar', scaleBarTool);
