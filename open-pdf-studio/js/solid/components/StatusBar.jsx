@@ -63,6 +63,17 @@ async function handlePageBlur(e) {
   }
 }
 
+// Paginaweergave-modi (issue #164): dezelfde knoppen als in de Beeld-ribbon,
+// nu ook in de statusbalk zoals klassieke PDF-lezers. Hergebruikt setViewMode()
+// uit renderer.js — GEEN tweede render-pad. 'book' is intern een layout-variant
+// van 'continuous' (doc.bookSpread), zie setViewMode().
+async function applyViewMode(mode) {
+  const doc = getActiveDocument();
+  if (!doc?.pdfDoc) return;
+  const { setViewMode } = await import('../../pdf/renderer.js');
+  await setViewMode(mode);
+}
+
 async function handleZoomIn() {
   const { zoomIn } = await import('../../pdf/renderer.js');
   zoomIn();
@@ -123,6 +134,8 @@ export default function StatusBar() {
     const doc = state.documents[state.activeDocumentIndex];
     return localizeNumber(Math.round((doc ? doc.scale : 1.5) * 100)) + '%';
   };
+  const viewMode = () => state.documents[state.activeDocumentIndex]?.viewMode || 'single';
+  const bookSpread = () => !!state.documents[state.activeDocumentIndex]?.bookSpread;
   const annotationText = () => {
     const annotations = state.documents[state.activeDocumentIndex]?.annotations || [];
     if ((state.documents[state.activeDocumentIndex]?.viewMode || 'single') === 'continuous') {
@@ -179,6 +192,30 @@ export default function StatusBar() {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M6 5l7 7-7 7"/>
             </svg>
           </button>
+
+          {/* Paginaweergave-modi (issue #164) — enkel / doorlopend / twee
+              pagina's naast elkaar. Reflecteren doc.viewMode + bookSpread. */}
+          <div class="status-viewmode-controls">
+            <button class="status-nav-btn" classList={{ active: viewMode() === 'single' }} tabIndex={-1} title={t('viewSingle')} onClick={() => applyViewMode('single')}>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <rect x="6" y="3" width="12" height="18" rx="1" stroke-width="2"/>
+              </svg>
+            </button>
+
+            <button class="status-nav-btn" classList={{ active: viewMode() === 'continuous' && !bookSpread() }} tabIndex={-1} title={t('viewContinuous')} onClick={() => applyViewMode('continuous')}>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <rect x="6" y="2" width="12" height="9" rx="1" stroke-width="2"/>
+                <rect x="6" y="13" width="12" height="9" rx="1" stroke-width="2"/>
+              </svg>
+            </button>
+
+            <button class="status-nav-btn" classList={{ active: viewMode() === 'continuous' && bookSpread() }} tabIndex={-1} title={t('viewBook')} onClick={() => applyViewMode('book')}>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <rect x="3" y="4" width="8" height="16" rx="1" stroke-width="2"/>
+                <rect x="13" y="4" width="8" height="16" rx="1" stroke-width="2"/>
+              </svg>
+            </button>
+          </div>
 
           <div class="status-zoom-controls">
             <button class="status-nav-btn" tabIndex={-1} title={t('zoomOut')} onClick={handleZoomOut}>

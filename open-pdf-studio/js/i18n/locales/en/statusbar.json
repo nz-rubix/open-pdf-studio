@@ -42,7 +42,6 @@
   "zoomIn": "Zoom In",
   "noDocumentsOpen": "No documents open",
   "closeTab": "Close",
-  "compareTabTitle": "Compare",
   "openPdfFile": "Open PDF file",
   "findPlaceholder": "Find in document...",
   "closeEsc": "Close (Esc)",
@@ -62,5 +61,8 @@
     "pdfium": "PDFium",
     "scene": "AEC-PDF v1",
     "vector": "AEC-PDF v1 (vector)"
-  }
+  },
+  "viewSingle": "Single Page",
+  "viewContinuous": "Continuous",
+  "viewBook": "Two Pages"
 }

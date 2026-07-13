@@ -53,5 +53,8 @@
   "pdfAConformance": "此文档声明符合 PDF/A 标准。",
   "renameError": "Failed to rename file: {{error}}",
   "renameInvalidChars": "File name cannot contain  / : * ? \" < > |",
-  "renameFileExists": "A file with this name already exists."
+  "renameFileExists": "A file with this name already exists.",
+  "viewSingle": "Single Page",
+  "viewContinuous": "Continuous",
+  "viewBook": "Two Pages"
 }

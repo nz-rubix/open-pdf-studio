@@ -41,7 +41,6 @@
   "zoomIn": "Inzoomen",
   "noDocumentsOpen": "Geen documenten geopend",
   "closeTab": "Sluiten",
-  "compareTabTitle": "Vergelijken",
   "openPdfFile": "PDF-bestand openen",
   "findPlaceholder": "Zoeken in document...",
   "closeEsc": "Sluiten (Esc)",
@@ -62,5 +61,8 @@
     "pdfium": "PDFium",
     "scene": "AEC-PDF v1",
     "vector": "AEC-PDF v1 (vector)"
-  }
+  },
+  "viewSingle": "Enkele pagina",
+  "viewContinuous": "Doorlopend",
+  "viewBook": "Twee pagina’s"
 }
