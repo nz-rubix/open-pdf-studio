@@ -100,7 +100,12 @@
     "dpi300": "300 DPI (Afdruk)",
     "dpi600": "600 DPI (Hoge kwaliteit)",
     "exportBcf": "Issues exporteren (BCF)",
-    "exportBcfDesc": "Annotaties exporteren als BCF 2.1-topics voor andere BIM-tools"
+    "exportBcfDesc": "Annotaties exporteren als BCF 2.1-topics voor andere BIM-tools",
+    "exportPdfx": "Exporteren als PDF/X",
+    "exportPdfxDesc": "Maak een drukklaar PDF/X-bestand met output intent en metadata",
+    "pdfxOptions": "PDF/X-opties",
+    "pdfxConformance": "Conformiteit",
+    "pdfxNote": "Voegt een sRGB-output-intent, TrimBox en PDF/X-metadata toe. Bestaande RGB-afbeeldingen worden niet naar CMYK omgezet; vervang voor strikt CMYK-drukwerk het profiel door een CMYK-profiel."
   },
   "extensions": "Extensies",
   "extensionsPanel": {

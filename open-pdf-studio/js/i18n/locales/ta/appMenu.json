@@ -88,7 +88,12 @@
     "dpi300": "300 DPI (அச்சு)",
     "dpi600": "600 DPI (உயர் தரம்)",
     "exportBcf": "Export Issues (BCF)",
-    "exportBcfDesc": "Export annotations as BCF 2.1 topics for other BIM tools"
+    "exportBcfDesc": "Export annotations as BCF 2.1 topics for other BIM tools",
+    "exportPdfx": "Export as PDF/X",
+    "exportPdfxDesc": "Create a print-ready PDF/X file with an output intent and metadata",
+    "pdfxOptions": "PDF/X Options",
+    "pdfxConformance": "Conformance",
+    "pdfxNote": "Adds an sRGB output intent, TrimBox and PDF/X metadata. Existing RGB images are not converted to CMYK; for strict CMYK printing, substitute a CMYK profile."
   },
   "annotateScreenshot": "Annotate Clipboard Screenshot"
 }

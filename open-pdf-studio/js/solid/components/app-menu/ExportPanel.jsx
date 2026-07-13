@@ -2,6 +2,7 @@ import { createSignal, Show } from 'solid-js';
 import { closeAppMenu } from '../../stores/appMenuStore.js';
 import { state, getActiveDocument } from '../../../core/state.js';
 import { exportAsImages, exportAsRasterPdf, parsePageRange } from '../../../pdf/exporter.js';
+import { exportAsPdfX } from '../../../pdf/pdfx-export.js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
 import { showMessage } from '../../stores/dialogStore.js';
 
@@ -15,6 +16,7 @@ export default function ExportPanel() {
   const [format, setFormat] = createSignal('png');
   const [quality, setQuality] = createSignal(92);
   const [dpi, setDpi] = createSignal(150);
+  const [pdfxConformance, setPdfxConformance] = createSignal('X-3');
 
   const handleExportXFDF = async () => {
     closeAppMenu();
@@ -63,7 +65,9 @@ export default function ExportPanel() {
 
     closeAppMenu();
 
-    if (exportType() === 'raster') {
+    if (exportType() === 'pdfx') {
+      await exportAsPdfX({ conformance: pdfxConformance() });
+    } else if (exportType() === 'raster') {
       await exportAsRasterPdf({ dpi: dpi(), pages });
     } else {
       await exportAsImages({ format: format(), quality: quality() / 100, dpi: dpi(), pages });
@@ -103,6 +107,22 @@ export default function ExportPanel() {
           </div>
         </div>
 
+        <div class={`bs-export-card${showOptions() && exportType() === 'pdfx' ? ' active' : ''}`} onClick={() => handleCardClick('pdfx')}>
+          <div class="bs-export-card-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+              <path d="M14 2v6h6"/>
+              <path d="M7 13h2v5H7z"/>
+              <path d="M11 13h1.5a1.5 1.5 0 010 3H11z"/>
+              <path d="M15 13l2 5M17 13l-2 5"/>
+            </svg>
+          </div>
+          <div class="bs-export-card-info">
+            <h3>{t('exportPanel.exportPdfx')}</h3>
+            <p>{t('exportPanel.exportPdfxDesc')}</p>
+          </div>
+        </div>
+
         <div class="bs-export-card" onClick={handleExportXFDF}>
           <div class="bs-export-card-icon">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -137,9 +157,12 @@ export default function ExportPanel() {
       <Show when={showOptions()}>
         <div class="bs-export-options">
           <h3 class="bs-export-options-title">
-            {exportType() === 'raster' ? t('exportPanel.rasterOptions') : t('exportPanel.imageOptions')}
+            {exportType() === 'pdfx' ? t('exportPanel.pdfxOptions')
+              : exportType() === 'raster' ? t('exportPanel.rasterOptions')
+              : t('exportPanel.imageOptions')}
           </h3>
 
+          <Show when={exportType() !== 'pdfx'}>
           <div class="bs-export-option-group">
             <label class="bs-export-option-label">{t('exportPanel.pageRange')}</label>
             <div class="bs-export-radio-group">
@@ -162,6 +185,18 @@ export default function ExportPanel() {
               onInput={(e) => setCustomPages(e.target.value)}
             />
           </div>
+          </Show>
+
+          <Show when={exportType() === 'pdfx'}>
+            <div class="bs-export-option-group">
+              <label class="bs-export-option-label">{t('exportPanel.pdfxConformance')}</label>
+              <select class="bs-export-select" value={pdfxConformance()} onChange={(e) => setPdfxConformance(e.target.value)}>
+                <option value="X-3">PDF/X-3:2002</option>
+                <option value="X-4">PDF/X-4</option>
+              </select>
+            </div>
+            <p class="bs-export-note">{t('exportPanel.pdfxNote')}</p>
+          </Show>
 
           <Show when={exportType() === 'images'}>
             <div class="bs-export-option-group">
@@ -183,6 +218,7 @@ export default function ExportPanel() {
             </div>
           </Show>
 
+          <Show when={exportType() !== 'pdfx'}>
           <div class="bs-export-option-group">
             <label class="bs-export-option-label">{t('exportPanel.resolution')}</label>
             <select class="bs-export-select" value={dpi()} onChange={(e) => setDpi(parseInt(e.target.value))}>
@@ -192,6 +228,7 @@ export default function ExportPanel() {
               <option value="600">{t('exportPanel.dpi600')}</option>
             </select>
           </div>
+          </Show>
 
           <button class="bs-export-btn" onClick={handleExport}>{tCommon('export')}</button>
         </div>
