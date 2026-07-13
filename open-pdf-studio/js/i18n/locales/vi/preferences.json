@@ -134,7 +134,9 @@
     "autoSelectAfterCreation": "Tự động chọn chú thích sau khi tạo",
     "deletion": "Xóa",
     "confirmBeforeDeleting": "Xác nhận trước khi xóa chú thích",
-    "snapToPdfContent": "Snap to PDF Drawing Content"
+    "snapToPdfContent": "Snap to PDF Drawing Content",
+    "navigation": "Navigation",
+    "wheelZoomWithoutCtrl": "Zoom with mouse wheel (without holding Ctrl)"
   },
   "fileAssoc": {
     "defaultPdfApplication": "Ứng dụng PDF Mặc định",

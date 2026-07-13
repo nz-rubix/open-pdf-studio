@@ -134,7 +134,9 @@
     "autoSelectAfterCreation": "Valitse merkintä automaattisesti luonnin jälkeen",
     "deletion": "Poistaminen",
     "confirmBeforeDeleting": "Vahvista ennen merkintöjen poistamista",
-    "snapToPdfContent": "Snap to PDF Drawing Content"
+    "snapToPdfContent": "Snap to PDF Drawing Content",
+    "navigation": "Navigation",
+    "wheelZoomWithoutCtrl": "Zoom with mouse wheel (without holding Ctrl)"
   },
   "fileAssoc": {
     "defaultPdfApplication": "Oletus-PDF-sovellus",

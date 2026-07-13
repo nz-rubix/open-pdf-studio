@@ -155,7 +155,9 @@
     "snapToTangent": "Uitlijnen op raaklijn",
     "snapToNearest": "Uitlijnen op dichtstbijzijnde",
     "objectSnapRadius": "Uitlijnstraal (pixels)",
-    "snapToPdfContent": "Uitlijnen op PDF-tekeninhoud"
+    "snapToPdfContent": "Uitlijnen op PDF-tekeninhoud",
+    "navigation": "Navigatie",
+    "wheelZoomWithoutCtrl": "Zoomen met muiswiel (zonder Ctrl ingedrukt)"
   },
   "fileAssoc": {
     "defaultPdfApplication": "Standaard PDF-toepassing",

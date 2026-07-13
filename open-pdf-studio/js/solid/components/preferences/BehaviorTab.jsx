@@ -154,6 +154,16 @@ export default function BehaviorTab(props) {
           </label>
         </div>
       </fieldset>
+
+      <fieldset class="pref-fieldset">
+        <legend>{t('behavior.navigation') || 'Navigatie'}</legend>
+        <div class="pref-row pref-checkbox-row">
+          <label class="pref-checkbox-label">
+            <input type="checkbox" checked={p.wheelZoomWithoutCtrl[0]()} onChange={e => p.wheelZoomWithoutCtrl[1](e.target.checked)} />
+            <span>{t('behavior.wheelZoomWithoutCtrl') || 'Zoomen met muiswiel (zonder Ctrl)'}</span>
+          </label>
+        </div>
+      </fieldset>
     </>
   );
 }

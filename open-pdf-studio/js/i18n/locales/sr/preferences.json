@@ -134,7 +134,9 @@
     "autoSelectAfterCreation": "Аутоматски изабери анотацију после креирања",
     "deletion": "Брисање",
     "confirmBeforeDeleting": "Потврди пре брисања анотација",
-    "snapToPdfContent": "Snap to PDF Drawing Content"
+    "snapToPdfContent": "Snap to PDF Drawing Content",
+    "navigation": "Navigation",
+    "wheelZoomWithoutCtrl": "Zoom with mouse wheel (without holding Ctrl)"
   },
   "fileAssoc": {
     "defaultPdfApplication": "Подразумевана PDF апликација",

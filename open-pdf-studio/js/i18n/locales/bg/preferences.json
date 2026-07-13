@@ -134,7 +134,9 @@
     "autoSelectAfterCreation": "Автоматичен избор на анотацията след създаване",
     "deletion": "Изтриване",
     "confirmBeforeDeleting": "Потвърждение преди изтриване на анотации",
-    "snapToPdfContent": "Snap to PDF Drawing Content"
+    "snapToPdfContent": "Snap to PDF Drawing Content",
+    "navigation": "Navigation",
+    "wheelZoomWithoutCtrl": "Zoom with mouse wheel (without holding Ctrl)"
   },
   "fileAssoc": {
     "defaultPdfApplication": "Програма по подразбиране за PDF",

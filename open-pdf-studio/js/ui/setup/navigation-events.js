@@ -44,7 +44,9 @@ export function setupWheelZoom() {
     // select, polygon, etc.). Previously the wheel was delegated to the
     // tool first; if any tool's onWheel preventDefault'd (even by accident
     // mid-arc/polyline construction), ctrl+wheel zoom silently broke.
-    if (e.ctrlKey || e.metaKey) {
+    // When the wheelZoomWithoutCtrl voorkeur aan staat, zoomt een gewoon
+    // wielrol ook (Ctrl+wiel blijft altijd werken).
+    if (e.ctrlKey || e.metaKey || state.preferences.wheelZoomWithoutCtrl) {
       e.preventDefault();
       // Starting a zoom gesture: kill any in-flight pan momentum so the page
       // doesn't keep gliding mid-zoom (would tear the cursor anchor away).
