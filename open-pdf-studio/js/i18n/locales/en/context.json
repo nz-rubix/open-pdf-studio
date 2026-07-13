@@ -119,5 +119,10 @@
   "deleteAnnotation": {
     "confirmSingle": "Delete this annotation?",
     "title": "Delete Annotation"
+  },
+  "revealInFileManager": {
+    "windows": "Show in Explorer",
+    "mac": "Reveal in Finder",
+    "linux": "Open containing folder"
   }
 }

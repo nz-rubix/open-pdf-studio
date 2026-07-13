@@ -1192,6 +1192,57 @@ fn open_pdf_in_default_viewer(path: String) -> Result<bool, String> {
     }
 }
 
+/// Reveal a file in the OS file manager (Explorer / Finder / Linux file
+/// manager), with the file selected where the platform supports it.
+#[tauri::command]
+fn reveal_in_file_manager(path: String) -> Result<bool, String> {
+    if !std::path::Path::new(&path).exists() {
+        return Err(format!("File not found: {}", path));
+    }
+    // Non-desktop platforms (mobile): no file-manager concept — return a
+    // clean error instead of a cfg-if without else (compile error E0317).
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        let _ = &path;
+        return Err("Tonen in bestandsbeheer wordt op dit platform niet ondersteund".into());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        // `explorer /select,"<path>"` opens Explorer with the file selected.
+        // The switch and the path must travel as ONE argument; raw_arg keeps
+        // the quoting intact for paths with spaces (normal .arg() quoting
+        // would wrap the whole `/select,...` blob and confuse explorer).
+        no_window_command("explorer")
+            .raw_arg(format!("/select,\"{}\"", path))
+            .spawn()
+            .map_err(|e| format!("Failed to open Explorer: {}", e))?;
+        Ok(true)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        // `open -R` reveals (selects) the file in a Finder window.
+        std::process::Command::new("open")
+            .args(["-R", &path])
+            .spawn()
+            .map_err(|e| format!("Failed to open Finder: {}", e))?;
+        Ok(true)
+    }
+    #[cfg(target_os = "linux")]
+    {
+        // No universal "select file" verb across file managers; open the
+        // containing directory via xdg-open (works on every desktop).
+        let parent = std::path::Path::new(&path)
+            .parent()
+            .ok_or_else(|| "Bestand heeft geen bovenliggende map".to_string())?;
+        std::process::Command::new("xdg-open")
+            .arg(parent)
+            .spawn()
+            .map_err(|e| format!("Failed to open file manager: {}", e))?;
+        Ok(true)
+    }
+}
+
 /// Download a PDF from a URL and save it to a temp file.
 /// Returns the temp file path on success.
 #[tauri::command]
@@ -2402,6 +2453,7 @@ pub fn run(opts: StartupOpts) {
             virtual_printer_catch_enabled,
             virtual_printer_enable_catch,
             open_pdf_in_default_viewer,
+            reveal_in_file_manager,
             get_printer_spool_dir,
             list_printer_spool,
             discard_spool_pdf,

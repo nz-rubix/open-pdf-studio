@@ -3,6 +3,11 @@ import { state } from '../../core/state.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
 import { invoke } from '../../core/platform.js';
 import {
+  revealInFileManager,
+  revealInFileManagerLabelKey,
+  canRevealInFileManager,
+} from '../../core/file-manager-reveal.js';
+import {
   compareActive,
   compareFocused,
   focusCompareTab,
@@ -317,6 +322,7 @@ function onDocMouseUp(e) {
 
 export default function DocumentTabs() {
   const { t } = useTranslation('statusbar');
+  const { t: tCtx } = useTranslation('context');
 
   const baseName = (p) => ((p || '').split(/[\\/]/).pop() || '').replace(/\.pdf$/i, '');
   const compareTabTip = () => {
@@ -425,6 +431,22 @@ export default function DocumentTabs() {
             onMouseLeave={(e) => e.currentTarget.style.background = ''}
             onClick={() => { const idx = ctxMenu().index; hideCtxMenu(); detachTabToNewWindow(idx); }}
           >Open in nieuw venster</div>
+          {/* Alleen tonen voor documenten met een echt bestandspad — naamloze/
+              nieuwe documenten leven in een temp-bestand dat je de gebruiker
+              niet wilt laten zien. Label is platform-specifiek (Verkenner/
+              Finder/bestandsbeheer). */}
+          <Show when={canRevealInFileManager(state.documents[ctxMenu().index])}>
+            <div
+              style={{ padding: '6px 14px', cursor: 'pointer', 'border-top': '1px solid #d4d4d4' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#cce4f7'}
+              onMouseLeave={(e) => e.currentTarget.style.background = ''}
+              onClick={() => {
+                const doc = state.documents[ctxMenu().index];
+                hideCtxMenu();
+                if (doc?.filePath) revealInFileManager(doc.filePath);
+              }}
+            >{tCtx(revealInFileManagerLabelKey())}</div>
+          </Show>
           <div
             style={{ padding: '6px 14px', cursor: 'pointer', 'border-top': '1px solid #d4d4d4' }}
             onMouseEnter={(e) => e.currentTarget.style.background = '#cce4f7'}

@@ -119,5 +119,10 @@
   "deleteAnnotation": {
     "confirmSingle": "Deze annotatie verwijderen?",
     "title": "Annotatie verwijderen"
+  },
+  "revealInFileManager": {
+    "windows": "Tonen in Verkenner",
+    "mac": "Tonen in Finder",
+    "linux": "Map met bestand openen"
   }
 }

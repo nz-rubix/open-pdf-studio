@@ -109,5 +109,10 @@
     "insertVertex": "Insert vertex here",
     "convertToArc": "Convert to arc",
     "convertToLine": "Convert to line"
+  },
+  "revealInFileManager": {
+    "windows": "Show in Explorer",
+    "mac": "Reveal in Finder",
+    "linux": "Open containing folder"
   }
 }

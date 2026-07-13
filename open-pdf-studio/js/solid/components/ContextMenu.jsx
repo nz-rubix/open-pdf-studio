@@ -35,6 +35,11 @@ import { showCalibrationDialog } from '../../annotations/measurement.js';
 import { openDialog } from '../stores/dialogStore.js';
 import { getSelectedPagesArray, formatPageRangeString, selectAllPages, clearPageSelection } from '../stores/panels/thumbnailStore.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
+import {
+  revealInFileManager,
+  revealInFileManagerLabelKey,
+  canRevealInFileManager,
+} from '../../core/file-manager-reveal.js';
 
 function redraw() {
   if (getActiveDocument()?.viewMode === 'continuous') {
@@ -557,6 +562,7 @@ function PageMenuContent() {
   const { t } = useTranslation('context');
   const { t: tCommon } = useTranslation('common');
   const isCurrentTool = (tool) => state.currentTool === tool;
+  const revealInFolderIcon = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M.54 3.87.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.826a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31zM2.19 4a1 1 0 0 0-.996 1.09l.637 7a1 1 0 0 0 .995.91h10.348a1 1 0 0 0 .995-.91l.637-7A1 1 0 0 0 13.81 4H2.19zm4.69-1.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707z"/></svg>';
 
   return (
     <>
@@ -642,6 +648,20 @@ function PageMenuContent() {
       <MenuItem icon={propertiesIcon} label={t('page.propertiesMenu')} onClick={() => {
         import('../stores/dialogStore.js').then(m => m.openDialog('doc-properties'));
       }} />
+
+      {/* Toon het geopende bestand in de bestandsbeheerder van het OS —
+          alleen voor documenten met een echt bestandspad (dus niet voor
+          naamloze/nieuwe documenten in een temp-bestand). */}
+      <Show when={canRevealInFileManager(getActiveDocument())}>
+        <Separator />
+        <MenuItem
+          icon={revealInFolderIcon}
+          label={t(revealInFileManagerLabelKey())}
+          onClick={() => {
+            const doc = getActiveDocument();
+            if (doc?.filePath) revealInFileManager(doc.filePath);
+          }} />
+      </Show>
     </>
   );
 }
