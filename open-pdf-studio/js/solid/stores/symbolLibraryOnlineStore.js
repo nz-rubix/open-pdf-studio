@@ -78,13 +78,25 @@ async function refreshIndexFromNetwork() {
 // Zonder cache én zonder netwerk valt de UI terug op de statische
 // INDUSTRIES/COUNTRIES-lijst (status 'offline').
 export function ensureLibraryIndex() {
-  if (indexData() && indexStatus() === 'ready') return;
+  // Al geladen of verse cache: toon die direct, maar ververs ALTIJD stil op
+  // de achtergrond. De TTL bleek in de praktijk te grof: nieuw gepubliceerde
+  // collecties (of nieuwe metadata zoals parametrische catalogi) waren tot
+  // 24 uur onzichtbaar/verkeerd getypeerd omdat de download-flow op de
+  // gecachte index-metadata draaide. Eén raw fetch van index.json per
+  // dialoog-open is verwaarloosbaar; bij falen blijft de cache gewoon staan.
+  if (indexData() && indexStatus() === 'ready') {
+    if (!indexFetchPromise) {
+      indexFetchPromise = refreshIndexFromNetwork()
+        .catch(() => {})
+        .finally(() => { indexFetchPromise = null; });
+    }
+    return;
+  }
   const cache = state.preferences.symbolLibraryIndexCache;
   if (cache && cache.index && Array.isArray(cache.index.countries) && cache.index.countries.length) {
     setIndexData(cache.index);
     setIndexStatus('ready');
-    if (Date.now() - (cache.fetchedAt || 0) < INDEX_CACHE_TTL_MS) return;
-    // Cache is oud: stil verversen, cache blijft staan bij falen.
+    // Stil verversen (ook binnen de TTL — zie hierboven).
     if (!indexFetchPromise) {
       indexFetchPromise = refreshIndexFromNetwork()
         .catch(() => {})
@@ -186,11 +198,22 @@ async function downloadCollection(collectionId, indexMeta, lang) {
   const contents = { svgFiles: [], stamps: [] };
 
   if (types.includes('symbols')) {
-    // De index kent geen bestandsnamen; de listing komt uit de GitHub
-    // contents-API, de bestanden zelf via raw-URLs.
-    const listing = await fetchJson(symbolsListApiUrl(collectionId));
-    const files = (Array.isArray(listing) ? listing : [])
-      .filter(f => f && f.type === 'file' && /\.svg$/i.test(f.name));
+    // Bestandslijst bij voorkeur uit de index-metadata (`files`, relatief aan
+    // het collectie-pad) — dan verloopt de hele download via raw-URLs. De
+    // GitHub contents-API is alleen nog de fallback voor oude indexes zonder
+    // `files`: die API is voor anonieme gebruikers hard rate-limited en gaf
+    // na een handvol collecties HTTP 403 (download brak halverwege af).
+    const listed = (indexMeta && indexMeta.files) || (meta && meta.files) || null;
+    let files;
+    if (Array.isArray(listed) && listed.length) {
+      files = listed
+        .filter(f => typeof f === 'string' && /^symbols\/.+\.svg$/i.test(f))
+        .map(f => ({ name: f.slice('symbols/'.length) }));
+    } else {
+      const listing = await fetchJson(symbolsListApiUrl(collectionId));
+      files = (Array.isArray(listing) ? listing : [])
+        .filter(f => f && f.type === 'file' && /\.svg$/i.test(f.name));
+    }
     for (let i = 0; i < files.length; i += PARALLEL_FETCHES) {
       const batch = files.slice(i, i + PARALLEL_FETCHES);
       const svgs = await Promise.all(
@@ -212,30 +235,46 @@ async function downloadCollection(collectionId, indexMeta, lang) {
 // --- Alles voor land+sector downloaden ---
 export async function downloadCountrySector(countryId, sectorId) {
   if (downloadBusy()) return;
-  const info = downloadInfoFor(countryId, sectorId);
   setDownloadError('');
   setDownloadBusy(true);
   const lang = language();
   try {
+    // Wacht op een lopende stille index-refresh: direct na publicatie van
+    // nieuwe collecties (of nieuwe metadata zoals `files`/`parametric`) zou
+    // de download anders nog op de verouderde cache-index draaien en bv.
+    // de rate-limited contents-API-fallback raken.
+    if (indexFetchPromise) { try { await indexFetchPromise; } catch { /* cache blijft leidend */ } }
+    const info = downloadInfoFor(countryId, sectorId);
     // Al aanwezige collecties alleen bij-taggen voor dit land/sector.
     for (const { id } of info.tagOnly) {
       addGroupLocaleTag(`lib-${id}`, sectorId, countryId);
     }
     let done = 0;
+    const failed = [];
     for (const { id, meta } of info.toFetch) {
       setDownloadProgress({
         done,
         total: info.toFetch.length,
         label: pickLocalized(meta.name, lang) || id,
       });
-      const group = await downloadCollection(id, meta, lang);
-      group.industry = [sectorId];
-      group.country = [countryId];
-      // Per collectie persist — een afgebroken download houdt wat al binnen is.
-      upsertCustomGroup(group);
+      try {
+        const group = await downloadCollection(id, meta, lang);
+        group.industry = [sectorId];
+        group.country = [countryId];
+        // Per collectie persist — een afgebroken download houdt wat al binnen is.
+        upsertCustomGroup(group);
+      } catch (e) {
+        // Eén kapotte/onbereikbare collectie mag de rest niet blokkeren —
+        // doorgaan en aan het einde melden wat er miste.
+        console.warn(`Collectie ${id} overgeslagen:`, e);
+        failed.push(pickLocalized(meta.name, lang) || id);
+      }
       done++;
     }
     setDownloadProgress(null);
+    if (failed.length) {
+      setDownloadError(`Niet opgehaald: ${failed.join(', ')}`);
+    }
   } catch (e) {
     console.error('Download symboolbibliotheek mislukt:', e);
     setDownloadProgress(null);
