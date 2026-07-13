@@ -20,6 +20,32 @@ import { saveTextEditsToPages } from './saver/text-edits.js';
 import { saveWatermarksToPages } from './saver/watermarks.js';
 import { saveBookmarksToOutline } from './saver/bookmarks.js';
 import { catmullRomSpline } from '../tools/tools/spline-tool.js';
+import { buildFilledAreaAP, buildMeasureAreaAP, buildPolylineMeasureAP,
+  buildMeasureDistanceAP, buildWallAP, buildCloudAP,
+  cloudRectOutlinePts, cloudPolyOutlinePts } from './saver/appearance-vectors.js';
+import { computeWallShape, resolveWallMaterial } from '../annotations/rendering/walls.js';
+
+// Wrap a vector /AP builder result (absolute-PDF-coord content + needsFont flag)
+// into a Form XObject and set it as the annotation's /AP /N — same BBox/Matrix
+// convention as the FreeText appearance path. `rect` is the annotation /Rect
+// [x1,y1,x2,y2] the appearance is drawn against. Types that previously wrote NO
+// appearance stream were invisible (or showed only a bare outline) in other PDF
+// viewers, which rely on /AP; see issue #256.
+function attachVectorAP(context, annotDict, built, rect) {
+  if (!built || !built.content) return;
+  const [x1, y1, x2, y2] = rect;
+  const resources = {};
+  if (built.needsFont) {
+    resources.Font = context.obj({
+      Helv: context.obj({ Type: 'Font', Subtype: 'Type1', BaseFont: 'Helvetica', Encoding: 'WinAnsiEncoding' }),
+    });
+  }
+  const apStream = context.stream(built.content, {
+    Type: 'XObject', Subtype: 'Form', BBox: [x1, y1, x2, y2],
+    Matrix: [1, 0, 0, 1, -x1, -y1], Resources: context.obj(resources),
+  });
+  annotDict.set(PDFName.of('AP'), context.obj({ N: context.register(apStream) }));
+}
 
 // ── Rotated-page coordinate remap ──────────────────────────────────────────
 // On a page with /Rotate 90/180/270 the annotation coordinates live in the
@@ -714,6 +740,32 @@ export async function savePDF(saveAsPath = null) {
             }
 
             annotDict = context.obj(polygonDict);
+
+            // Vector /AP so the SCALLOPED cloud outline shows in other viewers.
+            // Without it they synthesise a straight-edged polygon from /Vertices
+            // and the cloud bumps are lost — issue #256. (Plain polygons keep
+            // their native synthesis; only cloud types get the scallop AP.)
+            if (ann.type === 'cloud' || ann.type === 'cloudPolyline') {
+              const canRect = ann.width != null && ann.height != null;
+              const hasPts = Array.isArray(ann.points) && ann.points.length >= 3;
+              const kind = (ann.type === 'cloud' && canRect) ? 'rect' : 'poly';
+              const puff = (ann.cloudIntensity !== undefined && ann.cloudIntensity <= 1) ? 9 : 15;
+              const outline = kind === 'rect'
+                ? cloudRectOutlinePts(ann.x, ann.y, ann.width, ann.height, puff)
+                : (hasPts ? cloudPolyOutlinePts(ann.points, true) : null);
+              if (outline && outline.length >= 3) {
+                const oxs = outline.map(p => convertX(p.x));
+                const oys = outline.map(p => convertY(p.y));
+                const cRect = [Math.min(...oxs) - 2, Math.min(...oys) - 2, Math.max(...oxs) + 2, Math.max(...oys) + 2];
+                annotDict.set(PDFName.of('Rect'), context.obj(cRect));
+                attachVectorAP(context, annotDict, buildCloudAP({
+                  kind, x: ann.x, y: ann.y, w: ann.width, h: ann.height, points: ann.points, puff,
+                  X: convertX, Y: convertY, fillColorHex: ann.fillColor,
+                  strokeColorHex: ann.strokeColor || ann.color || '#000000',
+                  lineWidth: borderWidth, borderStyle: ann.borderStyle,
+                }), cRect);
+              }
+            }
             break;
           }
 
@@ -1437,6 +1489,13 @@ export async function savePDF(saveAsPath = null) {
             if (ann.arcRadius && ann.arcRadius !== 30) maDict.OPS_ArcRadius = ann.arcRadius;
             annotDict = context.obj(maDict);
             annotDict.set(PDFName.of('BS'), buildBorderStyle(context, borderWidth, ann.borderStyle));
+            // Vector /AP so the angle arms AND the angle value label render in
+            // other viewers (label was Contents-only) — issue #256.
+            attachVectorAP(context, annotDict, buildPolylineMeasureAP({
+              points: [ann.point1, ann.vertex, ann.point2], X: convertX, Y: convertY,
+              strokeColorHex: ann.strokeColor || '#ff0000', lineWidth: borderWidth,
+              borderStyle: ann.borderStyle, text: ann.measureText,
+            }), maDict.Rect);
             break;
           }
 
@@ -1548,6 +1607,16 @@ export async function savePDF(saveAsPath = null) {
             }
 
             annotDict.set(PDFName.of('BS'), buildBorderStyle(context, borderWidth, ann.borderStyle));
+            // Vector /AP so the dimension line, extension lines AND the value
+            // label render in other viewers (label was Contents-only) — #256.
+            attachVectorAP(context, annotDict, buildMeasureDistanceAP({
+              startX: ann.startX, startY: ann.startY, endX: ann.endX, endY: ann.endY,
+              leaderStartX: ann.leaderStartX, leaderStartY: ann.leaderStartY,
+              leaderEndX: ann.leaderEndX, leaderEndY: ann.leaderEndY,
+              X: convertX, Y: convertY, strokeColorHex: ann.strokeColor || '#ff0000',
+              lineWidth: borderWidth, borderStyle: ann.borderStyle,
+              text: ann.measureText, textOffsetX: ann.textOffsetX, textOffsetY: ann.textOffsetY,
+            }), mdDict.Rect);
             break;
           }
 
@@ -1596,6 +1665,16 @@ export async function savePDF(saveAsPath = null) {
               });
               annotDict.set(PDFName.of('OPS_Holes'), context.obj(holesArray));
             }
+            // Vector /AP so the outline + fill AND the measurement value label
+            // (Contents-only today) render in other viewers — issue #256.
+            attachVectorAP(context, annotDict, buildMeasureAreaAP({
+              points: ann.points, holes: ann.holes, X: convertX, Y: convertY,
+              fillColorHex: ann.fillColor, strokeColorHex: ann.strokeColor || '#ff0000',
+              lineWidth: borderWidth, borderStyle: ann.borderStyle,
+              hatchPattern: ann.hatchPattern, hatchColorHex: ann.hatchColor,
+              hatchScale: ann.hatchScale, hatchAngle: ann.hatchAngle,
+              text: ann.measureText, labelX: ann.labelX, labelY: ann.labelY,
+            }), maDict.Rect);
             break;
           }
 
@@ -1691,6 +1770,15 @@ export async function savePDF(saveAsPath = null) {
               annotDict.set(PDFName.of('OPS_ArcFlags'), context.obj(faArcFlags));
               annotDict.set(PDFName.of('OPS_ArcBulges'), context.obj(faArcBulges));
             }
+            // Vector /AP so the solid fill + hatch pattern show in other viewers
+            // (they render only /AP, not our OPS_Hatch* keys) — issue #256.
+            attachVectorAP(context, annotDict, buildFilledAreaAP({
+              points: ann.points, holes: ann.holes, X: convertX, Y: convertY,
+              fillColorHex: ann.fillColor, strokeColorHex: ann.strokeColor || ann.color || '#000000',
+              lineWidth: borderWidth, borderStyle: ann.borderStyle,
+              hatchPattern: ann.hatchPattern, hatchColorHex: ann.hatchColor,
+              hatchScale: ann.hatchScale, hatchAngle: ann.hatchAngle,
+            }), faDict.Rect);
             break;
           }
 
@@ -1743,6 +1831,14 @@ export async function savePDF(saveAsPath = null) {
             if (ann.headSize && ann.headSize !== 12) mpDict.OPS_HeadSize = ann.headSize;
             annotDict = context.obj(mpDict);
             annotDict.set(PDFName.of('BS'), buildBorderStyle(context, borderWidth, ann.borderStyle));
+            // Vector /AP so the polyline AND the perimeter value label render in
+            // other viewers (label was Contents-only) — issue #256.
+            attachVectorAP(context, annotDict, buildPolylineMeasureAP({
+              points: ann.points, X: convertX, Y: convertY,
+              strokeColorHex: ann.strokeColor || '#ff0000', lineWidth: borderWidth,
+              borderStyle: ann.borderStyle, text: ann.measureText,
+              labelX: ann.labelX, labelY: ann.labelY,
+            }), mpDict.Rect);
             break;
           }
 
@@ -1783,6 +1879,48 @@ export async function savePDF(saveAsPath = null) {
             }
             if (ann.isolatieType) {
               annotDict.set(PDFName.of('OPS_IsolatieType'), PDFString.of(ann.isolatieType));
+            }
+            // Vector /AP so the wall BODY (thickness band + material fill/hatch
+            // + outline) shows in other viewers instead of just the thin
+            // centreline — issue #256. The band + material are resolved with the
+            // same helpers the on-screen renderer uses, so the look matches.
+            try {
+              const wallShape = computeWallShape(ann, docAnnotations);
+              const band = wallShape && wallShape.poly;
+              if (band && band.length >= 3) {
+                let fillBg = null, wHatch = null, wHatchColor = null, wHatchScale = null, wHatchAngle = null;
+                const mat = resolveWallMaterial(ann);
+                if (mat) {
+                  const wallAngleDeg = Math.atan2(ann.endY - ann.startY, ann.endX - ann.startX) * 180 / Math.PI;
+                  if (mat.kind === 'iso') {
+                    const iso = mat.iso || {};
+                    fillBg = iso.bg || mat.bg || '#eeeeee';
+                    wHatch = 'nen47-isolatie';
+                    wHatchColor = iso.fg || '#7a7a7a';
+                    wHatchScale = 100;
+                    wHatchAngle = wallAngleDeg;
+                  } else if (mat.kind !== 'none') {
+                    fillBg = mat.bg || null;
+                    wHatch = mat.pattern || mat.id;
+                    wHatchColor = ann.hatchColor || mat.fg || ann.strokeColor || ann.color || '#000000';
+                    wHatchScale = (ann.hatchScale != null && ann.hatchScale !== 100) ? ann.hatchScale : (mat.dens ?? 100);
+                    wHatchAngle = (ann.hatchAngle ?? 0) + wallAngleDeg;
+                  }
+                }
+                // Expand /Rect to the band bbox so the /AP BBox doesn't clip it.
+                const bxs = band.map(p => convertX(p.x));
+                const bys = band.map(p => convertY(p.y));
+                const wRect = [Math.min(...bxs) - 2, Math.min(...bys) - 2, Math.max(...bxs) + 2, Math.max(...bys) + 2];
+                annotDict.set(PDFName.of('Rect'), context.obj(wRect));
+                attachVectorAP(context, annotDict, buildWallAP({
+                  bandPoints: band, X: convertX, Y: convertY,
+                  strokeColorHex: ann.strokeColor || ann.color || '#000000', lineWidth: borderWidth,
+                  fillBgHex: fillBg, hatchPattern: wHatch, hatchColorHex: wHatchColor,
+                  hatchScale: wHatchScale, hatchAngle: wHatchAngle,
+                }), wRect);
+              }
+            } catch (wallApErr) {
+              console.warn('[saver] wall /AP embed failed:', wallApErr);
             }
             break;
           }

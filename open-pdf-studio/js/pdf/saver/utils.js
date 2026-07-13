@@ -11,15 +11,26 @@ export function hexToRgb(hex) {
   ];
 }
 
+// Dash arrays per border style, mirroring rendering/decorations.js
+// applyBorderStyle so a saved /BS /D pattern matches the on-screen look.
+// Solid → null (no /D; style stays 'S'). Extended (dash-dot) styles used to
+// fall through to solid, making dash-dot / long-dash lines render as plain
+// solid lines in other PDF viewers (issue #256).
+const BORDER_DASH_ARRAYS = {
+  'dashed': [8, 4],
+  'dotted': [2, 2],
+  'dash-dot': [10, 8, 2, 8],
+  'dash-dot-dot': [10, 8, 2, 8, 2, 8],
+  'long-dash': [20, 10],
+  'long-dash-dot': [20, 10, 2, 10],
+  'long-dash-dot-dot': [20, 10, 2, 10, 2, 10],
+};
+
 // Build a BS (Border Style) dictionary
 export function buildBorderStyle(context, width, borderStyle) {
-  const s = (borderStyle === 'dashed' || borderStyle === 'dotted') ? 'D' : 'S';
-  const bs = { Type: 'Border', W: width, S: s };
-  if (borderStyle === 'dashed') {
-    bs.D = [8, 4];
-  } else if (borderStyle === 'dotted') {
-    bs.D = [2, 2];
-  }
+  const dash = BORDER_DASH_ARRAYS[borderStyle] || null;
+  const bs = { Type: 'Border', W: width, S: dash ? 'D' : 'S' };
+  if (dash) bs.D = dash;
   return context.obj(bs);
 }
 

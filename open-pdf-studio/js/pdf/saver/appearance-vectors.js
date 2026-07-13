@@ -1,0 +1,404 @@
+// Vector appearance-stream (/AP /N) builders for annotation types that OPDS
+// previously wrote WITHOUT an appearance stream. Those types render correctly
+// inside OPDS (own overlay canvas) but were INVISIBLE — or showed only a bare
+// outline — in third-party PDF viewers, which rely on /AP. See issue #256.
+//
+// Every builder returns absolute-PDF-coordinate content-stream operators. The
+// caller (saver.js) wraps them in a Form XObject with:
+//     BBox   = the annotation /Rect  [x1,y1,x2,y2]
+//     Matrix = [1,0,0,1,-x1,-y1]
+// exactly like the existing FreeText /AP path, and adds a Helvetica font
+// resource when `needsFont` is true.
+//
+// The module is PURE (no state/canvas/DOM). Geometry that depends on app state
+// (wall band polygon, measurement scale) is resolved by the caller and passed
+// in as plain points, so this module stays headless-testable.
+
+import { hexToRgb } from './utils.js';
+import { getHatchLineFamilies } from './hatch-catalog.js';
+
+// ── number / string formatting ──────────────────────────────────────────────
+const f = (n) => {
+  if (!isFinite(n)) return '0';
+  const r = Math.round(n * 1000) / 1000;
+  return Object.is(r, -0) ? '0' : String(r);
+};
+const escapePdfText = (s) =>
+  String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)').replace(/[\r\n]+/g, ' ');
+
+// Dash arrays mirror rendering/decorations.js applyBorderStyle (screen px ==
+// PDF pt at scale 1). Solid → null (no dash operator).
+function dashArrayForStyle(borderStyle) {
+  switch (borderStyle) {
+    case 'dashed':            return [3, 4];
+    case 'dotted':            return [2, 8];
+    case 'dash-dot':          return [10, 8, 2, 8];
+    case 'dash-dot-dot':      return [10, 8, 2, 8, 2, 8];
+    case 'long-dash':         return [20, 10];
+    case 'long-dash-dot':     return [20, 10, 2, 10];
+    case 'long-dash-dot-dot': return [20, 10, 2, 10, 2, 10];
+    default:                  return null;
+  }
+}
+function dashOp(borderStyle) {
+  const d = dashArrayForStyle(borderStyle);
+  return d ? `[${d.join(' ')}] 0 d\n` : '[] 0 d\n';
+}
+
+// Emit an app-space point list as a PDF path (m/l), converting each point to
+// PDF coordinates via X()/Y(). Optionally close.
+function pathOps(pts, X, Y, close) {
+  if (!pts || pts.length === 0) return '';
+  let s = `${f(X(pts[0].x))} ${f(Y(pts[0].y))} m\n`;
+  for (let i = 1; i < pts.length; i++) s += `${f(X(pts[i].x))} ${f(Y(pts[i].y))} l\n`;
+  if (close) s += 'h\n';
+  return s;
+}
+
+// ── hatch ───────────────────────────────────────────────────────────────────
+// Reproduces rendering/hatch-patterns.js drawLineFamily + renderPattern, but
+// emits PDF operators. Works in APP space (matches canvas), converting every
+// endpoint to PDF coords via X()/Y(). The polygon clip path must already be set
+// by the caller (W n) before these ops run.
+function hatchFamilyOps(fam, bounds, scale, rot, center, colorRgb) {
+  const angleRad = (fam.angle * Math.PI) / 180;
+  const cosA = Math.cos(angleRad);
+  const sinA = Math.sin(angleRad);
+  const spacing = (fam.deltaY || 10) * scale;
+  if (spacing <= 0.01) return '';
+  const deltaX = (fam.deltaX || 0) * scale;
+  const originX = (fam.originX || 0) * scale;
+  const originY = (fam.originY || 0) * scale;
+
+  const { left, top, right, bottom } = bounds;
+  const cx = (left + right) / 2;
+  const cy = (top + bottom) / 2;
+  const diagonal = Math.hypot(right - left, bottom - top);
+  const halfDiag = diagonal / 2 + spacing * 2;
+  const numLines = Math.ceil((halfDiag * 2) / spacing) + 2;
+
+  // Rotate an app-space point around the polygon center by `rot` degrees.
+  const rotRad = (rot || 0) * Math.PI / 180;
+  const cr = Math.cos(rotRad), sr = Math.sin(rotRad);
+  const rotate = (x, y) => {
+    if (!rot) return [x, y];
+    const dx = x - center.cx, dy = y - center.cy;
+    return [center.cx + dx * cr - dy * sr, center.cy + dx * sr + dy * cr];
+  };
+
+  const lw = fam.strokeWidth != null ? fam.strokeWidth : 0.4;
+
+  // Dot family (dashPattern contains 0) → grid of filled dots.
+  if (fam.dashPattern && fam.dashPattern.includes(0)) {
+    const dotR = Math.max(0.5, 1 * scale);
+    const dotSpacing = deltaX || spacing;
+    const dotsPerLine = Math.ceil((halfDiag * 2) / dotSpacing) + 2;
+    let s = `${f(colorRgb[0])} ${f(colorRgb[1])} ${f(colorRgb[2])} rg\n`;
+    const k = 0.5522847498;
+    for (let i = -numLines; i <= numLines; i++) {
+      const perp = i * spacing;
+      const baseX = cx + perp * (-sinA);
+      const baseY = cy + perp * cosA;
+      for (let j = -dotsPerLine; j <= dotsPerLine; j++) {
+        const along = j * dotSpacing;
+        let dx = baseX + originX + along * cosA;
+        let dy = baseY + originY + along * sinA;
+        [dx, dy] = rotate(dx, dy);
+        // bezier circle radius dotR centered at (dx,dy) in APP space; convert.
+        s += `${f(gX(dx))} ${f(gY(dy + dotR))} m\n`;
+        s += `${f(gX(dx + k * dotR))} ${f(gY(dy + dotR))} ${f(gX(dx + dotR))} ${f(gY(dy + k * dotR))} ${f(gX(dx + dotR))} ${f(gY(dy))} c\n`;
+        s += `${f(gX(dx + dotR))} ${f(gY(dy - k * dotR))} ${f(gX(dx + k * dotR))} ${f(gY(dy - dotR))} ${f(gX(dx))} ${f(gY(dy - dotR))} c\n`;
+        s += `${f(gX(dx - k * dotR))} ${f(gY(dy - dotR))} ${f(gX(dx - dotR))} ${f(gY(dy - k * dotR))} ${f(gX(dx - dotR))} ${f(gY(dy))} c\n`;
+        s += `${f(gX(dx - dotR))} ${f(gY(dy + k * dotR))} ${f(gX(dx - k * dotR))} ${f(gY(dy + dotR))} ${f(gX(dx))} ${f(gY(dy + dotR))} c\n`;
+        s += 'f\n';
+      }
+    }
+    return s;
+  }
+
+  const dash = (fam.dashPattern && fam.dashPattern.length > 0)
+    ? `[${fam.dashPattern.map(d => f(Math.abs(d) * scale)).join(' ')}] 0 d\n`
+    : '[] 0 d\n';
+
+  let s = `${f(colorRgb[0])} ${f(colorRgb[1])} ${f(colorRgb[2])} RG\n${f(lw)} w\n${dash}`;
+  for (let i = -numLines; i <= numLines; i++) {
+    const perp = i * spacing;
+    const stagger = deltaX !== 0 ? i * deltaX : 0;
+    const baseX = cx + perp * (-sinA);
+    const baseY = cy + perp * cosA;
+    const ox = baseX + originX + stagger * cosA;
+    const oy = baseY + originY + stagger * sinA;
+    let x1 = ox - halfDiag * cosA, y1 = oy - halfDiag * sinA;
+    let x2 = ox + halfDiag * cosA, y2 = oy + halfDiag * sinA;
+    [x1, y1] = rotate(x1, y1);
+    [x2, y2] = rotate(x2, y2);
+    s += `${f(gX(x1))} ${f(gY(y1))} m ${f(gX(x2))} ${f(gY(y2))} l S\n`;
+  }
+  return s;
+}
+
+// Module-scoped mappers set per-call (keeps hatchFamilyOps signature small).
+let gX = (x) => x, gY = (y) => y;
+
+// Build the full hatch fill (clip to polygon+holes, then all line families).
+// `points`/`holes` are app-space. Returns ops (already includes q/Q).
+function hatchFillOps({ points, holes, hatchPattern, hatchColorRgb, hatchScale, hatchAngle, X, Y }) {
+  const families = getHatchLineFamilies(hatchPattern);
+  if (families === null) return '';
+  gX = X; gY = Y;
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of points) {
+    if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y;
+  }
+  const bw = maxX - minX, bh = maxY - minY;
+  const pad = Math.max(Math.hypot(bw, bh), bw, bh) * 0.6;
+  const bounds = { left: minX - pad, top: minY - pad, right: maxX + pad, bottom: maxY + pad };
+  const scale = (hatchScale != null ? hatchScale : 100) / 100;
+  const center = { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
+
+  let s = 'q\n';
+  // Clip path: outer + holes, even-odd.
+  s += pathOps(points, X, Y, true);
+  if (holes && holes.length) for (const h of holes) if (h && h.length >= 3) s += pathOps(h, X, Y, true);
+  s += 'W* n\n';
+
+  if (!families.length) {
+    // Solid fill using hatch color.
+    s += `${f(hatchColorRgb[0])} ${f(hatchColorRgb[1])} ${f(hatchColorRgb[2])} rg\n`;
+    s += pathOps(points, X, Y, true);
+    if (holes && holes.length) for (const h of holes) if (h && h.length >= 3) s += pathOps(h, X, Y, true);
+    s += 'f*\n';
+  } else {
+    for (const fam of families) s += hatchFamilyOps(fam, bounds, scale, hatchAngle || 0, center, hatchColorRgb);
+  }
+  s += 'Q\n';
+  return s;
+}
+
+// Solid fill of a polygon (+holes) using even-odd, app-space points.
+function solidFillOps(points, holes, fillRgb, X, Y) {
+  let s = `${f(fillRgb[0])} ${f(fillRgb[1])} ${f(fillRgb[2])} rg\n`;
+  s += pathOps(points, X, Y, true);
+  if (holes && holes.length) for (const h of holes) if (h && h.length >= 3) s += pathOps(h, X, Y, true);
+  s += 'f*\n';
+  return s;
+}
+
+// Stroke a polygon outline (+holes), app-space points.
+function strokeOutlineOps(points, holes, strokeRgb, lineWidth, borderStyle, X, Y) {
+  let s = `${f(strokeRgb[0])} ${f(strokeRgb[1])} ${f(strokeRgb[2])} RG\n${f(lineWidth)} w\n${dashOp(borderStyle)}`;
+  s += pathOps(points, X, Y, true) + 'S\n';
+  if (holes && holes.length) for (const h of holes) if (h && h.length >= 3) s += pathOps(h, X, Y, true) + 'S\n';
+  return s;
+}
+
+// White-backed centered text label (Helvetica). `x,y` app-space anchor.
+// Mirrors the on-screen measurement label look (white plate + coloured text).
+function labelOps({ text, x, y, fontSize, colorRgb, X, Y }) {
+  if (!text) return '';
+  const fs = fontSize || 11;
+  const px = X(x), py = Y(y);
+  const tw = escapePdfText(text).length * fs * 0.5; // Helvetica avg width estimate
+  const padX = 2, padY = 2;
+  const bx = px - tw / 2 - padX;
+  const by = py - fs / 2 - padY;
+  let s = 'q\n1 1 1 rg\n';
+  s += `${f(bx)} ${f(by)} ${f(tw + padX * 2)} ${f(fs + padY * 2)} re f\n`;
+  s += `${f(colorRgb[0])} ${f(colorRgb[1])} ${f(colorRgb[2])} rg\n`;
+  s += 'BT\n';
+  s += `/Helv ${f(fs)} Tf\n`;
+  s += `${f(px - tw / 2)} ${f(py - fs / 2 + fs * 0.25)} Td\n`;
+  s += `(${escapePdfText(text)}) Tj\n`;
+  s += 'ET\nQ\n';
+  return s;
+}
+
+// ── cloud outline sampling ──────────────────────────────────────────────────
+// Sample an arc (canvas ctx.arc semantics, anticlockwise=false) into points.
+function sampleArc(cx, cy, r, a0, a1, out, steps = 8) {
+  let end = a1;
+  if (end < a0) end += Math.PI * 2; // false = increasing angle
+  for (let i = 1; i <= steps; i++) {
+    const a = a0 + (end - a0) * (i / steps);
+    out.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+  }
+}
+
+// Rectangular cloud outline (mirrors shapes.js buildCloudPath).
+export function cloudRectOutlinePts(x, y, w, h, puff = 15) {
+  const W = Math.max(1, w), H = Math.max(1, h);
+  const THETA = 252 * Math.PI / 180;
+  const perim = [];
+  const addEdge = (x0, y0, x1, y1) => {
+    const len = Math.hypot(x1 - x0, y1 - y0);
+    const n = Math.max(2, Math.round(len / puff));
+    for (let i = 0; i < n; i++) perim.push([x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n]);
+  };
+  addEdge(x, y, x + W, y);
+  addEdge(x + W, y, x + W, y + H);
+  addEdge(x + W, y + H, x, y + H);
+  addEdge(x, y + H, x, y);
+  const sinHalf = Math.sin(THETA / 2), cosHalf = Math.cos(THETA / 2);
+  const out = [];
+  for (let i = 0; i < perim.length; i++) {
+    const [x0, y0] = perim[i];
+    const [x1, y1] = perim[(i + 1) % perim.length];
+    const dx = x1 - x0, dy = y1 - y0, c = Math.hypot(dx, dy);
+    if (c < 0.01) continue;
+    const r = c / (2 * sinHalf);
+    const nx = dy / c, ny = -dx / c;
+    const ccx = (x0 + x1) / 2 + nx * r * cosHalf;
+    const ccy = (y0 + y1) / 2 + ny * r * cosHalf;
+    const a0 = Math.atan2(y0 - ccy, x0 - ccx);
+    const a1 = Math.atan2(y1 - ccy, x1 - ccx);
+    if (out.length === 0) out.push({ x: x0, y: y0 });
+    sampleArc(ccx, ccy, r, a0, a1, out);
+  }
+  return out;
+}
+
+// Cloud outline along arbitrary points (mirrors shapes.js buildCloudPolylinePath).
+export function cloudPolyOutlinePts(points, closed = true) {
+  if (!points || points.length < 2) return [];
+  const TARGET_BUMP = 12;
+  const out = [];
+  const len = closed ? points.length : points.length - 1;
+  for (let i = 0; i < len; i++) {
+    const p1 = points[i];
+    const p2 = points[(i + 1) % points.length];
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    const edgeLen = Math.hypot(dx, dy);
+    if (edgeLen < 1) continue;
+    const numBumps = Math.max(1, Math.round(edgeLen / (TARGET_BUMP * 1.5)));
+    const bumpRadius = edgeLen / numBumps / 2;
+    const angle = Math.atan2(dy, dx);
+    for (let j = 0; j < numBumps; j++) {
+      const t = (j + 0.5) / numBumps;
+      const ccx = p1.x + dx * t, ccy = p1.y + dy * t;
+      sampleArc(ccx, ccy, bumpRadius, angle + Math.PI, angle, out);
+    }
+  }
+  return out;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Public builders — each returns { content, needsFont }.
+// ════════════════════════════════════════════════════════════════════════════
+
+// filledArea: optional solid fill + optional hatch + outline.
+export function buildFilledAreaAP({ points, holes, X, Y, fillColorHex, strokeColorHex,
+  lineWidth, borderStyle, hatchPattern, hatchColorHex, hatchScale, hatchAngle }) {
+  if (!points || points.length < 3) return null;
+  const stroke = hexToRgb(strokeColorHex || '#000000');
+  let s = '';
+  if (fillColorHex && fillColorHex !== 'none' && fillColorHex !== 'transparent') {
+    s += solidFillOps(points, holes, hexToRgb(fillColorHex), X, Y);
+  }
+  if (hatchPattern && hatchPattern !== 'none') {
+    s += hatchFillOps({ points, holes, hatchPattern,
+      hatchColorRgb: hexToRgb(hatchColorHex || strokeColorHex || '#000000'),
+      hatchScale, hatchAngle, X, Y });
+  }
+  s += strokeOutlineOps(points, holes, stroke, lineWidth ?? 1, borderStyle, X, Y);
+  return { content: s, needsFont: false };
+}
+
+// measureArea: fill + optional hatch + outline + centroid label.
+export function buildMeasureAreaAP({ points, holes, X, Y, fillColorHex, strokeColorHex,
+  lineWidth, borderStyle, hatchPattern, hatchColorHex, hatchScale, hatchAngle,
+  text, labelX, labelY }) {
+  if (!points || points.length < 3) return null;
+  const stroke = hexToRgb(strokeColorHex || '#ff0000');
+  let s = '';
+  if (fillColorHex && fillColorHex !== 'none' && fillColorHex !== 'transparent') {
+    s += solidFillOps(points, holes, hexToRgb(fillColorHex), X, Y);
+  }
+  if (hatchPattern && hatchPattern !== 'none') {
+    s += hatchFillOps({ points, holes, hatchPattern,
+      hatchColorRgb: hexToRgb(hatchColorHex || strokeColorHex || '#ff0000'),
+      hatchScale, hatchAngle, X, Y });
+  }
+  s += strokeOutlineOps(points, holes, stroke, lineWidth ?? 1, borderStyle, X, Y);
+  let cx = 0, cy = 0;
+  for (const p of points) { cx += p.x; cy += p.y; }
+  cx /= points.length; cy /= points.length;
+  s += labelOps({ text, x: labelX != null ? labelX : cx, y: labelY != null ? labelY : cy,
+    fontSize: 11, colorRgb: stroke, X, Y });
+  return { content: s, needsFont: true };
+}
+
+// measurePerimeter / measureAngle: open polyline + label at centroid.
+export function buildPolylineMeasureAP({ points, X, Y, strokeColorHex, lineWidth, borderStyle,
+  text, labelX, labelY }) {
+  if (!points || points.length < 2) return null;
+  const stroke = hexToRgb(strokeColorHex || '#ff0000');
+  let s = `${f(stroke[0])} ${f(stroke[1])} ${f(stroke[2])} RG\n${f(lineWidth ?? 1)} w\n${dashOp(borderStyle)}`;
+  s += pathOps(points, X, Y, false) + 'S\n';
+  let cx = 0, cy = 0;
+  for (const p of points) { cx += p.x; cy += p.y; }
+  cx /= points.length; cy /= points.length;
+  if (text) s += labelOps({ text, x: labelX != null ? labelX : cx, y: labelY != null ? labelY : cy,
+    fontSize: 11, colorRgb: stroke, X, Y });
+  return { content: s, needsFont: !!text };
+}
+
+// measureDistance: dimension line + extension lines + label at line midpoint.
+export function buildMeasureDistanceAP({ startX, startY, endX, endY,
+  leaderStartX, leaderStartY, leaderEndX, leaderEndY,
+  X, Y, strokeColorHex, lineWidth, borderStyle, text, textOffsetX, textOffsetY }) {
+  const stroke = hexToRgb(strokeColorHex || '#ff0000');
+  const lw = lineWidth ?? 1;
+  let s = `${f(stroke[0])} ${f(stroke[1])} ${f(stroke[2])} RG\n${f(lw)} w\n${dashOp(borderStyle)}`;
+  // Extension lines from base object to dimension line, if present.
+  if (leaderStartX != null) {
+    s += `${f(X(leaderStartX))} ${f(Y(leaderStartY))} m ${f(X(startX))} ${f(Y(startY))} l S\n`;
+    s += `${f(X(leaderEndX))} ${f(Y(leaderEndY))} m ${f(X(endX))} ${f(Y(endY))} l S\n`;
+  }
+  // Dimension line.
+  s += `${f(X(startX))} ${f(Y(startY))} m ${f(X(endX))} ${f(Y(endY))} l S\n`;
+  const midX = (startX + endX) / 2 + (textOffsetX || 0);
+  const midY = (startY + endY) / 2 + (textOffsetY || 0);
+  if (text) s += labelOps({ text, x: midX, y: midY, fontSize: 11, colorRgb: stroke, X, Y });
+  return { content: s, needsFont: !!text };
+}
+
+// wall: fill band (bg colour) + optional material hatch + outline. `bandPoints`
+// is the mitred band polygon (app-space) computed by the caller.
+export function buildWallAP({ bandPoints, X, Y, strokeColorHex, lineWidth,
+  fillBgHex, hatchPattern, hatchColorHex, hatchScale, hatchAngle }) {
+  if (!bandPoints || bandPoints.length < 3) return null;
+  const stroke = hexToRgb(strokeColorHex || '#000000');
+  let s = '';
+  if (fillBgHex && fillBgHex !== 'none' && fillBgHex !== 'transparent') {
+    s += solidFillOps(bandPoints, null, hexToRgb(fillBgHex), X, Y);
+  }
+  if (hatchPattern && hatchPattern !== 'none') {
+    s += hatchFillOps({ points: bandPoints, holes: null, hatchPattern,
+      hatchColorRgb: hexToRgb(hatchColorHex || strokeColorHex || '#000000'),
+      hatchScale, hatchAngle, X, Y });
+  }
+  s += strokeOutlineOps(bandPoints, null, stroke, lineWidth ?? 1, 'solid', X, Y);
+  return { content: s, needsFont: false };
+}
+
+// cloud / cloudPolyline: scalloped outline (optional fill).
+export function buildCloudAP({ kind, x, y, w, h, points, puff, X, Y,
+  fillColorHex, strokeColorHex, lineWidth, borderStyle }) {
+  const outline = kind === 'rect'
+    ? cloudRectOutlinePts(x, y, w, h, puff || 15)
+    : cloudPolyOutlinePts(points, true);
+  if (!outline || outline.length < 3) return null;
+  const stroke = hexToRgb(strokeColorHex || '#000000');
+  let s = '';
+  if (fillColorHex && fillColorHex !== 'none' && fillColorHex !== 'transparent') {
+    s += solidFillOps(outline, null, hexToRgb(fillColorHex), X, Y);
+  }
+  s += `${f(stroke[0])} ${f(stroke[1])} ${f(stroke[2])} RG\n${f(lineWidth ?? 1)} w\n${dashOp(borderStyle)}`;
+  s += pathOps(outline, X, Y, true) + 'S\n';
+  return { content: s, needsFont: false };
+}
+
+// Exposed for the caller to build the font resource dict only when needed.
+export const HELV_FONT_NAME = 'Helv';
