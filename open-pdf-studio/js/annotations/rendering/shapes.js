@@ -1,3 +1,18 @@
+// First strong-directional character decides the base direction of a text run,
+// mirroring CSS `dir="auto"` (which the free-text/callout editors use, issue #61).
+// Returns true when the first strongly-typed character is RTL (Hebrew, Arabic,
+// Syriac, Thaana, NKo and Arabic presentation forms). Latin/digits → false.
+const _RTL_STRONG = /[֐-׿؀-ۿ܀-ݏݐ-ݿހ-޿߀-ࣿיִ-ﭏﭐ-﷿ﹰ-﻿]/;
+const _LTR_STRONG = /[A-Za-zÀ-ʯͰ-ԯऀ-῿Ⰰ-퟿]/;
+export function isRTLText(s) {
+  if (!s) return false;
+  for (const ch of s) {
+    if (_RTL_STRONG.test(ch)) return true;
+    if (_LTR_STRONG.test(ch)) return false;
+  }
+  return false;
+}
+
 // Build polygon path without stroking (for fill/hatch/stroke to be applied by caller)
 export function buildPolygonPath(ctx, x, y, width, height, sides = 6) {
   const cx = x + width / 2;
@@ -296,8 +311,18 @@ export function drawTextboxContent(ctx, annotation, padding) {
   // too tight vs reference viewers which show ~lineHeight worth of gap.
   ctx.textBaseline = 'alphabetic';
 
-  // Get text alignment
-  const textAlign = annotation.textAlign || 'left';
+  // Base direction follows the first strong-directional character, mirroring the
+  // free-text editor's dir="auto" (issue #61/#255) so a committed Arabic/Hebrew
+  // box renders exactly as it was typed. ctx.textAlign is pinned to physical
+  // 'left' so the manual textX math below stays correct under any direction
+  // (canvas 'start'/'end' would otherwise flip with ctx.direction).
+  const rtl = isRTLText(annotation.text);
+  ctx.direction = rtl ? 'rtl' : 'ltr';
+  ctx.textAlign = 'left';
+
+  // Get text alignment. When the user has not picked an explicit alignment, an
+  // RTL box defaults to right-aligned (like the editor); LTR stays left.
+  const textAlign = annotation.textAlign || (rtl ? 'right' : 'left');
   const maxWidth = width - padding * 2;
 
   // First-line baseline position. With textBaseline='alphabetic', y refers
@@ -417,4 +442,5 @@ export function drawTextboxContent(ctx, annotation, padding) {
     }
   }
   ctx.textBaseline = 'alphabetic'; // Reset
+  ctx.direction = 'ltr'; // Reset base direction for subsequent draws
 }

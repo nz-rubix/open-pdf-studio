@@ -5,7 +5,7 @@ import { updateAnnotationsList } from '../ui/panels/annotations-list.js';
 import { renderWatermarksBehind, renderWatermarksInFront } from '../watermark/watermark-renderer.js';
 
 // Import from sub-modules
-import { drawPolygonShape, drawCloudShape, buildPolygonPath, buildCloudPath, buildCloudPolylinePath, drawTextboxContent } from './rendering/shapes.js';
+import { drawPolygonShape, drawCloudShape, buildPolygonPath, buildCloudPath, buildCloudPolylinePath, drawTextboxContent, isRTLText } from './rendering/shapes.js';
 import { drawArrowheadOnCanvas, applyBorderStyle, drawDimensionLineEnding } from './rendering/decorations.js';
 import { catmullRomSpline } from '../tools/tools/spline-tool.js';
 import { drawDimension, drawMeasureAreaShape, drawCentroidLabel, drawMeasurePerimeterShape } from './rendering/measurements.js';
@@ -833,6 +833,10 @@ export function drawAnnotation(ctx, annotation) {
       const txtFontSize = annotation.fontSize || 16;
       ctx.fillStyle = annotation.color || '#000000';
       ctx.font = `${txtFontStyle}${txtFontSize}px ${txtFontFamily}`;
+      // Base direction follows the first strong-directional character (dir="auto",
+      // issue #61/#255) so Arabic/Hebrew keeps correct bidi ordering of mixed and
+      // neutral characters. Alignment/anchor is left unchanged for this point-text.
+      ctx.direction = isRTLText(annotation.text) ? 'rtl' : 'ltr';
       ctx.textAlign = annotation.textAlign || 'left';
 
       const lines = (annotation.text || '').split('\n');
@@ -854,6 +858,7 @@ export function drawAnnotation(ctx, annotation) {
         txtY += txtFontSize * 1.3;
       }
       ctx.textAlign = 'left';
+      ctx.direction = 'ltr'; // Reset base direction for subsequent draws
       break;
     }
 
