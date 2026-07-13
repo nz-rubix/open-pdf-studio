@@ -368,6 +368,19 @@
     "noContent": "Geen inhoud gedetecteerd — alle geselecteerde pagina's lijken leeg te zijn.",
     "resultWithSkipped": "{{cropped}} pagina('s) bijgesneden. {{skipped}} lege pagina('s) overgeslagen."
   },
+  "compress": {
+    "title": "PDF comprimeren",
+    "quality": "Kwaliteit:",
+    "low": "Laag (kleinste bestand)",
+    "medium": "Gemiddeld",
+    "high": "Hoog (beste kwaliteit)",
+    "currentSize": "Huidige grootte: {{size}}",
+    "info": "Elke pagina wordt opnieuw opgeslagen als afbeelding op de gekozen resolutie, waardoor tekst niet meer doorzoekbaar is. Het resultaat komt in een nieuw bestand — het origineel blijft ongewijzigd.",
+    "action": "Comprimeren",
+    "done": "Gecomprimeerd: {{before}} → {{after}} ({{pct}}% kleiner).",
+    "doneNoGain": "Comprimeren voltooid: {{after}} (geen verkleining behaald).",
+    "failed": "Comprimeren mislukt: {{error}}"
+  },
   "scale": {
     "title": "Schaal instellen",
     "currentValue": "Huidige waarde",

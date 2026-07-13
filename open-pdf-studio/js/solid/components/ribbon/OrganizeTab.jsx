@@ -14,6 +14,7 @@ import { useTranslation } from '../../../i18n/useTranslation.js';
 import { openDialog } from '../../stores/dialogStore.js';
 
 const reorderIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="6" height="4"/><rect x="3" y="10" width="6" height="4"/><rect x="3" y="17" width="6" height="4"/><path d="M14 5l4 4-4 4M14 13l4 4-4 4M18 9H10M18 17H10" stroke-linecap="round"/></svg>`;
+const compressIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9.5 14.5L12 12l2.5 2.5"/></svg>`;
 
 export default function OrganizeTab() {
   const { t } = useTranslation('ribbon');
@@ -55,6 +56,11 @@ export default function OrganizeTab() {
             disabled={ro()} onClick={() => {
               const doc = getActiveDocument();
               openDialog('crop-margins', { totalPages: doc?.pdfDoc?.numPages, currentPage: doc?.currentPage || 1 });
+            }} />
+          <RibbonButton id="ep-compress-pdf" title={t('organize.compressPdf')} icon={compressIcon} label={t('organize.compressLabel')}
+            disabled={noPdf()} onClick={async () => {
+              const { getCurrentDocumentSize } = await import('../../../pdf/compress.js');
+              openDialog('compress', { currentSize: getCurrentDocumentSize() });
             }} />
         </RibbonGroup>
 

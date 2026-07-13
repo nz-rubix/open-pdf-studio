@@ -252,7 +252,9 @@
     "addHeaderFooter": "Add Header/Footer",
     "headerFooter": "Header/Footer",
     "manageWatermarks": "Manage Watermarks",
-    "manage": "Manage"
+    "manage": "Manage",
+    "compressPdf": "Compress PDF (reduce file size)",
+    "compressLabel": "Compress"
   },
   "help": {
     "settings": "Settings",

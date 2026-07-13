@@ -252,7 +252,9 @@
     "addHeaderFooter": "Koptekst/voettekst toevoegen",
     "headerFooter": "Koptekst/voettekst",
     "manageWatermarks": "Watermerken beheren",
-    "manage": "Beheren"
+    "manage": "Beheren",
+    "compressPdf": "PDF comprimeren (bestandsgrootte verkleinen)",
+    "compressLabel": "Comprimeren"
   },
   "help": {
     "information": "Informatie",

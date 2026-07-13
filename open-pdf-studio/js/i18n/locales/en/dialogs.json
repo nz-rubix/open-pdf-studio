@@ -360,6 +360,19 @@
     "noContent": "No content detected — all selected pages appear to be blank.",
     "resultWithSkipped": "Cropped {{cropped}} page(s). Skipped {{skipped}} blank page(s)."
   },
+  "compress": {
+    "title": "Compress PDF",
+    "quality": "Quality:",
+    "low": "Low (smallest file)",
+    "medium": "Medium",
+    "high": "High (best quality)",
+    "currentSize": "Current size: {{size}}",
+    "info": "Every page is re-saved as an image at the chosen resolution, so text becomes non-searchable. The result is written to a new file — your original is left untouched.",
+    "action": "Compress",
+    "done": "Compressed: {{before}} → {{after}} ({{pct}}% smaller).",
+    "doneNoGain": "Compression finished: {{after}} (no size reduction achieved).",
+    "failed": "Compression failed: {{error}}"
+  },
   "scale": {
     "title": "Set Scale",
     "currentValue": "Current value",
