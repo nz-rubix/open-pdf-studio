@@ -1,8 +1,7 @@
 import { Show, Switch, Match, ErrorBoundary } from 'solid-js';
 import RibbonTab from './RibbonTab.jsx';
 import HomeTab from './HomeTab.jsx';
-import CommentTab from './CommentTab.jsx';
-import DrawingTab from './DrawingTab.jsx';
+import AnnotateTab from './AnnotateTab.jsx';
 import ViewTab from './ViewTab.jsx';
 import OrganizeTab from './OrganizeTab.jsx';
 import HelpTab from './HelpTab.jsx';
@@ -12,10 +11,23 @@ import ImageTab from './ImageTab.jsx';
 import { activeTab, setActiveTab, contextualTabsVisible } from '../../stores/ribbonStore.js';
 import { imageSelected } from '../../stores/imageEditStore.js';
 import { openAppMenu } from '../../../ui/chrome/menus.js';
+import { state } from '../../../core/state.js';
+import { savePreferences } from '../../../core/preferences.js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function Ribbon() {
   const { t } = useTranslation('ribbon');
+
+  // The merged "Tekenen & annotatie" tab covers the former 'drawing',
+  // 'comment' and legacy 'measure' tab ids.
+  const annotateActive = () =>
+    activeTab() === 'drawing' || activeTab() === 'comment' || activeTab() === 'measure';
+
+  const ribbonCollapsed = () => state.preferences.ribbonCollapsed === true;
+  const toggleCollapsed = () => {
+    state.preferences.ribbonCollapsed = !ribbonCollapsed();
+    savePreferences();
+  };
 
   return (
     <>
@@ -25,11 +37,8 @@ export default function Ribbon() {
         <RibbonTab label={t('tabs.home')} dataTab="home"
           isActive={activeTab() === 'home'}
           onClick={() => setActiveTab('home')} />
-        <RibbonTab label={t('tabs.comment')} dataTab="comment"
-          isActive={activeTab() === 'comment'}
-          onClick={() => setActiveTab('comment')} />
-        <RibbonTab label={t('tabs.drawing')} dataTab="drawing"
-          isActive={activeTab() === 'drawing'}
+        <RibbonTab label={t('tabs.annotate')} dataTab="drawing"
+          isActive={annotateActive()}
           onClick={() => setActiveTab('drawing')} />
         <RibbonTab label={t('tabs.view')} dataTab="view"
           isActive={activeTab() === 'view'}
@@ -57,20 +66,35 @@ export default function Ribbon() {
             isActive={activeTab() === 'image'}
             onClick={() => setActiveTab('image')} />
         </Show>
+        {/* Collapse/expand toggle (issue #278): hides the ribbon body so only
+            the tab strip remains. State is remembered in preferences. */}
+        <button
+          type="button"
+          class="ribbon-collapse-toggle"
+          id="ribbon-collapse-toggle"
+          title={ribbonCollapsed() ? (t('common.expandRibbon') || 'Expand ribbon') : (t('common.collapseRibbon') || 'Collapse ribbon')}
+          onClick={toggleCollapsed}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+            <path d={ribbonCollapsed() ? 'M2 4 L6 8 L10 4' : 'M2 8 L6 4 L10 8'}
+              fill="none" stroke="currentColor" stroke-width="1.5"
+              stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
       </div>
 
-      <Switch>
-        <Match when={activeTab() === 'measure'}><CommentTab /></Match>
-        <Match when={activeTab() === 'home'}><HomeTab /></Match>
-        <Match when={activeTab() === 'comment'}><CommentTab /></Match>
-        <Match when={activeTab() === 'drawing'}><DrawingTab /></Match>
-        <Match when={activeTab() === 'view'}><ViewTab /></Match>
-        <Match when={activeTab() === 'organize'}><OrganizeTab /></Match>
-        <Match when={activeTab() === 'help'}><HelpTab /></Match>
-        <Match when={activeTab() === 'format'}><FormatTab /></Match>
-        <Match when={activeTab() === 'arrange'}><ArrangeTab /></Match>
-        <Match when={activeTab() === 'image'}><ImageTab /></Match>
-      </Switch>
+      <Show when={!ribbonCollapsed()}>
+        <Switch>
+          <Match when={annotateActive()}><AnnotateTab /></Match>
+          <Match when={activeTab() === 'home'}><HomeTab /></Match>
+          <Match when={activeTab() === 'view'}><ViewTab /></Match>
+          <Match when={activeTab() === 'organize'}><OrganizeTab /></Match>
+          <Match when={activeTab() === 'help'}><HelpTab /></Match>
+          <Match when={activeTab() === 'format'}><FormatTab /></Match>
+          <Match when={activeTab() === 'arrange'}><ArrangeTab /></Match>
+          <Match when={activeTab() === 'image'}><ImageTab /></Match>
+        </Switch>
+      </Show>
     </>
   );
 }

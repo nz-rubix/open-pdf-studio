@@ -10,7 +10,8 @@
     "format": "Format",
     "arrange": "Arrange",
     "measure": "Measure",
-    "image": "Image"
+    "image": "Image",
+    "annotate": "Drawing & Annotation"
   },
   "measure": {
     "scale": "Scale",
@@ -378,7 +379,9 @@
     "h": "H:"
   },
   "common": {
-    "comingSoon": "Coming soon"
+    "comingSoon": "Coming soon",
+    "collapseRibbon": "Collapse ribbon",
+    "expandRibbon": "Expand ribbon"
   },
   "drawing": {
     "selection": "Selection",

@@ -8,7 +8,8 @@
     "help": "Yardım",
     "format": "Biçim",
     "arrange": "Hizala",
-    "measure": "Measure"
+    "measure": "Measure",
+    "annotate": "Drawing & Annotation"
   },
   "measure": {
     "scale": "Scale",
@@ -290,5 +291,9 @@
     "default": "Varsayılan",
     "amberNavy": "Kehribar Koyu",
     "warmEmber": "Sıcak Kor"
+  },
+  "common": {
+    "collapseRibbon": "Collapse ribbon",
+    "expandRibbon": "Expand ribbon"
   }
 }

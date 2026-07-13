@@ -8,7 +8,8 @@
     "help": "Pomoc",
     "format": "Format",
     "arrange": "Rozmieść",
-    "measure": "Measure"
+    "measure": "Measure",
+    "annotate": "Drawing & Annotation"
   },
   "measure": {
     "scale": "Scale",
@@ -290,5 +291,9 @@
     "default": "Domyślny",
     "amberNavy": "Bursztynowo-granatowy",
     "warmEmber": "Ciepły żar"
+  },
+  "common": {
+    "collapseRibbon": "Collapse ribbon",
+    "expandRibbon": "Expand ribbon"
   }
 }

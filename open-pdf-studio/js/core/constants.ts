@@ -94,6 +94,10 @@ export const DEFAULT_PREFERENCES: Preferences = {
   // chain mechanism as the wall tool.
   lineContinue: false,
 
+  // Ribbon collapsed state: when true the ribbon body is hidden and only the
+  // tab strip is shown (toggled by the chevron at the end of the tab strip).
+  ribbonCollapsed: false,
+
   // Appearance
   defaultAnnotationColor: '#FF0000',
   defaultLineWidth: 2,

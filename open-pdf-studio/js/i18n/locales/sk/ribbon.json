@@ -8,7 +8,8 @@
     "help": "Pomocník",
     "format": "Formát",
     "arrange": "Rozloženie",
-    "measure": "Measure"
+    "measure": "Measure",
+    "annotate": "Drawing & Annotation"
   },
   "measure": {
     "scale": "Scale",
@@ -290,5 +291,9 @@
     "default": "Predvolené",
     "amberNavy": "Jantárovo tmavomodrá",
     "warmEmber": "Teplý žiar"
+  },
+  "common": {
+    "collapseRibbon": "Collapse ribbon",
+    "expandRibbon": "Expand ribbon"
   }
 }

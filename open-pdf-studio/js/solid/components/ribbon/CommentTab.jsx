@@ -30,12 +30,14 @@ import PrefSelect from '../preferences/PrefSelect.jsx';
 
 const scheduleIcon = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="1.5" stroke-width="1.5"/><line x1="3" y1="8" x2="21" y2="8" stroke-width="1.5"/><line x1="3" y1="13" x2="21" y2="13" stroke-width="1"/><line x1="3" y1="18" x2="21" y2="18" stroke-width="1"/><line x1="9" y1="8" x2="9" y2="21" stroke-width="1"/><line x1="15" y1="8" x2="15" y2="21" stroke-width="1"/></svg>`;
 
-export default function CommentTab() {
+// The comment groups are exported as a standalone fragment so the merged
+// "Tekenen & annotatie" tab (AnnotateTab) can compose them alongside the
+// drawing groups inside a single AdaptiveGroups container.
+export function CommentGroups() {
   const { t } = useTranslation('ribbon');
 
   return (
-    <div class="ribbon-content active" id="tab-comment">
-      <AdaptiveGroups>
+    <>
         {/* Drawing tools (line/arrow/polyline/arc/spline/rect/ellipse/polygon/cloud/cloudPolyline/filledArea/freehand)
             were moved to the dedicated Drawing tab. Comment tab keeps only
             comment-style annotations (highlight, callout, note, stamp, etc.). */}
@@ -158,6 +160,15 @@ export default function CommentTab() {
             active={scheduleVisible()}
             onClick={toggleSchedule} />
         </RibbonGroup>
+    </>
+  );
+}
+
+export default function CommentTab() {
+  return (
+    <div class="ribbon-content active" id="tab-comment">
+      <AdaptiveGroups>
+        <CommentGroups />
       </AdaptiveGroups>
     </div>
   );

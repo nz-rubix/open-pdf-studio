@@ -10,7 +10,8 @@
     "format": "Opmaak",
     "arrange": "Schikken",
     "measure": "Meten",
-    "image": "Afbeelding"
+    "image": "Afbeelding",
+    "annotate": "Tekenen & annotatie"
   },
   "measure": {
     "scale": "SCHAAL",
@@ -380,7 +381,9 @@
     "h": "H:"
   },
   "common": {
-    "comingSoon": "Binnenkort beschikbaar"
+    "comingSoon": "Binnenkort beschikbaar",
+    "collapseRibbon": "Lint inklappen",
+    "expandRibbon": "Lint uitklappen"
   },
   "drawing": {
     "selection": "Selectie",

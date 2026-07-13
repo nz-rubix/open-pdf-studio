@@ -3,7 +3,7 @@ import { autoShrinkLabel } from './autoShrinkLabel.js';
 export default function RibbonButton(props) {
   return (
     <button
-      class={`ribbon-btn${props.size === 'small' ? ' small' : ''}${props.size === 'medium' ? ' medium' : ''}${props.active ? ' active' : ''}${props.extraClass ? ' ' + props.extraClass : ''}`}
+      class={`ribbon-btn${props.size === 'small' ? ' small' : ''}${props.size === 'medium' ? ' medium' : ''}${props.active ? ' active' : ''}${props.iconOnly ? ' icon-only' : ''}${props.extraClass ? ' ' + props.extraClass : ''}`}
       id={props.id}
       title={props.title}
       disabled={props.disabled}
@@ -12,7 +12,9 @@ export default function RibbonButton(props) {
     >
       <div class="ribbon-btn-icon" style={props.iconStyle} ref={el => { if (props.icon) el.innerHTML = props.icon; }}>
       </div>
-      <span class="ribbon-btn-label" ref={el => autoShrinkLabel(el)}>{props.label}</span>
+      {!props.iconOnly && (
+        <span class="ribbon-btn-label" ref={el => autoShrinkLabel(el)}>{props.label}</span>
+      )}
     </button>
   );
 }

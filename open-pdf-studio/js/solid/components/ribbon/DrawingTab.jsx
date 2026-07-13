@@ -98,14 +98,16 @@ function moveSelected() {
   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'g', bubbles: true }));
 }
 
-export default function DrawingTab() {
+// The drawing groups are exported as a standalone fragment so the merged
+// "Tekenen & annotatie" tab (AnnotateTab) can compose them alongside the
+// comment groups inside a single AdaptiveGroups container.
+export function DrawingGroups() {
   const { t } = useTranslation('ribbon');
   const ro = () => noPdf() || isPdfAReadOnly();
   const cs = t('common.comingSoon') || 'Coming soon';
 
   return (
-    <div class="ribbon-content active" id="tab-drawing">
-      <AdaptiveGroups>
+    <>
 
         {/* SELECTION */}
         <RibbonGroup label={t('drawing.selection')}>
@@ -249,8 +251,9 @@ export default function DrawingTab() {
           </RibbonButtonStack>
         </RibbonGroup>
 
-        {/* MODIFY */}
-        <RibbonGroup label={t('drawing.modify')}>
+        {/* MODIFY — icon-only buttons (issue #278: "Wijzigen" toont alleen
+            iconen; volledige naam blijft als tooltip beschikbaar). */}
+        <RibbonGroup label={t('drawing.modify')} iconOnly>
           <RibbonButton id="dr-move" title={t('drawing.move')} icon={moveIcon} label={t('drawing.move')}
             disabled={ro()} onClick={moveSelected} />
           <RibbonButton id="dr-copy" title={t('drawing.copy')} icon={copyAnnIcon} label={t('drawing.copy')}
@@ -310,12 +313,14 @@ export default function DrawingTab() {
             disabled={ro()} onClick={pasteFromClipboard} />
           <RibbonButton id="dr-paste-in-place" title={`${t('drawing.pasteInPlace')} (Ctrl+Shift+V)`} icon={pasteInPlaceIcon} label={t('drawing.pasteInPlace')}
             disabled={ro()} onClick={() => pasteAnnotationsInPlace()} />
+          {/* Knippen / Kopiëren / Verwijderen — icon-only (issue #278);
+              de naam blijft als tooltip beschikbaar. */}
           <RibbonButtonStack>
-            <RibbonButton size="small" id="dr-cut" title={t('drawing.cut')} icon={cutIcon} label={t('drawing.cut')}
+            <RibbonButton size="small" iconOnly id="dr-cut" title={t('drawing.cut')} icon={cutIcon} label={t('drawing.cut')}
               disabled={ro()} onClick={cutSelected} />
-            <RibbonButton size="small" id="dr-clip-copy" title={t('drawing.copy')} icon={copyAnnIcon} label={t('drawing.copy')}
+            <RibbonButton size="small" iconOnly id="dr-clip-copy" title={t('drawing.copy')} icon={copyAnnIcon} label={t('drawing.copy')}
               disabled={ro()} onClick={copySelected} />
-            <RibbonButton size="small" id="dr-delete" title={t('drawing.delete')} icon={deleteIcon} label={t('drawing.delete')}
+            <RibbonButton size="small" iconOnly id="dr-delete" title={t('drawing.delete')} icon={deleteIcon} label={t('drawing.delete')}
               disabled={ro()} onClick={deleteSelected} />
           </RibbonButtonStack>
         </RibbonGroup>
@@ -336,6 +341,15 @@ export default function DrawingTab() {
             onClick={() => showPreferencesDialog()} />
         </RibbonGroup>
 
+    </>
+  );
+}
+
+export default function DrawingTab() {
+  return (
+    <div class="ribbon-content active" id="tab-drawing">
+      <AdaptiveGroups>
+        <DrawingGroups />
       </AdaptiveGroups>
     </div>
   );

@@ -1164,6 +1164,63 @@
 }
 .ribbon-groups-icon-only .ribbon-btn-stack { gap: 0; }
 
+/* ─── Per-button / per-group icon-only mode (issue #278) ───────────────────
+   RibbonButton iconOnly and RibbonGroup iconOnly hide the text label while
+   keeping the tooltip (title) — used by the "Wijzigen" (Modify) group and the
+   Knippen/Kopiëren/Verwijderen clipboard buttons. */
+.ribbon-btn.icon-only .ribbon-btn-label,
+.ribbon-group-icon-only .ribbon-btn-label { display: none; }
+
+/* Large icon-only buttons: centre the icon vertically now the label is gone. */
+.ribbon-btn.icon-only:not(.small):not(.medium),
+.ribbon-group-icon-only .ribbon-btn:not(.small):not(.medium) {
+  justify-content: center;
+  min-width: 34px;
+}
+
+/* Small/medium icon-only buttons collapse to a square icon button. */
+.ribbon-btn.small.icon-only,
+.ribbon-btn.medium.icon-only,
+.ribbon-group-icon-only .ribbon-btn.small,
+.ribbon-group-icon-only .ribbon-btn.medium {
+  min-width: 26px;
+  width: 26px;
+  height: 26px;
+  padding: 1px;
+  gap: 0;
+  justify-content: center;
+}
+.ribbon-btn.small.icon-only .ribbon-btn-icon,
+.ribbon-btn.medium.icon-only .ribbon-btn-icon,
+.ribbon-group-icon-only .ribbon-btn.small .ribbon-btn-icon,
+.ribbon-group-icon-only .ribbon-btn.medium .ribbon-btn-icon {
+  width: 18px;
+  height: 18px;
+}
+.ribbon-group-icon-only .ribbon-btn-stack { gap: 0; }
+
+/* ─── Ribbon collapse/expand toggle (issue #278) ───────────────────────────
+   Chevron at the end of the tab strip that hides/shows the ribbon body. */
+.ribbon-collapse-toggle {
+  margin-left: auto;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--theme-ribbon-text, #333);
+  cursor: pointer;
+}
+.ribbon-collapse-toggle:hover {
+  background: var(--theme-ribbon-btn-hover);
+  border-color: var(--theme-ribbon-btn-hover-border);
+}
+
 /* ─── Adaptive ribbon: overflow ("More") group ───────────────────────────── */
 .ribbon-groups-adaptive { flex: 1 1 auto; width: 100%; min-width: 0; overflow: hidden; position: relative; }
 /* Groups must keep their NATURAL width — never shrink. Without this a narrow

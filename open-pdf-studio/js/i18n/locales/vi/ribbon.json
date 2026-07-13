@@ -8,7 +8,8 @@
     "help": "Trợ giúp",
     "format": "Định dạng",
     "arrange": "Bố trí",
-    "measure": "Measure"
+    "measure": "Measure",
+    "annotate": "Drawing & Annotation"
   },
   "measure": {
     "scale": "Scale",
@@ -290,5 +291,9 @@
     "default": "Mặc định",
     "amberNavy": "Hổ phách tối",
     "warmEmber": "Than hồng ấm"
+  },
+  "common": {
+    "collapseRibbon": "Collapse ribbon",
+    "expandRibbon": "Expand ribbon"
   }
 }

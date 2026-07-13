@@ -8,7 +8,8 @@
     "help": "Справка",
     "format": "Формат",
     "arrange": "Расположение",
-    "measure": "Measure"
+    "measure": "Measure",
+    "annotate": "Drawing & Annotation"
   },
   "measure": {
     "scale": "Scale",
@@ -290,5 +291,9 @@
     "default": "По умолчанию",
     "amberNavy": "Янтарно-тёмный",
     "warmEmber": "Тёплый жар"
+  },
+  "common": {
+    "collapseRibbon": "Collapse ribbon",
+    "expandRibbon": "Expand ribbon"
   }
 }
