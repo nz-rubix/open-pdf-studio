@@ -11,10 +11,12 @@ import {
   handIcon, selectTextIcon, screenshotIcon,
   zoomInIcon, zoomOutIcon, fitWidthIcon, actualSizeIcon, fitPageIcon,
   editTextIcon, addTextIcon, cropMarginsIcon,
-  firstPageIcon, prevPageIcon, nextPageIcon, lastPageIcon, findIcon
+  firstPageIcon, prevPageIcon, nextPageIcon, lastPageIcon, findIcon,
+  preferencesIcon
 } from '../../data/ribbonIcons.js';
 import { openDialog } from '../../stores/dialogStore.js';
 import { lastCaptureAvailable } from '../../stores/screenshotStore.js';
+import { showPreferencesDialog } from '../../../core/preferences.js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
 
 // New-document icon (blank sheet with a plus)
@@ -147,6 +149,12 @@ export default function HomeTab() {
         <RibbonGroup label={t('home.find')}>
           <RibbonButton id="ribbon-find" title={t('home.findCtrlF')} icon={findIcon} label={t('home.find')}
             disabled={noPdf()} onClick={() => openFindBar()} />
+        </RibbonGroup>
+
+        <RibbonGroup label={t('help.settings')}>
+          <RibbonButton id="ribbon-preferences" title={t('help.preferencesTitle')}
+            icon={preferencesIcon} label={t('help.preferences')}
+            onClick={() => showPreferencesDialog()} />
         </RibbonGroup>
       </AdaptiveGroups>
     </div>

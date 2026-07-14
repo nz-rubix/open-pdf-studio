@@ -1,7 +1,7 @@
 import RibbonGroup from './RibbonGroup.jsx';
 import AdaptiveGroups from './AdaptiveGroups.jsx';
 import RibbonButton from './RibbonButton.jsx';
-import { aboutIcon, shortcutsIcon, updatesIcon, fileAssocIcon, preferencesIcon, extensionsIcon } from '../../data/ribbonIcons.js';
+import { aboutIcon, shortcutsIcon, updatesIcon, fileAssocIcon, extensionsIcon } from '../../data/ribbonIcons.js';
 import { showPreferencesDialog } from '../../../core/preferences.js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
 import { openDialog } from '../../stores/dialogStore.js';
@@ -13,13 +13,6 @@ export default function HelpTab() {
     <div class="ribbon-content active" id="tab-help">
       <AdaptiveGroups>
         <RibbonGroup label={t('help.settings')}>
-          <RibbonButton
-            id="ribbon-preferences"
-            title={t('help.preferencesTitle')}
-            icon={preferencesIcon}
-            label={t('help.preferences')}
-            onClick={() => showPreferencesDialog()}
-          />
           <RibbonButton
             id="ribbon-extensions"
             title={t('help.extensionsTitle')}

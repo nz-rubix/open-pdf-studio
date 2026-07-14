@@ -1,7 +1,8 @@
 import { Show, Switch, Match, ErrorBoundary } from 'solid-js';
 import RibbonTab from './RibbonTab.jsx';
 import HomeTab from './HomeTab.jsx';
-import AnnotateTab from './AnnotateTab.jsx';
+import DrawingTab from './DrawingTab.jsx';
+import CommentTab from './CommentTab.jsx';
 import ViewTab from './ViewTab.jsx';
 import OrganizeTab from './OrganizeTab.jsx';
 import HelpTab from './HelpTab.jsx';
@@ -18,10 +19,10 @@ import { useTranslation } from '../../../i18n/useTranslation.js';
 export default function Ribbon() {
   const { t } = useTranslation('ribbon');
 
-  // The merged "Tekenen & annotatie" tab covers the former 'drawing',
-  // 'comment' and legacy 'measure' tab ids.
-  const annotateActive = () =>
-    activeTab() === 'drawing' || activeTab() === 'comment' || activeTab() === 'measure';
+  // The "Annotatie" tab (former 'comment') also covers the legacy 'measure'
+  // tab id so any old code path that activates 'measure' lands there.
+  const commentActive = () =>
+    activeTab() === 'comment' || activeTab() === 'measure';
 
   const ribbonCollapsed = () => state.preferences.ribbonCollapsed === true;
   const toggleCollapsed = () => {
@@ -37,12 +38,15 @@ export default function Ribbon() {
         <RibbonTab label={t('tabs.home')} dataTab="home"
           isActive={activeTab() === 'home'}
           onClick={() => setActiveTab('home')} />
-        <RibbonTab label={t('tabs.annotate')} dataTab="drawing"
-          isActive={annotateActive()}
-          onClick={() => setActiveTab('drawing')} />
         <RibbonTab label={t('tabs.view')} dataTab="view"
           isActive={activeTab() === 'view'}
           onClick={() => setActiveTab('view')} />
+        <RibbonTab label={t('tabs.drawing')} dataTab="drawing"
+          isActive={activeTab() === 'drawing'}
+          onClick={() => setActiveTab('drawing')} />
+        <RibbonTab label={t('tabs.comment')} dataTab="comment"
+          isActive={commentActive()}
+          onClick={() => setActiveTab('comment')} />
         <RibbonTab label={t('tabs.organize')} dataTab="organize"
           isActive={activeTab() === 'organize'}
           onClick={() => setActiveTab('organize')} />
@@ -85,7 +89,8 @@ export default function Ribbon() {
 
       <Show when={!ribbonCollapsed()}>
         <Switch>
-          <Match when={annotateActive()}><AnnotateTab /></Match>
+          <Match when={activeTab() === 'drawing'}><DrawingTab /></Match>
+          <Match when={commentActive()}><CommentTab /></Match>
           <Match when={activeTab() === 'home'}><HomeTab /></Match>
           <Match when={activeTab() === 'view'}><ViewTab /></Match>
           <Match when={activeTab() === 'organize'}><OrganizeTab /></Match>
