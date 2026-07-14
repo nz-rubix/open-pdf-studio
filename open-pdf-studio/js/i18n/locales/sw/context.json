@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Angaza Chaguo",
     "strikethroughSelection": "Piga Mstari Katikati ya Chaguo",
-    "underlineSelection": "Piga Mstari Chini ya Chaguo"
+    "underlineSelection": "Piga Mstari Chini ya Chaguo",
+    "curvedLeaderSelection": "Add Curved Callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "Futa maoni haya?",

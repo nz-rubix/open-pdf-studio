@@ -26,7 +26,7 @@ import { recordDelete, recordBulkDelete, recordModify } from '../../core/undo-ma
 import { bringToFront, sendToBack, bringForward, sendBackward, rotateAnnotation, flipHorizontal, flipVertical } from '../../annotations/z-order.js';
 import { startTextEditing } from '../../tools/text-editing.js';
 import { openStickyPopup, closeStickyPopup } from '../stores/stickyNotePopupStore.js';
-import { createTextMarkupAnnotation } from '../../text/text-markup.js';
+import { createTextMarkupAnnotation, createCalloutFromSelection } from '../../text/text-markup.js';
 import { setAsDefaultStyle, applyDefaultStyle } from '../../core/preferences.js';
 import { setTool } from '../../tools/manager.js';
 import { alignAnnotations } from '../../annotations/smart-guides.js';
@@ -846,6 +846,13 @@ function TextSelectionMenuContent() {
 
   return (
     <>
+      <MenuItem label={t('textSelection.curvedLeaderSelection')} onClick={() => {
+        createCalloutFromSelection();
+        clearTextSelection();
+      }} />
+
+      <Separator />
+
       <MenuItem icon={copyIcon} label={tCommon('copy')} onClick={async () => {
         const selectedText = getSelectedText();
         if (!selectedText) return;

@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Ressalta la selecció",
     "strikethroughSelection": "Ratlla la selecció",
-    "underlineSelection": "Subratlla la selecció"
+    "underlineSelection": "Subratlla la selecció",
+    "curvedLeaderSelection": "Add Curved Callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "Voleu suprimir aquesta anotació?",

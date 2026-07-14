@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Podkreśl zaznaczenie",
     "strikethroughSelection": "Przekreśl zaznaczenie",
-    "underlineSelection": "Podkreśl zaznaczenie"
+    "underlineSelection": "Podkreśl zaznaczenie",
+    "curvedLeaderSelection": "Dodaj zakrzywione objaśnienie"
   },
   "deleteAnnotation": {
     "confirmSingle": "Usunąć tę adnotację?",

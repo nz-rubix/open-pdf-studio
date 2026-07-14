@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "تمييز التحديد",
     "strikethroughSelection": "يتوسطه خط للتحديد",
-    "underlineSelection": "تسطير التحديد"
+    "underlineSelection": "تسطير التحديد",
+    "curvedLeaderSelection": "Add Curved Callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "هل تريد حذف هذا التعليق؟",

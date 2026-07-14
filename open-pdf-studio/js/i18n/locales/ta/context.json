@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "தேர்வை முன்னிலைப்படுத்து",
     "strikethroughSelection": "தேர்வுக்கு நடுக்கோடு இடு",
-    "underlineSelection": "தேர்வுக்கு அடிக்கோடு இடு"
+    "underlineSelection": "தேர்வுக்கு அடிக்கோடு இடு",
+    "curvedLeaderSelection": "Add Curved Callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "இந்தக் குறிப்புரையை நீக்கவா?",

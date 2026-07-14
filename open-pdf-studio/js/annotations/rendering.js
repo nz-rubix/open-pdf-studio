@@ -996,15 +996,34 @@ export function drawAnnotation(ctx, annotation) {
         armOriginY = kneeY;
       }
 
-      // Draw the two-segment leader line (not rotated - arrow stays in place)
+      // Draw the leader line (not rotated - arrow stays in place).
+      // 'curved' leader = vloeiende Catmull-Rom-spline door
+      // [armOrigin, knee, arrowTip] i.p.v. twee rechte segmenten (ronde aanhaallijn).
+      const coCurved = annotation.leaderStyle === 'curved';
+      let angle;
       ctx.beginPath();
-      ctx.moveTo(armOriginX, armOriginY);
-      ctx.lineTo(kneeX, kneeY);
-      ctx.lineTo(arrowX, arrowY);
-      ctx.stroke();
+      if (coCurved) {
+        const coLeaderPts = [
+          { x: armOriginX, y: armOriginY },
+          { x: kneeX, y: kneeY },
+          { x: arrowX, y: arrowY },
+        ];
+        const coSegs = catmullRomToBezier(coLeaderPts);
+        ctx.moveTo(armOriginX, armOriginY);
+        for (const s of coSegs) {
+          ctx.bezierCurveTo(s.c1x, s.c1y, s.c2x, s.c2y, s.x1, s.y1);
+        }
+        ctx.stroke();
+        angle = splineArrowEndTangent(coLeaderPts);
+      } else {
+        ctx.moveTo(armOriginX, armOriginY);
+        ctx.lineTo(kneeX, kneeY);
+        ctx.lineTo(arrowX, arrowY);
+        ctx.stroke();
+        angle = Math.atan2(arrowY - kneeY, arrowX - kneeX);
+      }
 
       // Draw arrowhead — filled (closed) by default, but honor explicit per-annotation style if set
-      const angle = Math.atan2(arrowY - kneeY, arrowX - kneeX);
       ctx.fillStyle = annotation.strokeColor || strokeColor;
       drawArrowheadOnCanvas(ctx, arrowX, arrowY, angle, annotation.headSize || 7, annotation.arrowStyle || 'closed');
 

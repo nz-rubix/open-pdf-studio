@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Seçimi Vurgula",
     "strikethroughSelection": "Seçimin Üstünü Çiz",
-    "underlineSelection": "Seçimin Altını Çiz"
+    "underlineSelection": "Seçimin Altını Çiz",
+    "curvedLeaderSelection": "Add Curved Callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "Bu açıklama silinsin mi?",

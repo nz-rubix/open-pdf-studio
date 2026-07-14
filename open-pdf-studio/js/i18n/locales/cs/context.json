@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Zvýraznit výběr",
     "strikethroughSelection": "Přeškrtnout výběr",
-    "underlineSelection": "Podtrhnout výběr"
+    "underlineSelection": "Podtrhnout výběr",
+    "curvedLeaderSelection": "Add Curved Callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "Smazat tuto anotaci?",

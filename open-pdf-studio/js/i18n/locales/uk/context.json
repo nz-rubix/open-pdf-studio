@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Виділити виділене",
     "strikethroughSelection": "Закреслити виділене",
-    "underlineSelection": "Підкреслити виділене"
+    "underlineSelection": "Підкреслити виділене",
+    "curvedLeaderSelection": "Add Curved Callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "Видалити цю анотацію?",

@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Surligner la sélection",
     "strikethroughSelection": "Barrer la sélection",
-    "underlineSelection": "Souligner la sélection"
+    "underlineSelection": "Souligner la sélection",
+    "curvedLeaderSelection": "Ajouter une légende courbée"
   },
   "deleteAnnotation": {
     "confirmSingle": "Supprimer cette annotation ?",

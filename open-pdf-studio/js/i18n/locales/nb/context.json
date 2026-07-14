@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Uthev utvalg",
     "strikethroughSelection": "Gjennomstrek utvalg",
-    "underlineSelection": "Understrek utvalg"
+    "underlineSelection": "Understrek utvalg",
+    "curvedLeaderSelection": "Legg til buet callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "Slette denne merknaden?",

@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "برجسته‌سازی انتخاب",
     "strikethroughSelection": "خط‌خوردگی انتخاب",
-    "underlineSelection": "زیرخط انتخاب"
+    "underlineSelection": "زیرخط انتخاب",
+    "curvedLeaderSelection": "Add Curved Callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "آیا این حاشیه‌نویسی حذف شود؟",

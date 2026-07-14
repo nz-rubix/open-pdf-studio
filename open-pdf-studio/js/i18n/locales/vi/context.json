@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Tô sáng Vùng chọn",
     "strikethroughSelection": "Gạch ngang Vùng chọn",
-    "underlineSelection": "Gạch chân Vùng chọn"
+    "underlineSelection": "Gạch chân Vùng chọn",
+    "curvedLeaderSelection": "Add Curved Callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "Xóa chú thích này?",

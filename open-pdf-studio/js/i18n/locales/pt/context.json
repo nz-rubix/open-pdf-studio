@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Realcar seleção",
     "strikethroughSelection": "Tachar seleção",
-    "underlineSelection": "Sublinhar seleção"
+    "underlineSelection": "Sublinhar seleção",
+    "curvedLeaderSelection": "Adicionar chamada curva"
   },
   "deleteAnnotation": {
     "confirmSingle": "Excluir esta anotação?",

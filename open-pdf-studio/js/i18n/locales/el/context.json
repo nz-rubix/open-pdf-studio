@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Επισήμανση επιλογής",
     "strikethroughSelection": "Διαγράμμιση επιλογής",
-    "underlineSelection": "Υπογράμμιση επιλογής"
+    "underlineSelection": "Υπογράμμιση επιλογής",
+    "curvedLeaderSelection": "Add Curved Callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "Διαγραφή αυτού του σχολιασμού;",

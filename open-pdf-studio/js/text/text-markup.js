@@ -67,6 +67,116 @@ export function createTextMarkupAnnotation(type, color, opacity) {
 }
 
 /**
+ * Creates a callout annotation with a CURVED (round) leader line pointing at the
+ * current text selection. Reuses the existing `callout` annotation model (a
+ * FreeText box with an armOrigin -> knee -> arrowTip leader) but flags the leader
+ * as `leaderStyle: 'curved'` so both the on-screen canvas and the saved
+ * appearance stream draw a smooth Catmull-Rom spline instead of two straight
+ * segments (ronde aanhaallijn — issue #281).
+ *
+ * The arrow tip is anchored to the selected text area; the balloon is placed just
+ * off to one side and the knee is bowed perpendicular to the balloon->tip chord so
+ * the leader visibly curves. The balloon starts empty so the user can type.
+ *
+ * @returns {Object|null} The created annotation, or null when there is no selection
+ */
+export function createCalloutFromSelection() {
+  const rects = getSelectionRectsForAnnotation();
+  if (rects.length === 0) return null;
+
+  const pageNum = rects[0].page;
+
+  // Bounding box of the selection (app annotation coords, scale=1, top-left origin)
+  const selMinX = Math.min(...rects.map(r => r.x));
+  const selMinY = Math.min(...rects.map(r => r.y));
+  const selMaxX = Math.max(...rects.map(r => r.x + r.width));
+  const selMaxY = Math.max(...rects.map(r => r.y + r.height));
+
+  // Arrow tip = a point on the selection. Use the vertical centre of the left
+  // edge so the leader points cleanly at the start of the selected text.
+  const arrowX = selMinX;
+  const arrowY = (selMinY + selMaxY) / 2;
+
+  // Balloon dimensions and placement: offset up-left of the anchor, flipping to
+  // the right when there is no room on the left.
+  const boxW = 160;
+  const boxH = 60;
+  const gap = 48;
+  let boxX = arrowX - gap - boxW;
+  let boxY = arrowY - gap - boxH;
+  if (boxX < 4) boxX = arrowX + gap;
+  if (boxY < 4) boxY = 4;
+
+  // Arm origin = connection point on the balloon edge nearest the anchor
+  // (mirrors the callout tool's isArrowLeft convention).
+  const isArrowLeft = arrowX < (boxX + boxW / 2);
+  const armOriginX = isArrowLeft ? boxX : boxX + boxW;
+  const armOriginY = Math.max(boxY, Math.min(boxY + boxH, arrowY));
+
+  // Knee = midpoint of the arm-origin -> tip chord, pushed perpendicular so the
+  // spline bows into a visible round curve (never collinear -> never straight).
+  const midX = (armOriginX + arrowX) / 2;
+  const midY = (armOriginY + arrowY) / 2;
+  const chordDX = arrowX - armOriginX;
+  const chordDY = arrowY - armOriginY;
+  const chordLen = Math.hypot(chordDX, chordDY) || 1;
+  const bow = Math.max(24, chordLen * 0.28);
+  const kneeX = midX + (-chordDY / chordLen) * bow;
+  const kneeY = midY + (chordDX / chordLen) * bow;
+
+  const annotation = createAnnotation({
+    id: Date.now(),
+    type: 'callout',
+    page: pageNum,
+    x: boxX,
+    y: boxY,
+    width: boxW,
+    height: boxH,
+    arrowX,
+    arrowY,
+    kneeX,
+    kneeY,
+    armOriginX,
+    armOriginY,
+    // Curved (round) leader flag — the whole point of this action.
+    leaderStyle: 'curved',
+    text: '',
+    color: '#000000',
+    strokeColor: '#000000',
+    fillColor: '#FFFFD0',
+    textColor: '#000000',
+    fontSize: 14,
+    fontFamily: 'Arial',
+    lineWidth: 1,
+    borderStyle: 'solid',
+    opacity: 1
+  });
+
+  const doc = getActiveDocument();
+  if (doc) doc.annotations.push(annotation);
+  recordAdd(annotation);
+
+  if (doc) { doc.selectedAnnotations = [annotation]; doc.selectedAnnotation = annotation; }
+
+  if (getActiveDocument()?.viewMode === 'continuous') {
+    redrawContinuous();
+  } else {
+    redrawAnnotations();
+  }
+
+  // Start inline text editing so the user can type into the empty balloon.
+  // Requires the select tool to be active to receive keyboard input.
+  import('../tools/manager.js').then(m => {
+    m.setTool('select');
+    import('../tools/text-editing.js').then(({ startTextEditing }) => {
+      startTextEditing(annotation);
+    });
+  });
+
+  return annotation;
+}
+
+/**
  * Gets text markup annotation defaults by type
  * @param {string} type - The annotation type
  * @returns {Object} Default properties for the type

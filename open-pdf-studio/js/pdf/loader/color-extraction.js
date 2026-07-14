@@ -144,6 +144,14 @@ export async function extractAnnotationColors(pageNum, pdfDoc) {
         }
       }
 
+      // Callout curved leader flag: /OPS_LeaderStyle ('curved' = ronde aanhaallijn)
+      const opsLeaderStyleRaw = annotDict.get(PDFName.of('OPS_LeaderStyle'));
+      if (opsLeaderStyleRaw) {
+        const ls = context.lookup(opsLeaderStyleRaw) || opsLeaderStyleRaw;
+        if (ls && typeof ls.value === 'string') colors.opsLeaderStyle = ls.value;
+        else if (ls && typeof ls.decodeText === 'function') colors.opsLeaderStyle = ls.decodeText();
+      }
+
       // Textbox leaders: /OPS_LeaderId + /IRT (in-reply-to parent textbox Rect)
       const opsLidRaw = annotDict.get(PDFName.of('OPS_LeaderId'));
       if (opsLidRaw) {

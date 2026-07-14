@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Kijelölés kiemelése",
     "strikethroughSelection": "Kijelölés áthúzása",
-    "underlineSelection": "Kijelölés aláhúzása"
+    "underlineSelection": "Kijelölés aláhúzása",
+    "curvedLeaderSelection": "Add Curved Callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "Törli ezt az annotációt?",

@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Истакни избор",
     "strikethroughSelection": "Прецртај избор",
-    "underlineSelection": "Подвуци избор"
+    "underlineSelection": "Подвуци избор",
+    "curvedLeaderSelection": "Add Curved Callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "Обрисати ову анотацију?",

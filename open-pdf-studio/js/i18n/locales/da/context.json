@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Fremhæv markering",
     "strikethroughSelection": "Gennemstreg markering",
-    "underlineSelection": "Understreg markering"
+    "underlineSelection": "Understreg markering",
+    "curvedLeaderSelection": "Tilføj buet callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "Slet denne annotation?",

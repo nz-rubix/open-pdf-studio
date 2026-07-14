@@ -1072,6 +1072,8 @@ export async function convertPdfAnnotation(annot, pageNum, viewport, stampImageM
           kneeY: clKneeVy,
           armOriginX: clArmVx,
           armOriginY: clArmVy,
+          // Ronde aanhaallijn: restore curved leader when the private key is set.
+          ...(extraColors.opsLeaderStyle === 'curved' ? { leaderStyle: 'curved' } : {}),
           ...(extraColors.borderCloudy ? {
             borderEffect: 'cloudy',
             ...(extraColors.cloudIntensity !== undefined ? { cloudIntensity: extraColors.cloudIntensity } : {})

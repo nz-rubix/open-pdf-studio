@@ -21,6 +21,7 @@ import { saveWatermarksToPages } from './saver/watermarks.js';
 import { saveBookmarksToOutline } from './saver/bookmarks.js';
 import { saveStylePresetsToCatalog } from './saver/style-presets.js';
 import { catmullRomSpline } from '../tools/tools/spline-tool.js';
+import { catmullRomToBezier, splineArrowEndTangent } from '../annotations/spline-arrow-geometry.js';
 import { buildFilledAreaAP, buildMeasureAreaAP, buildPolylineMeasureAP,
   buildMeasureDistanceAP, buildWallAP, buildCloudAP, buildSplineArrowAP,
   cloudRectOutlinePts, cloudPolyOutlinePts } from './saver/appearance-vectors.js';
@@ -981,6 +982,12 @@ export async function savePDF(saveAsPath = null) {
               annotDict.set(PDFName.of('IT'), PDFName.of('FreeTextCallout'));
               annotDict.set(PDFName.of('LE'), PDFName.of('OpenArrow'));
               annotDict.set(PDFName.of('RD'), context.obj(calloutData.rd));
+              // Round (curved) leader flag — private key so OPDS restores the
+              // curved leader on reload. External viewers ignore it and fall back
+              // to the straight /CL polyline.
+              if (ann.leaderStyle === 'curved') {
+                annotDict.set(PDFName.of('OPS_LeaderStyle'), PDFName.of('curved'));
+              }
             }
 
             // Always generate AP stream so other viewers show correct colors
@@ -1007,10 +1014,32 @@ export async function savePDF(saveAsPath = null) {
 
                 const dashOp = ann.borderStyle === 'dashed' ? '[8 4] 0 d\n' : ann.borderStyle === 'dotted' ? '[2 2] 0 d\n' : '';
                 ftStreamContent += `${sr} ${sg} ${sb} RG ${ftBorderWidth} w\n${dashOp}`;
-                // Leader line: armOrigin -> knee -> arrow tip
-                ftStreamContent += `${clOX} ${clOY} m ${clKX} ${clKY} l ${clAX} ${clAY} l S\n`;
+                // Leader line. 'curved' = a smooth Catmull-Rom spline (as cubic
+                // Bézier `c` operators) through [armOrigin, knee, tip] so the saved
+                // appearance matches the on-screen round leader; otherwise two
+                // straight segments. Points are already in PDF page coords, so the
+                // affine Catmull-Rom→Bézier conversion yields the identical curve.
+                const clCurved = ann.leaderStyle === 'curved';
+                let aAngle;
+                if (clCurved) {
+                  const clPts = [
+                    { x: clOX, y: clOY },
+                    { x: clKX, y: clKY },
+                    { x: clAX, y: clAY },
+                  ];
+                  const clSegs = catmullRomToBezier(clPts);
+                  ftStreamContent += `${clOX} ${clOY} m `;
+                  for (const s of clSegs) {
+                    ftStreamContent += `${s.c1x} ${s.c1y} ${s.c2x} ${s.c2y} ${s.x1} ${s.y1} c `;
+                  }
+                  ftStreamContent += 'S\n';
+                  aAngle = splineArrowEndTangent(clPts);
+                } else {
+                  // Leader line: armOrigin -> knee -> arrow tip
+                  ftStreamContent += `${clOX} ${clOY} m ${clKX} ${clKY} l ${clAX} ${clAY} l S\n`;
+                  aAngle = Math.atan2(clAY - clKY, clAX - clKX);
+                }
                 // Arrowhead at arrow tip (3-point open arrow: point1 -> tip -> point2)
-                const aAngle = Math.atan2(clAY - clKY, clAX - clKX);
                 const aSize = 8;
                 const ah1x = clAX - aSize * Math.cos(aAngle - Math.PI / 6);
                 const ah1y = clAY - aSize * Math.sin(aAngle - Math.PI / 6);

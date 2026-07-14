@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Sorot Pilihan",
     "strikethroughSelection": "Coret Pilihan",
-    "underlineSelection": "Garis Bawahi Pilihan"
+    "underlineSelection": "Garis Bawahi Pilihan",
+    "curvedLeaderSelection": "Add Curved Callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "Hapus anotasi ini?",

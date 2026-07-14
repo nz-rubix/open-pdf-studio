@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "انتخاب نمایاں کریں",
     "strikethroughSelection": "انتخاب پر لکیر کھینچیں",
-    "underlineSelection": "انتخاب خط کشیدہ کریں"
+    "underlineSelection": "انتخاب خط کشیدہ کریں",
+    "curvedLeaderSelection": "Add Curved Callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "یہ تشریح حذف کریں؟",

@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Resaltar selección",
     "strikethroughSelection": "Tachar selección",
-    "underlineSelection": "Subrayar selección"
+    "underlineSelection": "Subrayar selección",
+    "curvedLeaderSelection": "Añadir llamada curva"
   },
   "deleteAnnotation": {
     "confirmSingle": "¿Eliminar esta anotación?",

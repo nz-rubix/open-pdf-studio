@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Istakni odabrano",
     "strikethroughSelection": "Precrtaj odabrano",
-    "underlineSelection": "Podcrtaj odabrano"
+    "underlineSelection": "Podcrtaj odabrano",
+    "curvedLeaderSelection": "Add Curved Callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "Obrisati ovu oznaku?",

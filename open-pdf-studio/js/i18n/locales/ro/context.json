@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Evidentiare selectie",
     "strikethroughSelection": "Barare selectie",
-    "underlineSelection": "Subliniere selectie"
+    "underlineSelection": "Subliniere selectie",
+    "curvedLeaderSelection": "Add Curved Callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "Stergeti aceasta adnotare?",

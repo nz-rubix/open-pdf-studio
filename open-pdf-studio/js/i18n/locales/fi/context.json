@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Korosta valinta",
     "strikethroughSelection": "Yliviivaa valinta",
-    "underlineSelection": "Alleviivaa valinta"
+    "underlineSelection": "Alleviivaa valinta",
+    "curvedLeaderSelection": "Add Curved Callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "Poistetaanko tämä merkintä?",

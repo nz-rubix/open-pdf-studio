@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "הדגשת הבחירה",
     "strikethroughSelection": "קו חוצה על הבחירה",
-    "underlineSelection": "קו תחתון לבחירה"
+    "underlineSelection": "קו תחתון לבחירה",
+    "curvedLeaderSelection": "Add Curved Callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "למחוק הערה זו?",

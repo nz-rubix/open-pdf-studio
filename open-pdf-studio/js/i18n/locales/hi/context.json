@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "चयन हाइलाइट करें",
     "strikethroughSelection": "चयन स्ट्राइकथ्रू करें",
-    "underlineSelection": "चयन रेखांकित करें"
+    "underlineSelection": "चयन रेखांकित करें",
+    "curvedLeaderSelection": "Add Curved Callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "यह एनोटेशन हटाएं?",

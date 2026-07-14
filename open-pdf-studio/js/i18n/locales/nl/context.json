@@ -117,7 +117,8 @@
   "textSelection": {
     "highlightSelection": "Selectie markeren",
     "strikethroughSelection": "Selectie doorhalen",
-    "underlineSelection": "Selectie onderstrepen"
+    "underlineSelection": "Selectie onderstrepen",
+    "curvedLeaderSelection": "Ronde aanhaallijn toevoegen"
   },
   "deleteAnnotation": {
     "confirmSingle": "Deze annotatie verwijderen?",

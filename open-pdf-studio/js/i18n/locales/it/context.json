@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Evidenzia selezione",
     "strikethroughSelection": "Barra selezione",
-    "underlineSelection": "Sottolinea selezione"
+    "underlineSelection": "Sottolinea selezione",
+    "curvedLeaderSelection": "Aggiungi callout curvo"
   },
   "deleteAnnotation": {
     "confirmSingle": "Eliminare questa annotazione?",

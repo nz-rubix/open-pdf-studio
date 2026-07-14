@@ -101,7 +101,8 @@
   "textSelection": {
     "highlightSelection": "Markera markering",
     "strikethroughSelection": "Genomstrykning av markering",
-    "underlineSelection": "Understrykning av markering"
+    "underlineSelection": "Understrykning av markering",
+    "curvedLeaderSelection": "Lägg till böjd callout"
   },
   "deleteAnnotation": {
     "confirmSingle": "Radera denna anteckning?",
