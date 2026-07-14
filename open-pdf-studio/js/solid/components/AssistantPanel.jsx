@@ -1,9 +1,8 @@
-// OpenAEC assistant — floating chat panel (bottom-right) + launcher button,
-// mirroring the Open Calc Studio ChatPanel. Two providers, same order as OCS:
-//   1. OpenAEC account   -> POST /me/ai/complete (when signed in via OpenAEC)
-//   2. Claude (Anthropic) -> direct API with a locally stored API key
+// Assistant — floating chat panel (bottom-right) + launcher button. Two ways to
+// answer, tried in order:
+//   1. Claude (Anthropic) -> direct API with a locally stored API key
+//   2. MCP relay          -> an external MCP client answers via the app server
 import { createSignal, For, Show, createEffect } from 'solid-js';
-import { openaecUser, openaecSignIn, openaecAiComplete } from '../stores/openaecStore.js';
 import { registerAssistantSubmit, registerAssistantMessages, enqueueAssistantQuestion, relayClientActive } from '../../assistant-mcp-relay.js';
 import { ASSISTANT_SKILLS, SKILLS_SYSTEM_PROMPT } from '../../assistant-skills.js';
 import { getActiveDocument } from '../../core/state.js';
@@ -35,15 +34,6 @@ function describeAiError(err) {
   if (/Claude API 4\d\d|Claude API 5\d\d/i.test(raw)) {
     return `⚠️ De Claude-API gaf een fout.\n\n_Detail: ${raw}_`;
   }
-  if (/\b502\b|AI bridge|Bad Gateway/i.test(raw)) {
-    return '⚠️ De OpenAEC AI-dienst is server-side niet beschikbaar (de AI-bridge kon niet authenticeren bij de modelprovider). Dit ligt aan de OpenAEC-server, niet aan je login.';
-  }
-  if (/\b401\b|niet ingelogd|invalid_grant|log opnieuw/i.test(raw)) {
-    return '⚠️ Niet (meer) ingelogd bij OpenAEC. Log opnieuw in via de knop rechtsboven en probeer het opnieuw.';
-  }
-  if (/\b402\b|insufficient credits/i.test(raw)) {
-    return '⚠️ Je OpenAEC AI-tegoed is op. Koop tokens bij in de OpenAEC-portal.';
-  }
   if (/onbereikbaar|connection|econn|refused|failed to connect|timed out|failed to fetch/i.test(raw)) {
     return '⚠️ Geen verbinding met de AI-dienst.';
   }
@@ -56,7 +46,6 @@ export default function AssistantPanel() {
   const [messages, setMessages] = createSignal([{ role: 'assistant', content: GREETING }]);
   const [input, setInput] = createSignal('');
   const [loading, setLoading] = createSignal(false);
-  const [credits, setCredits] = createSignal(null);
   const readKey = () => { try { return localStorage.getItem(ANTHROPIC_KEY_LS) || ''; } catch (_) { return ''; } };
   const [apiKey, setApiKey] = createSignal(readKey());
   const [showKey, setShowKey] = createSignal(false);
@@ -91,9 +80,8 @@ export default function AssistantPanel() {
     setMessages((m) => [...m, { role: 'user', content: text }]);
     setInput('');
     setLoading(true);
-    // Claude (Anthropic) direct call — used when signed out, OR as a fallback
-    // when the OpenAEC AI bridge is unavailable. This is how Open Calc Studio
-    // runs by default: on a personal Anthropic key.
+    // Claude (Anthropic) direct call — the default when a personal Anthropic key
+    // is set via the 🔑 button.
     const claudeDirect = async () => {
       const msgs = messages().slice(1).map((m) => ({ role: m.role, content: m.content }));
       const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -114,22 +102,9 @@ export default function AssistantPanel() {
       return data?.content?.[0]?.text || 'Geen antwoord ontvangen.';
     };
 
-    // OpenAEC platform AI (credits). Flattens history into one prompt.
-    const openAecComplete = async () => {
-      const history = messages().slice(1)
-        .map((m) => `${m.role === 'user' ? 'Gebruiker' : 'Assistent'}: ${m.content}`)
-        .join('\n\n');
-      const docName = activeDocName();
-      const prompt = `${docName ? `Geopend document: ${docName}\n\n` : ''}${history}\n\nAssistent:`;
-      const res = await openaecAiComplete(prompt, systemPrompt());
-      if (res?.credits?.total != null) setCredits(res.credits.total);
-      return (res && (res.text ?? res.answer)) || 'Geen antwoord ontvangen.';
-    };
-
     // MCP relay — an external MCP client (e.g. Claude Code, with working Claude
     // auth) answers via the app's MCP server (app_assistant_pending/answer).
-    // Final fallback so the assistant keeps working without a local key or the
-    // OpenAEC bridge.
+    // Final fallback so the assistant keeps working without a local key.
     const mcpRelay = async () => {
       const history = messages().slice(1)
         .map((m) => `${m.role === 'user' ? 'Gebruiker' : 'Assistent'}: ${m.content}`)
@@ -141,11 +116,10 @@ export default function AssistantPanel() {
 
     // Provider order. When a Claude Code/Desktop MCP client is connected (it
     // polled recently), route to the relay FIRST so it answers instantly — no
-    // Anthropic API, no key. Otherwise: OpenAEC AI -> Claude key -> relay (fallback).
+    // Anthropic API, no key. Otherwise: Claude key -> relay (fallback).
     const relayActive = relayClientActive();
     const providers = [];
     if (relayActive) providers.push(mcpRelay);
-    if (openaecUser()) providers.push(openAecComplete);
     if (key) providers.push(claudeDirect);
     if (!relayActive) providers.push(mcpRelay);
 
@@ -178,7 +152,7 @@ export default function AssistantPanel() {
   }
 
   // Subtitle shows the active provider so the user knows where answers come from.
-  const providerLabel = () => (openaecUser() ? 'via OpenAEC' : (apiKey() ? 'via Claude' : 'niet verbonden'));
+  const providerLabel = () => (apiKey() ? 'via Claude' : 'niet verbonden');
 
   return (
     <Show
@@ -196,9 +170,6 @@ export default function AssistantPanel() {
                 {activeDocName() ? `werkt in: ${activeDocName()} · ${providerLabel()}` : providerLabel()}
               </span>
             </div>
-            <Show when={credits() != null}>
-              <span class="chat-credits" title="Resterend AI-tegoed (tokens)">{credits()} tokens</span>
-            </Show>
             <button class="chat-close" title="Claude (Anthropic) API-sleutel instellen" onClick={() => setShowKey(!showKey())}>🔑</button>
             <button class="chat-close" title={t('close') || 'Close'} onClick={() => setOpen(false)}>✕</button>
           </div>

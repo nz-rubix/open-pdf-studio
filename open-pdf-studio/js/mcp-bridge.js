@@ -1798,28 +1798,16 @@ async function handleSetMeasureScale(params) {
   return { ok: true, measureScale: { pixelsPerUnit, unit } };
 }
 
-/** Ask the OpenAEC AI assistant (POST /me/ai/complete via the signed-in
- *  account) — lets an MCP client test the assistant end-to-end without the
- *  chat UI. */
+/** Ask the assistant's AI (Claude/Anthropic direct) — lets an MCP client test
+ *  the assistant end-to-end without the chat UI. Uses the personal key set via
+ *  the 🔑 button. */
 async function handleAiComplete(params) {
   const prompt = params?.prompt;
   if (typeof prompt !== 'string' || !prompt) return { ok: false, error: 'missing params.prompt' };
-  const store = await import('./solid/stores/openaecStore.js');
-  const user = store.openaecUser?.();
   let key = '';
   try { key = localStorage.getItem('opds-anthropic-key') || ''; } catch { /* no localStorage */ }
-  // (1) OpenAEC platform AI (server-side bridge).
-  if (user) {
-    try {
-      const res = await store.openaecAiComplete(prompt, params?.system);
-      return { ok: true, via: 'openaec', signedInAs: user.name || user.email || user.sub, text: (res && (res.text ?? res.answer)) || '', credits: res?.credits ?? null };
-    } catch (e) {
-      if (!key) return { ok: false, error: `OpenAEC-AI faalde en geen Claude-key gezet: ${e?.message ?? e}` };
-      // OpenAEC AI down → fall back to Claude-direct (the OpenCalc way).
-    }
-  }
-  // (2) Claude (Anthropic) direct — uses the personal key set via the 🔑 button.
-  if (!key) return { ok: false, error: 'niet ingelogd bij OpenAEC en geen Claude-key gezet (🔑)' };
+  // Claude (Anthropic) direct — uses the personal key set via the 🔑 button.
+  if (!key) return { ok: false, error: 'geen Claude-key gezet (🔑)' };
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
@@ -1830,23 +1818,16 @@ async function handleAiComplete(params) {
   return { ok: true, via: 'claude-direct', text: data?.content?.[0]?.text || '' };
 }
 
-/** Report the OpenAEC sign-in state (user + brand) for MCP introspection. */
+/** Accounts sign-in state — deactivated (cloud accounts feature removed from
+ *  this build). Reports signed-out so external MCP clients degrade gracefully. */
 async function handleAccountsStatus() {
-  const store = await import('./solid/stores/openaecStore.js');
-  const user = store.openaecUser?.() || null;
-  const brand = store.openaecBrand?.() || null;
-  return { ok: true, signedIn: !!user, user, brand };
+  return { ok: true, signedIn: false, user: null, brand: null, unavailable: true };
 }
 
-/** Generic authenticated OpenAEC Accounts API call (GET/POST/DELETE to /me/*),
- *  so the whole API is drivable/testable via MCP. */
-async function handleAccountsFetch(params) {
-  const path = params?.path;
-  if (typeof path !== 'string' || !path) return { ok: false, error: 'missing params.path' };
-  const store = await import('./solid/stores/openaecStore.js');
-  if (!store.openaecUser?.()) return { ok: false, error: 'niet ingelogd bij OpenAEC' };
-  const res = await store.openaecFetch(path, params?.method || 'GET', params?.body);
-  return { ok: true, response: res };
+/** Authenticated accounts API call — deactivated (cloud accounts feature removed
+ *  from this build). */
+async function handleAccountsFetch() {
+  return { ok: false, error: 'accounts feature not available in this build' };
 }
 
 /** Assistant relay — submit a user message programmatically (app_assistant_ask). */
@@ -1959,12 +1940,12 @@ const HANDLERS = {
   'mcp:set-measure-scale':  handleSetMeasureScale,
   // Take-off / schedules
   'mcp:get-takeoff':        handleGetTakeoff,
-  // OpenAEC assistant — test the AI end-to-end
+  // Assistant — test the AI end-to-end
   'mcp:ai-complete':        handleAiComplete,
-  // OpenAEC account/API introspection
+  // Accounts introspection — deactivated (cloud accounts feature removed)
   'mcp:accounts-status':    handleAccountsStatus,
   'mcp:accounts-fetch':     handleAccountsFetch,
-  // OpenAEC assistant relay — external MCP client as the AI brain
+  // Assistant relay — external MCP client as the AI brain
   'mcp:assistant-ask':      handleAssistantAsk,
   'mcp:assistant-pending':  handleAssistantPending,
   'mcp:assistant-answer':   handleAssistantAnswer,

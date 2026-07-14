@@ -34,7 +34,6 @@ const ICONS = {
   open: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>',
   save: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V7l-4-4z"/><path d="M17 3v4a1 1 0 01-1 1H8"/><path d="M7 14h10v7H7z"/></svg>',
   saveAs: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V7l-4-4z"/><path d="M17 3v4a1 1 0 01-1 1H8"/><path d="M12 12v6m-3-3h6"/></svg>',
-  cloudSave: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/></svg>',
   print: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
   import: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
   export: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
@@ -105,7 +104,6 @@ export default function AppMenu() {
             <MenuItem icon={ICONS.open} label={t('open')} shortcut="Ctrl+O" active={getActivePanel() === 'open'} onClick={() => setActivePanel('open')} />
             <MenuItem icon={ICONS.save} label={t('save')} shortcut="Ctrl+S" onClick={() => actionAndClose(savePDF)} />
             <MenuItem icon={ICONS.saveAs} label={t('saveAs')} shortcut="Ctrl+Shift+S" onClick={() => actionAndClose(savePDFAs)} />
-            <MenuItem icon={ICONS.cloudSave} label={t('saveToCloud') || 'Opslaan in OpenAEC Cloud'} onClick={() => actionAndClose(() => import('../../../pdf/cloud-save.js').then((m) => m.saveToOpenAecCloud()))} />
             <MenuItem icon={ICONS.print} label={t('print')} shortcut="Ctrl+P" onClick={() => actionAndClose(showPrintDialog)} />
             <Divider />
             <MenuItem icon={ICONS.annotateScreenshot} label={t('annotateScreenshot')} onClick={() => actionAndClose(() => import('../../../tools/screenshot-annotate.js').then((m) => m.annotateClipboardScreenshot()))} />
