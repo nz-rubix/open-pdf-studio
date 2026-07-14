@@ -125,7 +125,8 @@ export function applyToolTransform(ctx) {
     ctx.setTransform(vp.zoom, 0, 0, vp.zoom, vp.offsetX, vp.offsetY);
   } else {
     const scale = doc?.scale || 1.5;
-    ctx.scale(scale, scale);
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
   }
 }
 
