@@ -46,7 +46,7 @@ const WORKER_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(
 /// Pad naar de pdfium-worker-sidecar naast de hoofdbinary. Platform-correct
 /// (`.exe` alleen op Windows) zodat respawn ook op Linux/macOS de juiste naam
 /// zoekt.
-fn worker_exe_path() -> std::path::PathBuf {
+pub(crate) fn worker_exe_path() -> std::path::PathBuf {
     let name = if cfg!(windows) { "pdfium-worker.exe" } else { "pdfium-worker" };
     std::env::current_exe()
         .ok()

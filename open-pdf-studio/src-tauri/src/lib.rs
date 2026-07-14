@@ -2263,14 +2263,14 @@ pub fn run(opts: StartupOpts) {
     let pool: Arc<tokio::sync::OnceCell<worker_pool::WorkerPool>> = Arc::new(tokio::sync::OnceCell::new());
     let pool_for_init = pool.clone();
     tauri::async_runtime::spawn(async move {
-        // pdfium-worker.exe sits next to the main binary after bundling.
-        let exe_dir = std::env::current_exe().ok()
-            .and_then(|p| p.parent().map(|d| d.to_path_buf()))
-            .unwrap_or_else(|| std::path::PathBuf::from("."));
-        let worker_exe = exe_dir.join("pdfium-worker.exe");
+        // De pdfium-worker-sidecar staat na bundling naast de hoofdbinary. De
+        // bestandsnaam is platform-afhankelijk (`pdfium-worker.exe` op Windows,
+        // `pdfium-worker` zonder extensie op macOS/Linux); worker_exe_path()
+        // levert het juiste pad zodat de pool ook op macOS/Linux gevonden wordt.
+        let worker_exe = worker_pool::worker_exe_path();
 
         if !worker_exe.exists() {
-            eprintln!("[pool] pdfium-worker.exe not found at {:?} — pool disabled, using in-proc PDFium", worker_exe);
+            eprintln!("[pool] pdfium-worker sidecar not found at {:?} — pool disabled, using in-proc PDFium", worker_exe);
             return;
         }
 

@@ -176,6 +176,20 @@ jobs:
             target/aarch64-apple-darwin/release/pdfium-worker \
             target/x86_64-apple-darwin/release/pdfium-worker
 
+      # macOS bundelt in-proc PDFium: tauri.macos.conf.json verwijst naar
+      # binaries/macos-universal/libpdfium.dylib. Universal (arm64+x86_64)
+      # via bblanchon/pdfium-binaries (zelfde chromium-release als de Linux-
+      # .so en de win-x64 pdfium.dll), met SHA-256-verificatie zodat een
+      # gewijzigde upstream-asset de build laat falen i.p.v. stil door te gaan.
+      - name: Fetch libpdfium.dylib (macOS)
+        if: matrix.target == 'macos'
+        run: |
+          mkdir -p src-tauri/binaries/macos-universal
+          curl -L "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F7834/pdfium-mac-univ.tgz" -o /tmp/pdfium-mac.tgz
+          echo "659e2f647ffd667b36487375165563e58f961db9cf75a45104dc59b9407ccbdf  /tmp/pdfium-mac.tgz" | shasum -a 256 -c -
+          tar xzf /tmp/pdfium-mac.tgz -C /tmp lib/libpdfium.dylib
+          cp /tmp/lib/libpdfium.dylib src-tauri/binaries/macos-universal/libpdfium.dylib
+
       - name: Set user install mode
         if: matrix.target == 'windows-user'
         shell: pwsh

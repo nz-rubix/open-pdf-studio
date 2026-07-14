@@ -13,6 +13,9 @@ target-*/
 # pdfium-worker-sidecar: build-artefact dat build.rs/CI zelf plaatsen
 binaries/pdfium-worker-*
 
+# macOS in-proc PDFium: door CI opgehaald (SHA-256-geverifieerd), niet gecommit
+binaries/macos-universal/
+
 # OS files
 .DS_Store
 Thumbs.db

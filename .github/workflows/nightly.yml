@@ -195,6 +195,19 @@ jobs:
           tar xzf /tmp/pdfium-linux.tgz -C /tmp lib/libpdfium.so
           cp /tmp/lib/libpdfium.so src-tauri/binaries/linux-x64/libpdfium.so
 
+      # macOS bundelt in-proc PDFium (naast de worker-sidecar): tauri.macos.conf.json
+      # verwijst naar binaries/macos-universal/libpdfium.dylib. Universal
+      # (arm64+x86_64) via bblanchon/pdfium-binaries (zelfde chromium-release als
+      # Linux/Windows), met SHA-256-verificatie.
+      - name: Fetch libpdfium.dylib (macOS)
+        if: matrix.target == 'macos'
+        run: |
+          mkdir -p src-tauri/binaries/macos-universal
+          curl -L "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F7834/pdfium-mac-univ.tgz" -o /tmp/pdfium-mac.tgz
+          echo "659e2f647ffd667b36487375165563e58f961db9cf75a45104dc59b9407ccbdf  /tmp/pdfium-mac.tgz" | shasum -a 256 -c -
+          tar xzf /tmp/pdfium-mac.tgz -C /tmp lib/libpdfium.dylib
+          cp /tmp/lib/libpdfium.dylib src-tauri/binaries/macos-universal/libpdfium.dylib
+
       - name: Build Tauri app
         if: matrix.target != 'windows-user'
         uses: tauri-apps/tauri-action@action-v0.6.1

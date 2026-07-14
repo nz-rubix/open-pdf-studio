@@ -18,9 +18,25 @@ static PDFIUM: OnceLock<Pdfium> = OnceLock::new();
 
 fn pdfium() -> Result<&'static Pdfium> {
     if PDFIUM.get().is_none() {
+        // Zoekvolgorde voor de PDFium-bibliotheek:
+        //   1. systeem-zoekpad (Windows vindt pdfium.dll naast de exe);
+        //   2. naast de sidecar-binary zelf;
+        //   3. ../Resources t.o.v. de binary — op macOS draait de sidecar in
+        //      Contents/MacOS terwijl de gebundelde libpdfium.dylib als resource
+        //      in Contents/Resources staat;
+        //   4. de huidige werkdirectory (dev / handmatige runs).
+        // Zonder 2/3 zou de worker op macOS geen dylib vinden en elke render
+        // laten terugvallen op in-proc PDFium in de hoofd-app.
+        let exe_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
+            .unwrap_or_else(|| std::path::PathBuf::from("."));
+        let res_dir = exe_dir.join("../Resources");
         let bindings = Pdfium::bind_to_system_library()
+            .or_else(|_| Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path(&exe_dir)))
+            .or_else(|_| Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path(&res_dir)))
             .or_else(|_| Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path("./")))
-            .context("PDFium DLL not found (system or ./)")?;
+            .context("PDFium library not found (system, exe-dir, ../Resources, or ./)")?;
         let _ = PDFIUM.set(Pdfium::new(bindings));
     }
     Ok(PDFIUM.get().expect("PDFIUM set above"))
