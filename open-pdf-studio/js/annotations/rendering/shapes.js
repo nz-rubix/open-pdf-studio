@@ -40,6 +40,35 @@ export function drawPolygonShape(ctx, x, y, width, height, sides = 6) {
   ctx.stroke();
 }
 
+// Build a closed path along explicit polygon vertices, mapped into the target
+// bounding box (x, y, width, height). Used for /Polygon annotations imported
+// from a PDF: they carry real vertices instead of the regular-N-gon geometry
+// that buildPolygonPath synthesises. Mapping through the box keeps bbox-based
+// resize handles working (the box is the vertices' own bounds on import, so it
+// is an identity mapping until the user resizes). Issue #286.
+export function buildPolygonPointsPath(ctx, points, x, y, width, height) {
+  if (!points || points.length < 2) return;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of points) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  const spanX = maxX - minX;
+  const spanY = maxY - minY;
+  const sx = spanX > 1e-6 ? width / spanX : 1;
+  const sy = spanY > 1e-6 ? height / spanY : 1;
+  ctx.beginPath();
+  points.forEach((p, i) => {
+    const px = x + (p.x - minX) * sx;
+    const py = y + (p.y - minY) * sy;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  });
+  ctx.closePath();
+}
+
 // Build cloud path without stroking (for fill/hatch/stroke to be applied by caller).
 //
 // Revisiewolk-constructie zoals CAD-tools en PDF-editors hem tekenen: langs de

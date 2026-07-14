@@ -819,17 +819,16 @@ export async function convertPdfAnnotation(annot, pageNum, viewport, stampImageM
           width: maxX - minX,
           height: maxY - minY,
           sides: Math.floor(annot.vertices.length / 2),
+          // Preserve the real vertices so a generic /Polygon renders its actual
+          // shape instead of a regular N-gon synthesised from the bounding box
+          // (issue #286). cloud/cloudPolyline already relied on these points.
+          points: polyPoints,
           color: colorArrayToHex(annot.color, '#000000'),
           strokeColor: colorArrayToHex(annot.color, '#000000'),
           fillColor: extraColors.ic || null,
           lineWidth: extraColors.borderWidth ?? annot.borderStyle?.width ?? 2,
           borderStyle: mapBorderStyle(annot, extraColors)
         };
-
-        // cloudPolyline and cloud need stored points for rendering
-        if (polyType === 'cloudPolyline' || polyType === 'cloud') {
-          polyProps.points = polyPoints;
-        }
 
         return createAnnotation(polyProps);
       }

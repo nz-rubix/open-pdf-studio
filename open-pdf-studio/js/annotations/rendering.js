@@ -5,7 +5,7 @@ import { updateAnnotationsList } from '../ui/panels/annotations-list.js';
 import { renderWatermarksBehind, renderWatermarksInFront } from '../watermark/watermark-renderer.js';
 
 // Import from sub-modules
-import { drawPolygonShape, drawCloudShape, buildPolygonPath, buildCloudPath, buildCloudPolylinePath, drawTextboxContent, isRTLText } from './rendering/shapes.js';
+import { drawPolygonShape, drawCloudShape, buildPolygonPath, buildPolygonPointsPath, buildCloudPath, buildCloudPolylinePath, drawTextboxContent, isRTLText } from './rendering/shapes.js';
 import { drawArrowheadOnCanvas, applyBorderStyle, drawDimensionLineEnding } from './rendering/decorations.js';
 import { catmullRomSpline } from '../tools/tools/spline-tool.js';
 import { catmullRomToBezier, splineArrowEndTangent } from './spline-arrow-geometry.js';
@@ -677,22 +677,34 @@ export function drawAnnotation(ctx, annotation) {
         if (annotation.flipX || annotation.flipY) ctx.scale(annotation.flipX ? -1 : 1, annotation.flipY ? -1 : 1);
         ctx.translate(-polyCX, -polyCY);
       }
+      // Imported /Polygon annotations carry their real vertices; the
+      // regular-N-gon fallback is only for polygons drawn with the shape tool.
+      const polyHasPoints = Array.isArray(annotation.points) && annotation.points.length >= 3;
+      const buildPolyPath = () => {
+        if (polyHasPoints) {
+          buildPolygonPointsPath(ctx, annotation.points, annotation.x, annotation.y, annotation.width, annotation.height);
+        } else {
+          buildPolygonPath(ctx, annotation.x, annotation.y, annotation.width, annotation.height, annotation.sides || 6);
+        }
+      };
+
       // Fill if fillColor is set
       if (annotation.fillColor && annotation.fillColor !== 'none' && annotation.fillColor !== null) {
-        buildPolygonPath(ctx, annotation.x, annotation.y, annotation.width, annotation.height, annotation.sides || 6);
+        buildPolyPath();
         ctx.fillStyle = annotation.fillColor;
         ctx.fill();
       }
 
       // Hatch pattern fill
       if (annotation.hatchPattern && annotation.hatchPattern !== 'none') {
-        buildPolygonPath(ctx, annotation.x, annotation.y, annotation.width, annotation.height, annotation.sides || 6);
+        buildPolyPath();
         applyHatchFill(ctx, annotation);
       }
 
       ctx.strokeStyle = strokeColor;
       applyBorderStyle(ctx, annotation.borderStyle);
-      drawPolygonShape(ctx, annotation.x, annotation.y, annotation.width, annotation.height, annotation.sides || 6);
+      buildPolyPath();
+      ctx.stroke();
       ctx.setLineDash([]);
       ctx.restore();
       break;
