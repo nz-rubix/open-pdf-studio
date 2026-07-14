@@ -363,10 +363,22 @@ function _handleResize(ctx, e, coords) {
     return;
   }
 
-  // Snap cursor position during resize
+  // Snap cursor position during resize.
+  // Exception: the 8 box-resize handles (corners + edges) of a text box or
+  // callout must NOT object-snap. On content-dense drawings object snap
+  // (enableObjectSnap + snapToPdfContent, both on by default) pins the dragged
+  // edge onto nearby PDF/annotation geometry, so the height/width can't be
+  // dragged freely past those points and the box appears "capped" at a certain
+  // size (issue #284). Leader tip/knee handles keep snapping — a leader is
+  // meant to point AT something.
   const resizeDoc = getActiveDocument();
   const resizeScale = getEffectiveScale();
-  const snap = performSnap(coords.x, coords.y, resizeDoc?.annotations || [], coords.pageNum, resizeScale, ann.id);
+  const RECT_RESIZE_HANDLES = ['tl', 'tr', 'bl', 'br', 't', 'b', 'l', 'r'];
+  const skipResizeSnap = (ann.type === 'textbox' || ann.type === 'callout') &&
+    RECT_RESIZE_HANDLES.includes(state.activeHandle);
+  const snap = skipResizeSnap
+    ? { snapped: false }
+    : performSnap(coords.x, coords.y, resizeDoc?.annotations || [], coords.pageNum, resizeScale, ann.id);
   const snappedX = snap.snapped ? snap.x : coords.x;
   const snappedY = snap.snapped ? snap.y : coords.y;
   state.lastSnapResult = snap.snapped ? snap : null;
