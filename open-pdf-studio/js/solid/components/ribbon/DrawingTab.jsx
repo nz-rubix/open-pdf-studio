@@ -11,6 +11,7 @@ import { isPdfAReadOnly } from '../../../pdf/loader.js';
 import { clearSelection, selectAllOnPage } from '../../../core/stores/selection-helpers.js';
 import { toggleFindBar } from '../../../search/find-bar.js';
 import { showPreferencesDialog } from '../../../core/preferences.js';
+import { contextualTabsVisible } from '../../stores/ribbonStore.js';
 import { copyAnnotation, copyAnnotations, pasteAnnotation, pasteAnnotations, pasteAnnotationsInPlace, duplicateAnnotation } from '../../../annotations/clipboard.js';
 import { flipHorizontal, flipVertical } from '../../../annotations/z-order.js';
 import { cloneAnnotation } from '../../../annotations/factory.js';
@@ -275,7 +276,14 @@ export function DrawingGroups() {
             disabled={ro()} active={state.currentTool === 'array'} onClick={() => setTool('array')} />
         </RibbonGroup>
 
-        {/* EDIT */}
+        {/* EDIT — modify-gereedschappen (Inkorten, Verlengen, Uitlijnen, …).
+            Deze werken uitsluitend op bestaande geometrie / een geselecteerd
+            object, dus de hele groep is alleen zichtbaar zodra er een selectie
+            actief is. Hergebruikt hetzelfde reactieve signaal dat de
+            contextuele tabs (Opmaak/Schikken) toont: contextualTabsVisible()
+            == selectedAnnotations.length > 0. Bij deselectie verdwijnt de
+            volledige RibbonGroup (geen lege groep-kop). (issue #280) */}
+        <Show when={contextualTabsVisible()}>
         <RibbonGroup label={t('drawing.edit')}>
           <RibbonButtonStack>
             <RibbonButton size="small" id="dr-trim" title={t('drawing.trim')} icon={trimIcon} label={t('drawing.trim')}
@@ -310,6 +318,7 @@ export function DrawingGroups() {
               disabled={true} />
           </RibbonButtonStack>
         </RibbonGroup>
+        </Show>
 
         {/* CLIPBOARD */}
         <RibbonGroup label={t('drawing.clipboard')}>
