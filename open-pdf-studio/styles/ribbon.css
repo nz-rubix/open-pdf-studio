@@ -623,9 +623,18 @@
   height: 20px;
   font-size: 11px;
   padding: 0 2px;
-  border: 1px solid #ccc;
-  background: #fff;
+  border: 1px solid var(--theme-ribbon-input-border);
+  background: var(--theme-ribbon-input-bg);
+  color: var(--theme-ribbon-input-text);
   min-width: 60px;
+}
+
+/* Themed dropdown list: WebView2/Chromium render the popup with the OS
+   default unless the option colours are set explicitly, which looked wrong
+   (light popup) on dark themes. */
+.ribbon-form-select option {
+  background: var(--theme-ribbon-input-bg);
+  color: var(--theme-ribbon-input-text);
 }
 
 .ribbon-form-select-sm {
@@ -638,7 +647,8 @@
 }
 
 .ribbon-form-select:focus {
-  border-color: #0066cc;
+  border-color: var(--theme-ribbon-input-focus-border);
+  background: var(--theme-ribbon-input-focus-bg);
   outline: none;
 }
 
