@@ -856,11 +856,14 @@ export async function savePDF(saveAsPath = null) {
             const ftRotation = ann.rotation || 0;
 
             // Compute Rect
-            // For standard 90° rotations: use original dimensions (viewer handles rotation)
-            // For arbitrary angles: expand to bounding box of rotated textbox
-            const isStdRot = ftRotation !== 0 && ftRotation % 90 === 0;
+            // Rotation is ONE continuous transform for every angle: /Rect is always
+            // the rotation-expanded axis-aligned bounding box of the rotated box.
+            // (Previously 90/180/270 were special-cased to the UNexpanded box, but
+            // the loader always inverse-rotates /Rect as if it were the expanded
+            // bbox — at exactly 90/270° that swaps W/H and squashed the box on
+            // reopen. See #285.) The renderer uses the same expanded-bbox convention.
             let x1, y1, x2, y2;
-            if (ftRotation !== 0 && !isStdRot) {
+            if (ftRotation !== 0) {
               const cxDoc = convertX(ann.x + ftW / 2);
               const cyDoc = ann.y + ftH / 2;
               const rad = ftRotation * Math.PI / 180;
@@ -965,14 +968,11 @@ export async function savePDF(saveAsPath = null) {
               };
             }
 
-            // For standard 90° multiples, also set /Rotation for viewers that rebuild AP
-            const isStandardRotation = ftRotation !== 0 && ftRotation % 90 === 0;
-
-            if (isStandardRotation) {
-              let pdfRotation = ((ftRotation % 360) + 360) % 360;
-              annDictObj.Rotation = pdfRotation;
-              annDictObj.OPS_Rotation = ftRotation;
-            }
+            // Rotation is baked into the appearance stream for EVERY angle (see
+            // below), so we do NOT set the standard /Rotation key — that would make
+            // spec-compliant viewers rotate the already-rotated AP a second time.
+            // The exact angle round-trips via our private /OPS_Rotation key, which
+            // is written once (for any non-zero rotation) after annotDict is built.
 
             annotDict = context.obj(annDictObj);
 
@@ -1068,8 +1068,8 @@ export async function savePDF(saveAsPath = null) {
                 }
                 ftStreamContent += `${bx} ${by} ${ftW} ${ftH} re ${ftRectOp}\n`;
               };
-              // For non-callout with rotation, wrap in transform
-              const needsRotationInAP = ftRotation !== 0 && !isStandardRotation;
+              // For non-callout with rotation, wrap in transform (every angle).
+              const needsRotationInAP = ftRotation !== 0;
               if (needsRotationInAP) {
                 const rad = -ftRotation * Math.PI / 180;
                 const cosR = Math.cos(rad);
@@ -1151,8 +1151,8 @@ export async function savePDF(saveAsPath = null) {
               const ftApDict = context.obj({ N: ftApRef });
               annotDict.set(PDFName.of('AP'), ftApDict);
 
-              // Store angle for our loader to recover
-              if (ftRotation !== 0 && !isStandardRotation) {
+              // Store the exact angle for our loader to recover (all angles).
+              if (ftRotation !== 0) {
                 annotDict.set(PDFName.of('OPS_Rotation'), context.obj(ftRotation));
               }
             }
