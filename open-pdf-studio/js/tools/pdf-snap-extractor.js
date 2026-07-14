@@ -29,8 +29,22 @@ const DRAW_CURVETO = 2;
 const DRAW_QUADRATIC = 3;
 const DRAW_CLOSEPATH = 4;
 
-// Cache: pageNum → { points: [...], edges: [...] }
+// Cache: pageNum → { points: [...], edges: [...], index: {...} }
 const pageCache = new Map();
+
+// Spatial-hash cell size in annotation space (CSS px at scale=1). Snap queries
+// only ever inspect cells overlapping the cursor's snap radius (~12 px), so
+// candidate lookup is O(local) instead of O(all-geometry-on-the-page). This
+// keeps snapping responsive on dense CAD drawings that yield tens of thousands
+// of vector points/edges per page.
+const GRID_CELL = 48;
+// Edges whose grid-cell footprint exceeds this are stored in an "always check"
+// list instead of being rasterised into every cell they cross — bounds the
+// index build cost for page-spanning lines.
+const EDGE_CELL_SPAN_CAP = 256;
+
+function _cellCoord(v) { return Math.floor(v / GRID_CELL); }
+function _cellKey(cx, cy) { return cx + ',' + cy; }
 
 // Currently running extraction promises (to avoid duplicate work)
 const pendingExtractions = new Map();
@@ -85,8 +99,10 @@ export function isPdfSnapLoaded(pageNum) {
 }
 
 /**
- * Get cached snap points for a page (synchronous).
+ * Get ALL cached snap points for a page (synchronous).
  * Returns empty array if not yet extracted.
+ * Prefer getPdfSnapPointsNear() on the hot mousemove path — this full-set
+ * accessor is for one-shot consumers (e.g. move-session candidate caching).
  */
 export function getCachedPdfSnapPoints(pageNum) {
   const cached = pageCache.get(pageNum);
@@ -94,12 +110,107 @@ export function getCachedPdfSnapPoints(pageNum) {
 }
 
 /**
- * Get cached edge segments for a page (synchronous).
+ * Get ALL cached edge segments for a page (synchronous).
  * Returns empty array if not yet extracted.
  */
 export function getCachedPdfEdgeSegments(pageNum) {
   const cached = pageCache.get(pageNum);
   return cached ? cached.edges : [];
+}
+
+/**
+ * Get snap points within `radius` (annotation px) of (x,y) on a page.
+ * Uses the spatial index so cost scales with local density, not page total.
+ */
+export function getPdfSnapPointsNear(pageNum, x, y, radius) {
+  const cached = pageCache.get(pageNum);
+  if (!cached) return [];
+  const idx = cached.index;
+  if (!idx) return cached.points; // legacy cache without index — fall back
+  const minCx = _cellCoord(x - radius), maxCx = _cellCoord(x + radius);
+  const minCy = _cellCoord(y - radius), maxCy = _cellCoord(y + radius);
+  const out = [];
+  for (let cx = minCx; cx <= maxCx; cx++) {
+    for (let cy = minCy; cy <= maxCy; cy++) {
+      const bucket = idx.pointGrid.get(_cellKey(cx, cy));
+      if (bucket) {
+        for (let k = 0; k < bucket.length; k++) out.push(cached.points[bucket[k]]);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Get edge segments near (x,y) within `radius`. Deduplicated (an edge may span
+ * several queried cells). Includes page-spanning "oversized" edges.
+ */
+export function getPdfEdgeSegmentsNear(pageNum, x, y, radius) {
+  const cached = pageCache.get(pageNum);
+  if (!cached) return [];
+  const idx = cached.index;
+  if (!idx) return cached.edges; // legacy cache without index — fall back
+  const minCx = _cellCoord(x - radius), maxCx = _cellCoord(x + radius);
+  const minCy = _cellCoord(y - radius), maxCy = _cellCoord(y + radius);
+  const seen = new Set();
+  const out = [];
+  for (let cx = minCx; cx <= maxCx; cx++) {
+    for (let cy = minCy; cy <= maxCy; cy++) {
+      const bucket = idx.edgeGrid.get(_cellKey(cx, cy));
+      if (bucket) {
+        for (let k = 0; k < bucket.length; k++) {
+          const ei = bucket[k];
+          if (!seen.has(ei)) { seen.add(ei); out.push(cached.edges[ei]); }
+        }
+      }
+    }
+  }
+  for (let k = 0; k < idx.edgeOversized.length; k++) {
+    const ei = idx.edgeOversized[k];
+    if (!seen.has(ei)) { seen.add(ei); out.push(cached.edges[ei]); }
+  }
+  return out;
+}
+
+/**
+ * Build a uniform spatial-hash index over the extracted points and edges.
+ * Points map to a single cell; edges are rasterised into every cell their
+ * bounding box overlaps (unless that footprint exceeds EDGE_CELL_SPAN_CAP, in
+ * which case the edge goes on an always-checked list).
+ */
+function buildSpatialIndex(points, edges) {
+  const pointGrid = new Map();
+  for (let i = 0; i < points.length; i++) {
+    const key = _cellKey(_cellCoord(points[i].x), _cellCoord(points[i].y));
+    let bucket = pointGrid.get(key);
+    if (!bucket) { bucket = []; pointGrid.set(key, bucket); }
+    bucket.push(i);
+  }
+
+  const edgeGrid = new Map();
+  const edgeOversized = [];
+  for (let i = 0; i < edges.length; i++) {
+    const e = edges[i];
+    const minCx = _cellCoord(Math.min(e.x1, e.x2));
+    const maxCx = _cellCoord(Math.max(e.x1, e.x2));
+    const minCy = _cellCoord(Math.min(e.y1, e.y2));
+    const maxCy = _cellCoord(Math.max(e.y1, e.y2));
+    const span = (maxCx - minCx + 1) * (maxCy - minCy + 1);
+    if (span > EDGE_CELL_SPAN_CAP) {
+      edgeOversized.push(i);
+      continue;
+    }
+    for (let cx = minCx; cx <= maxCx; cx++) {
+      for (let cy = minCy; cy <= maxCy; cy++) {
+        const key = _cellKey(cx, cy);
+        let bucket = edgeGrid.get(key);
+        if (!bucket) { bucket = []; edgeGrid.set(key, bucket); }
+        bucket.push(i);
+      }
+    }
+  }
+
+  return { pointGrid, edgeGrid, edgeOversized };
 }
 
 /**
@@ -197,7 +308,7 @@ async function extractPageGeometry(pageNum) {
     }
   }
 
-  return { points, edges };
+  return { points, edges, index: buildSpatialIndex(points, edges) };
 }
 
 /**

@@ -1,5 +1,5 @@
 import { state, getActiveDocument } from '../core/state.js';
-import { getCachedPdfSnapPoints, getCachedPdfEdgeSegments } from './pdf-snap-extractor.js';
+import { getPdfSnapPointsNear, getPdfEdgeSegmentsNear } from './pdf-snap-extractor.js';
 import { snapPointToGrid } from '../annotations/rendering/ui-state.js';
 
 // ─── Polar tracking ────────────────────────────────────────────────────
@@ -763,7 +763,7 @@ function nearestPointOnPdfEdge(cursorX, cursorY, currentPage, snapRadius) {
   const prefs = state.preferences;
   if (!prefs.snapToPdfContent || !prefs.snapToEdges) return null;
 
-  const edges = getCachedPdfEdgeSegments(currentPage);
+  const edges = getPdfEdgeSegmentsNear(currentPage, cursorX, cursorY, snapRadius);
   if (!edges || edges.length === 0) return null;
 
   let bestDist = Infinity;
@@ -803,9 +803,11 @@ export function performSnap(cursorX, cursorY, annotations, currentPage, scale, e
   // 1. Collect point snap targets from completed annotations
   const snapPoints = collectSnapPoints(annotations, currentPage, excludeId);
 
-  // 2. Add PDF vector snap points (if enabled)
+  // 2. Add PDF vector snap points (if enabled). Only candidates within the
+  // snap radius of the cursor are collected (spatial index) so this stays cheap
+  // on dense drawings.
   if (prefs.snapToPdfContent) {
-    const pdfPoints = getCachedPdfSnapPoints(currentPage);
+    const pdfPoints = getPdfSnapPointsNear(currentPage, cursorX, cursorY, snapRadius);
     if (pdfPoints.length > 0) {
       for (const pt of pdfPoints) {
         snapPoints.push(pt);
@@ -844,6 +846,14 @@ export function performSnap(cursorX, cursorY, annotations, currentPage, scale, e
   if (prefs.snapToIntersections !== false) {
     const intersectionResult = findIntersectionSnap(cursorX, cursorY, annotations, currentPage, snapRadius, excludeId);
     if (intersectionResult) return intersectionResult;
+  }
+
+  // 7b. PDF-content intersection snap (where two vector edges of the underlying
+  // drawing cross). Uses only edges near the cursor (spatial index), so the
+  // pairwise test is over a small local set.
+  if (prefs.snapToIntersections !== false && prefs.snapToPdfContent) {
+    const pdfIntersection = findPdfIntersectionSnap(cursorX, cursorY, currentPage, snapRadius);
+    if (pdfIntersection) return pdfIntersection;
   }
 
   // 8. Perpendicular snap (point on edge perpendicular from last placed point)
@@ -976,6 +986,36 @@ function findIntersectionSnap(cursorX, cursorY, annotations, currentPage, snapRa
       const inter = segmentIntersection(a.x1, a.y1, a.x2, a.y2, b.x1, b.y1, b.x2, b.y2);
       if (!inter) continue;
 
+      const dx = cursorX - inter.x;
+      const dy = cursorY - inter.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < bestDist && dist <= snapRadius) {
+        bestDist = dist;
+        bestPoint = { x: inter.x, y: inter.y, type: 'intersection', snapped: true };
+      }
+    }
+  }
+
+  return bestPoint;
+}
+
+// Intersection snap for the underlying PDF drawing: find where two vector
+// edges of the PDF content cross, near the cursor. Only edges within the snap
+// radius are considered (spatial index), so the O(k^2) pairwise scan runs over
+// a small local candidate set, not the whole page.
+function findPdfIntersectionSnap(cursorX, cursorY, currentPage, snapRadius) {
+  const edges = getPdfEdgeSegmentsNear(currentPage, cursorX, cursorY, snapRadius);
+  if (!edges || edges.length < 2) return null;
+
+  let bestDist = Infinity;
+  let bestPoint = null;
+
+  for (let i = 0; i < edges.length; i++) {
+    const a = edges[i];
+    for (let j = i + 1; j < edges.length; j++) {
+      const b = edges[j];
+      const inter = segmentIntersection(a.x1, a.y1, a.x2, a.y2, b.x1, b.y1, b.x2, b.y2);
+      if (!inter) continue;
       const dx = cursorX - inter.x;
       const dy = cursorY - inter.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
