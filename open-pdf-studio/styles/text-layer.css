@@ -77,7 +77,7 @@
 }
 
 .textLayer br::selection {
-  background: transparent;
+  background: transparent !important;
 }
 
 /* Spook-selectie tegengaan: lege en witruimte-only spans (PDF.js zendt die uit
@@ -85,13 +85,19 @@
    kolomgaten) mogen GEEN selectie-achtergrond krijgen. Anders verschijnen bij
    het slepen losse blauwe streepjes/kolommen in de marge en tussen kolommen,
    los van de eigenlijke tekst. Echte spaties tussen woorden zitten IN de
-   woord-span zelf en blijven dus gewoon oplichten. */
+   woord-span zelf en blijven dus gewoon oplichten.
+
+   `!important` is VERPLICHT: het vector-viewport-pad (pdf-viewport.js) injecteert
+   een inline <style> met `.textLayer ::selection { ... !important }`. Zonder
+   `!important` hier zou die geïnjecteerde regel deze neutralisatie overrulen
+   (important wint altijd van niet-important) en keerde de marge-spook-selectie
+   terug. */
 .textLayer span[data-ws]::-moz-selection {
-  background: transparent;
+  background: transparent !important;
 }
 
 .textLayer span[data-ws]::selection {
-  background: transparent;
+  background: transparent !important;
 }
 
 /* Search highlight styles */
