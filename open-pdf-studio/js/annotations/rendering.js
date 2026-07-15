@@ -150,6 +150,13 @@ function _drawPolarOverlay(ctx, snapResult, scale) {
 // user-visible cause of the "Line doesn't appear" report — the Line tool
 // has no fill to fall back on, unlike Rectangle/Circle/Cloud whose fill
 // keeps the shape visible even when the outline goes sub-pixel.
+// On-screen (device-pixel) cap for stroke weight DURING an interactive
+// drag/resize/G-transform. Chosen generously so ordinary line weights are
+// untouched (they resolve below the cap) and only pathologically thick
+// strokes — the ones that made dragging lag — are bounded while the gesture
+// is in flight. Full weight is restored on the post-gesture repaint.
+const DRAG_LOD_MAX_SCREEN_PX = 6;
+
 function thinLw(width) {
   if (width === 0) return 0;
   if (state.preferences?.thinLines) {
@@ -170,6 +177,22 @@ function thinLw(width) {
   if (scale > 0 && scale < 1) {
     const minAppPx = 1 / scale;          // 1 screen pixel in app-coords
     if (lw < minAppPx) lw = minAppPx;
+  }
+  // Interaction LOD (level-of-detail): while an annotation is being dragged,
+  // resized or G-transformed, redrawAnnotations() re-strokes the whole overlay
+  // on EVERY pointermove. The ONLY per-frame cost that grows with line weight
+  // is the ctx.stroke() rasterisation itself — the filled area is
+  // (length × width × scale²) device pixels, so a thick stroke at high zoom
+  // makes each frame progressively more expensive (thin lines stay smooth,
+  // thick ones visibly lag). During the interaction we therefore cap the
+  // ON-SCREEN stroke to DRAG_LOD_MAX_SCREEN_PX device pixels: the geometry and
+  // hit-testing are unchanged, only the drawn width is bounded so the fill
+  // stays cheap. The very last repaint of the gesture runs with the drag flags
+  // already cleared (see _finishDragResize in tool-dispatcher.js), so the final
+  // on-screen result is the full, un-capped weight — the end view never changes.
+  if (scale > 0 && (state.isDragging || state.isResizing || state.gMoveMode || state.gRotateMode)) {
+    const maxAppPx = DRAG_LOD_MAX_SCREEN_PX / scale;   // cap expressed in app-coords
+    if (lw > maxAppPx) lw = maxAppPx;
   }
   return lw;
 }
