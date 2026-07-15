@@ -907,6 +907,7 @@ export function applyResize(annotation, handleType, deltaX, deltaY, originalAnn,
           if (annotation.width < 20) annotation.width = 20;
           if (annotation.height < 20) annotation.height = 20;
         }
+      }
       break;
     }
 
