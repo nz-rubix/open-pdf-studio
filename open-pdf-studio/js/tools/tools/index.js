@@ -25,6 +25,9 @@ import { trimTool } from './trim-tool.js';
 import { extendTool } from './extend-tool.js';
 import { arrayTool } from './array-tool.js';
 import { removeImageTool } from './remove-image-tool.js';
+import { splitTool, breakTool } from './split-tool.js';
+import { lengthenTool } from './lengthen-tool.js';
+import { radiusTool, diameterTool } from './dimension-radius-tool.js';
 
 export function registerAllTools() {
   // Navigation / selection
@@ -48,6 +51,9 @@ export function registerAllTools() {
   registerTool('callout', shapeTool);
   registerTool('parametricSymbol', shapeTool);
   registerTool('count', shapeTool);
+  // L-shaped outline — drag-to-create like the other shapes (buildAnnotationProps
+  // emits a closed polyline for the 'lshape' tool).
+  registerTool('lshape', shapeTool);
 
   // Lines
   registerTool('line', lineTool);
@@ -105,4 +111,11 @@ export function registerAllTools() {
   registerTool('trim', trimTool);
   registerTool('extend', extendTool);
   registerTool('array', arrayTool);
+  registerTool('split', splitTool);
+  registerTool('break', breakTool);
+  registerTool('lengthen', lengthenTool);
+
+  // Radius / diameter dimensioning (measureDistance with a prefixed label)
+  registerTool('radius', radiusTool);
+  registerTool('diameter', diameterTool);
 }

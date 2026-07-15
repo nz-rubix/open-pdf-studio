@@ -12,10 +12,11 @@ import { clearSelection, selectAllOnPage } from '../../../core/stores/selection-
 import { toggleFindBar } from '../../../search/find-bar.js';
 import { contextualTabsVisible } from '../../stores/ribbonStore.js';
 import { copyAnnotation, copyAnnotations, pasteAnnotation, pasteAnnotations, pasteAnnotationsInPlace, duplicateAnnotation } from '../../../annotations/clipboard.js';
-import { flipHorizontal, flipVertical } from '../../../annotations/z-order.js';
+import { flipHorizontal, flipVertical, rotateAnnotation } from '../../../annotations/z-order.js';
 import { cloneAnnotation } from '../../../annotations/factory.js';
 import { recordBulkModify } from '../../../core/undo-manager.js';
 import { alignLeft } from '../../../annotations/alignment.js';
+import { explodeSelection, joinSelection, createCollection, explodeCollection } from '../../../annotations/segment-ops.js';
 import {
   handIcon, selectCommentsIcon, findIcon,
   lineIcon, arrowIcon, drawIcon, rectIcon, polylineIcon, textboxIcon, noteIcon, ellipseIcon, circleIcon,
@@ -51,6 +52,26 @@ const deleteIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 const tableIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16"/><path d="M3 9h18M3 14h18M9 4v16M15 4v16"/></svg>`;
 const scaleRegionIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" stroke-dasharray="3 2"/><text x="12" y="16" font-size="8" font-weight="bold" text-anchor="middle" fill="currentColor" stroke="none">1:N</text></svg>`;
 const labelIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12l5-5h13v10H7z"/><circle cx="11" cy="12" r="1.5"/></svg>`;
+// L-shape outline tool
+const lShapeIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3v12h12v6H6 4V3z" stroke-linejoin="round"/></svg>`;
+// Radius dimension: circle with a centre-to-rim line and 'R'
+const radiusIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="13" r="8"/><path d="M11 13 L19 8"/><text x="4" y="8" font-size="8" font-weight="bold" fill="currentColor" stroke="none">R</text></svg>`;
+// Diameter dimension: circle with a through line and diameter glyph
+const diameterIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="8"/><path d="M4 12 H20"/><path d="M8 5 L16 19" stroke-width="1"/></svg>`;
+// Explode: a shape bursting into separate segments
+const explodeIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4 L9 9 M20 4 L15 9 M4 20 L9 15 M20 20 L15 15"/><rect x="10" y="10" width="4" height="4"/></svg>`;
+// Join: two segments merging into one at a node
+const joinIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7 L12 12 L21 7"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/></svg>`;
+// Split: a line divided at a mid node
+const splitIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 16 L11 16 M13 16 L21 16"/><path d="M12 10 L12 22" stroke-width="1"/><circle cx="12" cy="16" r="1.6" fill="currentColor"/></svg>`;
+// Break: a line with a removed middle span (gap)
+const breakIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12 L9 12 M15 12 L21 12"/><path d="M9 8 L9 16 M15 8 L15 16" stroke-width="1"/></svg>`;
+// Lengthen: a line with a double arrow along its axis
+const lengthenIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12 H21"/><path d="M6 9 L3 12 L6 15"/><path d="M18 9 L21 12 L18 15"/></svg>`;
+// Collection create: group objects into a bracketed set
+const collectionCreateIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/><path d="M11 7 H16 V13" stroke-width="1" stroke-dasharray="2 2"/></svg>`;
+// Collection explode: dissolve a group back into loose objects
+const collectionExplodeIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="6" height="6"/><rect x="15" y="3" width="6" height="6"/><rect x="9" y="15" width="6" height="6"/></svg>`;
 
 function copySelected() {
   const sel = getActiveDocument()?.selectedAnnotations || [];
@@ -92,6 +113,16 @@ function flipSelectedV() {
   if (!anns.length) return;
   const originals = anns.map(a => cloneAnnotation(a));
   for (const ann of anns) flipVertical(ann);
+  recordBulkModify(anns, originals);
+}
+
+function rotateSelected() {
+  // Rotate the current selection 90° clockwise — same operation the Arrange
+  // (Schikken) tab exposes, wired here for the Modify group.
+  const anns = [...(getActiveDocument()?.selectedAnnotations || [])];
+  if (!anns.length) return;
+  const originals = anns.map(a => cloneAnnotation(a));
+  for (const ann of anns) rotateAnnotation(ann, 90);
   recordBulkModify(anns, originals);
 }
 
@@ -161,7 +192,8 @@ export function DrawingGroups() {
             disabled={ro()} active={state.currentTool === 'ellipse'} onClick={() => setTool('ellipse')} />
           <RibbonButton size="small" id="dr-count" title="Tellen" icon={circleIcon}
             disabled={ro()} active={state.currentTool === 'count'} onClick={() => setTool('count')} />
-          <RibbonButton size="small" id="dr-l-shape" title={cs} icon={placeholderIcon} disabled={true} />
+          <RibbonButton size="small" id="dr-l-shape" title={t('drawing.lShape')} icon={lShapeIcon}
+            disabled={ro()} active={state.currentTool === 'lshape'} onClick={() => setTool('lshape')} />
           <RibbonButton size="small" id="dr-image" title={t('drawing.image')} icon={imageIcon}
             disabled={ro()} active={state.currentTool === 'image'} onClick={() => setTool('image')} />
           <RibbonButton size="small" id="dr-remove-image" title={t('drawing.removeImage')} icon={removeImageIcon}
@@ -231,12 +263,12 @@ export function DrawingGroups() {
             {/* Spot Coord — placeholder icon, deferred */}
             <RibbonButton size="small" id="dr-spot-coord" title={cs} icon={placeholderIcon} label={t('drawing.spotCoord')}
               disabled={true} />
-            {/* Radius — placeholder icon, deferred */}
-            <RibbonButton size="small" id="dr-radius" title={cs} icon={placeholderIcon} label={t('drawing.radius')}
-              disabled={true} />
-            {/* Diameter — placeholder icon, deferred */}
-            <RibbonButton size="small" id="dr-diameter" title={cs} icon={placeholderIcon} label={t('drawing.diameter')}
-              disabled={true} />
+            {/* Radius — 2-click radius dimension (centre → rim) */}
+            <RibbonButton size="small" id="dr-radius" title={t('drawing.radius')} icon={radiusIcon} label={t('drawing.radius')}
+              disabled={ro()} active={state.currentTool === 'radius'} onClick={() => setTool('radius')} />
+            {/* Diameter — 2-click diameter dimension (side → side) */}
+            <RibbonButton size="small" id="dr-diameter" title={t('drawing.diameter')} icon={diameterIcon} label={t('drawing.diameter')}
+              disabled={ro()} active={state.currentTool === 'diameter'} onClick={() => setTool('diameter')} />
           </RibbonButtonStack>
           <RibbonButtonStack>
             <RibbonButton size="small" id="dr-leader" title={t('comment.callout')} icon={calloutIcon} label={t('drawing.leader')}
@@ -276,9 +308,9 @@ export function DrawingGroups() {
           <RibbonButtonStack>
             <RibbonButton size="small" id="dr-array" title={t('drawing.array')} icon={arrayIcon} label={t('drawing.array')}
               disabled={ro()} active={state.currentTool === 'array'} onClick={() => setTool('array')} />
-            {/* Rotate — no batch rotate command exposed here; deferred (use Arrange tab for rotate) */}
-            <RibbonButton size="small" id="dr-rotate" title={cs} icon={rotateCwIcon} label={t('drawing.rotate')}
-              disabled={true} />
+            {/* Rotate — roteer de selectie 90° CW (zelfde operatie als de Schikken-tab) */}
+            <RibbonButton size="small" id="dr-rotate" title={t('drawing.rotate')} icon={rotateCwIcon} label={t('drawing.rotate')}
+              disabled={ro()} onClick={rotateSelected} />
           </RibbonButtonStack>
         </RibbonGroup>
 
@@ -308,20 +340,20 @@ export function DrawingGroups() {
               disabled={true} />
           </RibbonButtonStack>
           <RibbonButtonStack>
-            <RibbonButton size="small" id="dr-split" title={cs} icon={placeholderIcon} label={t('drawing.split')}
-              disabled={true} />
+            <RibbonButton size="small" id="dr-split" title={t('drawing.split')} icon={splitIcon} label={t('drawing.split')}
+              disabled={ro()} active={state.currentTool === 'split'} onClick={() => setTool('split')} />
             <RibbonButton size="small" id="dr-align" title={t('arrange.alignLeft')} icon={alignLeftIcon} label={t('drawing.align')}
               disabled={ro()} onClick={() => alignLeft()} />
-            <RibbonButton size="small" id="dr-explode" title={cs} icon={placeholderIcon} label={t('drawing.explode')}
-              disabled={true} />
+            <RibbonButton size="small" id="dr-explode" title={t('drawing.explode')} icon={explodeIcon} label={t('drawing.explode')}
+              disabled={ro()} onClick={() => explodeSelection()} />
           </RibbonButtonStack>
           <RibbonButtonStack>
-            <RibbonButton size="small" id="dr-break" title={cs} icon={placeholderIcon} label={t('drawing.break')}
-              disabled={true} />
-            <RibbonButton size="small" id="dr-join" title={cs} icon={placeholderIcon} label={t('drawing.join')}
-              disabled={true} />
-            <RibbonButton size="small" id="dr-lengthen" title={cs} icon={placeholderIcon} label={t('drawing.lengthen')}
-              disabled={true} />
+            <RibbonButton size="small" id="dr-break" title={t('drawing.break')} icon={breakIcon} label={t('drawing.break')}
+              disabled={ro()} active={state.currentTool === 'break'} onClick={() => setTool('break')} />
+            <RibbonButton size="small" id="dr-join" title={t('drawing.join')} icon={joinIcon} label={t('drawing.join')}
+              disabled={ro()} onClick={() => joinSelection()} />
+            <RibbonButton size="small" id="dr-lengthen" title={t('drawing.lengthen')} icon={lengthenIcon} label={t('drawing.lengthen')}
+              disabled={ro()} active={state.currentTool === 'lengthen'} onClick={() => setTool('lengthen')} />
           </RibbonButtonStack>
         </RibbonGroup>
         </Show>
@@ -347,10 +379,10 @@ export function DrawingGroups() {
         {/* COLLECTION */}
         <RibbonGroup label={t('drawing.collection')}>
           <RibbonButtonStack>
-            <RibbonButton size="small" id="dr-coll-create" title={cs} icon={placeholderIcon} label={t('drawing.collectionCreate')}
-              disabled={true} />
-            <RibbonButton size="small" id="dr-coll-explode" title={cs} icon={placeholderIcon} label={t('drawing.collectionExplode')}
-              disabled={true} />
+            <RibbonButton size="small" id="dr-coll-create" title={t('drawing.collectionCreate')} icon={collectionCreateIcon} label={t('drawing.collectionCreate')}
+              disabled={ro()} onClick={() => createCollection()} />
+            <RibbonButton size="small" id="dr-coll-explode" title={t('drawing.collectionExplode')} icon={collectionExplodeIcon} label={t('drawing.collectionExplode')}
+              disabled={ro()} onClick={() => explodeCollection()} />
           </RibbonButtonStack>
         </RibbonGroup>
 

@@ -199,12 +199,21 @@ export const selectTool = {
             state.dragCursor = 'move';
           }
         } else {
-          if (doc) { doc.selectedAnnotations = [clickedAnnotation]; doc.selectedAnnotation = clickedAnnotation; }
-          ctx.showProperties(clickedAnnotation);
+          // Collection: clicking any grouped member selects the WHOLE group so
+          // the collection moves and edits as a single unit. Ungroup via the
+          // "Ontbinden" button in the Verzameling ribbon group.
+          let toSelect = [clickedAnnotation];
+          if (clickedAnnotation.groupId && doc) {
+            const members = doc.annotations.filter(a => a.groupId === clickedAnnotation.groupId);
+            if (members.length > 1) toSelect = members;
+          }
+          if (doc) { doc.selectedAnnotations = toSelect; doc.selectedAnnotation = clickedAnnotation; }
+          if (toSelect.length > 1) ctx.showMultiSelectionProperties();
+          else ctx.showProperties(clickedAnnotation);
           if (!pdfaLocked && !isTextMarkup) {
             state.isDragging = true;
             state.originalAnnotation = ctx.cloneAnnotation(clickedAnnotation);
-            state.originalAnnotations = [ctx.cloneAnnotation(clickedAnnotation)];
+            state.originalAnnotations = toSelect.map(a => ctx.cloneAnnotation(a));
             state.dragCursor = 'move';
           }
         }

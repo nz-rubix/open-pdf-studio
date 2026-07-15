@@ -213,6 +213,39 @@ export function buildAnnotationProps(tool, startX, startY, endX, endY, e) {
         opacity: (prefs.polygonOpacity || 100) / 100
       };
 
+    case 'lshape': {
+      // L-shaped outline drawn as a closed polyline. The drag defines the
+      // bounding box; the L fills it with a fixed-ratio notch cut from the
+      // top-right. Stored as a 'polyline' so rendering / editing / saving all
+      // work unchanged; the first point is repeated at the end so the outline
+      // closes visually (the polyline renderer strokes the raw point list).
+      const b = bbox(startX, startY, endX, endY);
+      const x0 = b.x, y0 = b.y, x1 = b.x + b.width, y1 = b.y + b.height;
+      const armW = b.width * 0.45;   // vertical arm width (left)
+      const armH = b.height * 0.45;  // horizontal arm height (bottom)
+      const pts = [
+        { x: x0, y: y0 },              // top-left
+        { x: x0 + armW, y: y0 },       // top of vertical arm
+        { x: x0 + armW, y: y1 - armH },// inner corner
+        { x: x1, y: y1 - armH },       // top of horizontal arm (right)
+        { x: x1, y: y1 },              // bottom-right
+        { x: x0, y: y1 },              // bottom-left
+        { x: x0, y: y0 },              // close back to start
+      ];
+      return {
+        type: 'polyline',
+        page: getActiveDocument()?.currentPage || 1,
+        points: pts,
+        x: x0, y: y0, width: b.width, height: b.height,
+        color: prefs.polygonStrokeColor || getColorPickerValue(),
+        strokeColor: prefs.polygonStrokeColor || getColorPickerValue(),
+        lineWidth: prefs.polygonLineWidth || getLineWidthValue(),
+        borderStyle: 'solid',
+        opacity: (prefs.polygonOpacity || 100) / 100,
+        ...o
+      };
+    }
+
     case 'cloud': {
       const b = bbox(startX, startY, endX, endY);
       return {
