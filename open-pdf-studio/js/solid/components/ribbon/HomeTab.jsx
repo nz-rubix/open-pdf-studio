@@ -25,9 +25,12 @@ const newDocIcon = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><
 const ifcExportIcon = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8.5 12 4l8 4.5v7L12 20l-8-4.5z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11v9M4 8.5 12 11l8-2.5"/></svg>`;
 // E-mail icon (envelope)
 const emailIcon = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l9 6 9-6M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>`;
+// Raster-PDF icon (document with an embedded image glyph)
+const rasterPdfIcon = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 3v6h6"/><circle cx="9" cy="13" r="1.1" fill="currentColor" stroke="none"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 18l2.5-2.5L13 18l2-2 2 2.5"/></svg>`;
 
 export default function HomeTab() {
   const { t } = useTranslation('ribbon');
+  const { t: tMenu } = useTranslation('appMenu');
 
   return (
     <div class="ribbon-content active" id="tab-home">
@@ -47,6 +50,17 @@ export default function HomeTab() {
             onClick={async () => {
               const m = await import('../../../pdf/email-pdf.js');
               m.emailCurrentPdf();
+            }} />
+          <RibbonButton id="btn-home-raster-pdf" title={tMenu('exportPanel.exportRaster') || 'Exporteren als raster-PDF'}
+            icon={rasterPdfIcon} label="Raster-PDF" disabled={noPdf()}
+            onClick={async () => {
+              const doc = getActiveDocument();
+              const total = doc?.pdfDoc?.numPages || 0;
+              if (!total) return;
+              const pages = [];
+              for (let i = 1; i <= total; i++) pages.push(i);
+              const m = await import('../../../pdf/exporter.js');
+              await m.exportAsRasterPdf({ dpi: 300, pages });
             }} />
         </RibbonGroup>
 

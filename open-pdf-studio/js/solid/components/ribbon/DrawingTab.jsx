@@ -10,7 +10,6 @@ import { savePreferences } from '../../../core/preferences.js';
 import { isPdfAReadOnly } from '../../../pdf/loader.js';
 import { clearSelection, selectAllOnPage } from '../../../core/stores/selection-helpers.js';
 import { toggleFindBar } from '../../../search/find-bar.js';
-import { showPreferencesDialog } from '../../../core/preferences.js';
 import { contextualTabsVisible } from '../../stores/ribbonStore.js';
 import { copyAnnotation, copyAnnotations, pasteAnnotation, pasteAnnotations, pasteAnnotationsInPlace, duplicateAnnotation } from '../../../annotations/clipboard.js';
 import { flipHorizontal, flipVertical } from '../../../annotations/z-order.js';
@@ -24,7 +23,7 @@ import {
   measureDistanceIcon, measureAngleIcon, measurePerimeterIcon, measureAreaIcon,
   alignLeftIcon, alignTopIcon, alignBottomIcon,
   flipHIcon, flipVIcon, rotateCwIcon,
-  preferencesIcon, clearAllIcon
+  clearAllIcon
 } from '../../data/ribbonIcons.js';
 import { useTranslation } from '../../../i18n/useTranslation.js';
 import { createFullPageScaleRegion, invalidateScaleRegionCache } from '../../../annotations/scale-region.js';
@@ -259,21 +258,28 @@ export function DrawingGroups() {
         {/* MODIFY — icon-only buttons (issue #278: "Wijzigen" toont alleen
             iconen; volledige naam blijft als tooltip beschikbaar). */}
         <RibbonGroup label={t('drawing.modify')} iconOnly>
-          <RibbonButton id="dr-move" title={t('drawing.move')} icon={moveIcon} label={t('drawing.move')}
-            disabled={ro()} onClick={moveSelected} />
-          <RibbonButton id="dr-copy" title={t('drawing.copy')} icon={copyAnnIcon} label={t('drawing.copy')}
-            disabled={ro()} onClick={() => duplicateAnnotation()} />
+          {/* Bloksgewijs: 3 kolommen × 2 kleine iconen zodat de groep een
+              net, gelijkmatig blok vormt i.p.v. een mix van grote losse
+              knoppen en een kleine stapel. */}
           <RibbonButtonStack>
-            {/* Rotate — no batch rotate command exposed here; deferred (use Arrange tab for rotate) */}
-            <RibbonButton size="small" id="dr-rotate" title={cs} icon={rotateCwIcon} label={t('drawing.rotate')}
-              disabled={true} />
+            <RibbonButton size="small" id="dr-move" title={t('drawing.move')} icon={moveIcon} label={t('drawing.move')}
+              disabled={ro()} onClick={moveSelected} />
+            <RibbonButton size="small" id="dr-copy" title={t('drawing.copy')} icon={copyAnnIcon} label={t('drawing.copy')}
+              disabled={ro()} onClick={() => duplicateAnnotation()} />
+          </RibbonButtonStack>
+          <RibbonButtonStack>
             <RibbonButton size="small" id="dr-mirror-h" title={t('arrange.flipHorizontally')} icon={flipHIcon} label={t('drawing.mirrorH')}
               disabled={ro()} onClick={flipSelectedH} />
             <RibbonButton size="small" id="dr-mirror-v" title={t('arrange.flipVertically')} icon={flipVIcon} label={t('drawing.mirrorV')}
               disabled={ro()} onClick={flipSelectedV} />
           </RibbonButtonStack>
-          <RibbonButton id="dr-array" title={t('drawing.array')} icon={arrayIcon} label={t('drawing.array')}
-            disabled={ro()} active={state.currentTool === 'array'} onClick={() => setTool('array')} />
+          <RibbonButtonStack>
+            <RibbonButton size="small" id="dr-array" title={t('drawing.array')} icon={arrayIcon} label={t('drawing.array')}
+              disabled={ro()} active={state.currentTool === 'array'} onClick={() => setTool('array')} />
+            {/* Rotate — no batch rotate command exposed here; deferred (use Arrange tab for rotate) */}
+            <RibbonButton size="small" id="dr-rotate" title={cs} icon={rotateCwIcon} label={t('drawing.rotate')}
+              disabled={true} />
+          </RibbonButtonStack>
         </RibbonGroup>
 
         {/* EDIT — modify-gereedschappen (Inkorten, Verlengen, Uitlijnen, …).
@@ -346,12 +352,6 @@ export function DrawingGroups() {
             <RibbonButton size="small" id="dr-coll-explode" title={cs} icon={placeholderIcon} label={t('drawing.collectionExplode')}
               disabled={true} />
           </RibbonButtonStack>
-        </RibbonGroup>
-
-        {/* SETTINGS */}
-        <RibbonGroup label={t('drawing.settings')}>
-          <RibbonButton id="dr-settings" title={t('help.preferences')} icon={preferencesIcon} label={t('help.preferences')}
-            onClick={() => showPreferencesDialog()} />
         </RibbonGroup>
 
     </>

@@ -32,7 +32,7 @@ const escapePdfText = (s) =>
 function dashArrayForStyle(borderStyle) {
   switch (borderStyle) {
     case 'dashed':            return [3, 4];
-    case 'dotted':            return [2, 8];
+    case 'dotted':            return [2, 4];
     case 'dash-dot':          return [10, 8, 2, 8];
     case 'dash-dot-dot':      return [10, 8, 2, 8, 2, 8];
     case 'long-dash':         return [20, 10];

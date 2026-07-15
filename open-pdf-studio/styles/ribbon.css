@@ -1148,13 +1148,13 @@
 }
 .ribbon-group-compact .ribbon-btn-stack { gap: 0; }
 .ribbon-group-compact { padding: 0 4px; }
-/* Label sits 2px under the icon grid, NOT pushed to flex-end of the group
-   (the base `.ribbon-group-label { margin-top: auto }` rule would otherwise
-   drop it to the bottom of the ribbon-group column even with the icons
-   top-aligned). */
+/* Label sits on the same bottom baseline as every other group's label, so
+   all group names line up on one row across the ribbon (the compact grid is
+   top-aligned; margin-top:auto drops the label to the bottom to match the
+   non-compact groups). */
 .ribbon-group-compact .ribbon-group-label {
-  margin-top: 2px;
-  margin-bottom: auto;
+  margin-top: auto;
+  margin-bottom: 0;
   text-align: center;
 }
 

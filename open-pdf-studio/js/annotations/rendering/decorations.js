@@ -118,7 +118,7 @@ export function applyBorderStyle(ctx, borderStyle) {
       ctx.setLineDash([3, 4]);
       break;
     case 'dotted':
-      ctx.setLineDash([2, 8]);
+      ctx.setLineDash([2, 4]);
       break;
     case 'dash-dot':
       ctx.setLineDash([10, 8, 2, 8]);

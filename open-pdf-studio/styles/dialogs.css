@@ -4361,3 +4361,17 @@ select.ste-field { padding: 2px 4px; cursor: pointer; }
   color: var(--theme-text, #1f1f1f);
   font-size: 14px; font-weight: 600; pointer-events: none;
 }
+
+/* Schaal-dialogen (Werkelijke lengte / Schaalgebied) hergebruiken de
+   .ai-login-field-markup, die zonder eigen CSS terugvalt op 16px browser-
+   default — te groot en de langere labels braken over 2 regels. Compacte,
+   Windows-stijl tekst die op één regel past. */
+.scale-region-dialog .ai-login-field { margin-bottom: 8px; }
+.scale-region-dialog .ai-login-field label {
+  display: block;
+  font-size: 11px;
+  color: var(--theme-text, #333);
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+.scale-region-dialog .ai-login-field > div { font-size: 12px; }
