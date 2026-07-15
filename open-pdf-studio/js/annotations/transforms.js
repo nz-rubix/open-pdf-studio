@@ -796,113 +796,117 @@ export function applyResize(annotation, handleType, deltaX, deltaY, originalAnn,
           ? originalAnn.originalWidth / originalAnn.originalHeight
           : originalAnn.width / originalAnn.height;
 
-        switch (handleType) {
-          case HANDLE_TYPES.TOP_LEFT:
-            if (lockRatio) {
-              const newWidth = originalAnn.width - deltaX;
-              const newHeight = newWidth / aspectRatio;
-              annotation.x = originalAnn.x + originalAnn.width - newWidth;
-              annotation.y = originalAnn.y + originalAnn.height - newHeight;
-              annotation.width = newWidth;
-              annotation.height = newHeight;
-            } else {
-              annotation.x = originalAnn.x + deltaX;
-              annotation.y = originalAnn.y + deltaY;
-              annotation.width = originalAnn.width - deltaX;
-              annotation.height = originalAnn.height - deltaY;
-            }
-            break;
-          case HANDLE_TYPES.TOP_RIGHT:
-            if (lockRatio) {
-              const newWidth = originalAnn.width + deltaX;
-              const newHeight = newWidth / aspectRatio;
-              annotation.y = originalAnn.y + originalAnn.height - newHeight;
-              annotation.width = newWidth;
-              annotation.height = newHeight;
-            } else {
-              annotation.y = originalAnn.y + deltaY;
-              annotation.width = originalAnn.width + deltaX;
-              annotation.height = originalAnn.height - deltaY;
-            }
-            break;
-          case HANDLE_TYPES.BOTTOM_LEFT:
-            if (lockRatio) {
-              const newWidth = originalAnn.width - deltaX;
-              const newHeight = newWidth / aspectRatio;
-              annotation.x = originalAnn.x + originalAnn.width - newWidth;
-              annotation.width = newWidth;
-              annotation.height = newHeight;
-            } else {
-              annotation.x = originalAnn.x + deltaX;
-              annotation.width = originalAnn.width - deltaX;
-              annotation.height = originalAnn.height + deltaY;
-            }
-            break;
-          case HANDLE_TYPES.BOTTOM_RIGHT:
-            if (lockRatio) {
-              const newWidth = originalAnn.width + deltaX;
-              const newHeight = newWidth / aspectRatio;
-              annotation.width = newWidth;
-              annotation.height = newHeight;
-            } else {
-              annotation.width = originalAnn.width + deltaX;
-              annotation.height = originalAnn.height + deltaY;
-            }
-            break;
-          case HANDLE_TYPES.TOP:
-            if (lockRatio) {
-              const newHeight = originalAnn.height - deltaY;
-              const newWidth = newHeight * aspectRatio;
-              annotation.y = originalAnn.y + deltaY;
-              annotation.x = originalAnn.x + (originalAnn.width - newWidth) / 2;
-              annotation.height = newHeight;
-              annotation.width = newWidth;
-            } else {
-              annotation.y = originalAnn.y + deltaY;
-              annotation.height = originalAnn.height - deltaY;
-            }
-            break;
-          case HANDLE_TYPES.BOTTOM:
-            if (lockRatio) {
-              const newHeight = originalAnn.height + deltaY;
-              const newWidth = newHeight * aspectRatio;
-              annotation.x = originalAnn.x + (originalAnn.width - newWidth) / 2;
-              annotation.height = newHeight;
-              annotation.width = newWidth;
-            } else {
-              annotation.height = originalAnn.height + deltaY;
-            }
-            break;
-          case HANDLE_TYPES.LEFT:
-            if (lockRatio) {
-              const newWidth = originalAnn.width - deltaX;
-              const newHeight = newWidth / aspectRatio;
-              annotation.x = originalAnn.x + deltaX;
-              annotation.y = originalAnn.y + (originalAnn.height - newHeight) / 2;
-              annotation.width = newWidth;
-              annotation.height = newHeight;
-            } else {
-              annotation.x = originalAnn.x + deltaX;
-              annotation.width = originalAnn.width - deltaX;
-            }
-            break;
-          case HANDLE_TYPES.RIGHT:
-            if (lockRatio) {
-              const newWidth = originalAnn.width + deltaX;
-              const newHeight = newWidth / aspectRatio;
-              annotation.y = originalAnn.y + (originalAnn.height - newHeight) / 2;
-              annotation.width = newWidth;
-              annotation.height = newHeight;
-            } else {
-              annotation.width = originalAnn.width + deltaX;
-            }
-            break;
-        }
-        // Ensure minimum size
-        if (annotation.width < 20) annotation.width = 20;
-        if (annotation.height < 20) annotation.height = 20;
+        if (lockRatio && aspectRatio > 0) {
+          // Aspect-ratio-locked resize (issue #283). Derive both axes from a
+          // single ratio-preserving width, then clamp BOTH axes proportionally
+          // — re-deriving the partner axis from the clamped one — so the ratio
+          // holds at every drag distance. The previous code clamped width and
+          // height to the minimum independently, which broke the ratio once the
+          // shorter axis dropped below the 20px floor ("past a certain point"),
+          // and let the size go negative when a handle was dragged past its
+          // anchor. Position is computed from the fixed anchor AFTER the clamp
+          // so the box never drifts.
+          const MIN = 20;
+          const ox = originalAnn.x, oy = originalAnn.y;
+          const ow = originalAnn.width, oh = originalAnn.height;
 
-      }
+          // 1. Ratio-preserving width from the drag. For corners take the
+          //    dominant delta (width- vs height-driven) so diagonal drags stay
+          //    natural; edges drive from their own axis.
+          let newWidth;
+          switch (handleType) {
+            case HANDLE_TYPES.TOP_LEFT:
+            case HANDLE_TYPES.BOTTOM_LEFT: {
+              const hSign = (handleType === HANDLE_TYPES.BOTTOM_LEFT) ? 1 : -1;
+              const wFromX = ow - deltaX;
+              const wFromY = (oh + hSign * deltaY) * aspectRatio;
+              newWidth = Math.abs(deltaX) >= Math.abs(deltaY) ? wFromX : wFromY;
+              break;
+            }
+            case HANDLE_TYPES.TOP_RIGHT:
+            case HANDLE_TYPES.BOTTOM_RIGHT: {
+              const hSign = (handleType === HANDLE_TYPES.BOTTOM_RIGHT) ? 1 : -1;
+              const wFromX = ow + deltaX;
+              const wFromY = (oh + hSign * deltaY) * aspectRatio;
+              newWidth = Math.abs(deltaX) >= Math.abs(deltaY) ? wFromX : wFromY;
+              break;
+            }
+            case HANDLE_TYPES.LEFT:   newWidth = ow - deltaX; break;
+            case HANDLE_TYPES.RIGHT:  newWidth = ow + deltaX; break;
+            case HANDLE_TYPES.TOP:    newWidth = (oh - deltaY) * aspectRatio; break;
+            case HANDLE_TYPES.BOTTOM: newWidth = (oh + deltaY) * aspectRatio; break;
+            default:                  newWidth = ow;
+          }
+
+          // 2. Proportional clamp. A width <= 0 (dragged past the anchor) is
+          //    below MIN, so it collapses to the minimum rather than flipping.
+          let newHeight = newWidth / aspectRatio;
+          if (newWidth < MIN)  { newWidth = MIN;  newHeight = newWidth / aspectRatio; }
+          if (newHeight < MIN) { newHeight = MIN; newWidth = newHeight * aspectRatio; }
+
+          // 3. Place from the fixed anchor using the final size.
+          let nx = ox, ny = oy;
+          switch (handleType) {
+            case HANDLE_TYPES.TOP_LEFT:
+              nx = ox + ow - newWidth; ny = oy + oh - newHeight; break;
+            case HANDLE_TYPES.TOP_RIGHT:
+              ny = oy + oh - newHeight; break;
+            case HANDLE_TYPES.BOTTOM_LEFT:
+              nx = ox + ow - newWidth; break;
+            case HANDLE_TYPES.BOTTOM_RIGHT:
+              break;
+            case HANDLE_TYPES.TOP:
+              nx = ox + (ow - newWidth) / 2; ny = oy + oh - newHeight; break;
+            case HANDLE_TYPES.BOTTOM:
+              nx = ox + (ow - newWidth) / 2; break;
+            case HANDLE_TYPES.LEFT:
+              nx = ox + ow - newWidth; ny = oy + (oh - newHeight) / 2; break;
+            case HANDLE_TYPES.RIGHT:
+              ny = oy + (oh - newHeight) / 2; break;
+          }
+          annotation.x = nx; annotation.y = ny;
+          annotation.width = newWidth; annotation.height = newHeight;
+        } else {
+          switch (handleType) {
+            case HANDLE_TYPES.TOP_LEFT:
+              annotation.x = originalAnn.x + deltaX;
+              annotation.y = originalAnn.y + deltaY;
+              annotation.width = originalAnn.width - deltaX;
+              annotation.height = originalAnn.height - deltaY;
+              break;
+            case HANDLE_TYPES.TOP_RIGHT:
+              annotation.y = originalAnn.y + deltaY;
+              annotation.width = originalAnn.width + deltaX;
+              annotation.height = originalAnn.height - deltaY;
+              break;
+            case HANDLE_TYPES.BOTTOM_LEFT:
+              annotation.x = originalAnn.x + deltaX;
+              annotation.width = originalAnn.width - deltaX;
+              annotation.height = originalAnn.height + deltaY;
+              break;
+            case HANDLE_TYPES.BOTTOM_RIGHT:
+              annotation.width = originalAnn.width + deltaX;
+              annotation.height = originalAnn.height + deltaY;
+              break;
+            case HANDLE_TYPES.TOP:
+              annotation.y = originalAnn.y + deltaY;
+              annotation.height = originalAnn.height - deltaY;
+              break;
+            case HANDLE_TYPES.BOTTOM:
+              annotation.height = originalAnn.height + deltaY;
+              break;
+            case HANDLE_TYPES.LEFT:
+              annotation.x = originalAnn.x + deltaX;
+              annotation.width = originalAnn.width - deltaX;
+              break;
+            case HANDLE_TYPES.RIGHT:
+              annotation.width = originalAnn.width + deltaX;
+              break;
+          }
+          // Ensure minimum size
+          if (annotation.width < 20) annotation.width = 20;
+          if (annotation.height < 20) annotation.height = 20;
+        }
       break;
     }
 
