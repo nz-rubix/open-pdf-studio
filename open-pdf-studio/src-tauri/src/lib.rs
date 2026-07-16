@@ -1574,6 +1574,18 @@ fn render_pdf_page_skia(
     Ok(tauri::ipc::Response::new(out))
 }
 
+/// Whether the PDFium worker pool has finished spawning. Lets the frontend
+/// skip optional work (e.g. the cold-open pre-render) that would otherwise
+/// fall back to an in-process PDFium parse in the main process — on a large
+/// document that fallback runs concurrently with the PDF.js parse of the
+/// same bytes and can take the whole load down at startup.
+#[tauri::command]
+fn worker_pool_ready(
+    pool: tauri::State<'_, std::sync::Arc<tokio::sync::OnceCell<worker_pool::WorkerPool>>>,
+) -> bool {
+    pool.get().is_some()
+}
+
 #[tauri::command]
 async fn render_pdf_page(
     path: String,
@@ -2562,6 +2574,7 @@ pub fn run(opts: StartupOpts) {
             uninstall_plugin,
             read_plugin_file,
             render_pdf_page,
+            worker_pool_ready,
             render_pdf_page_region,
             render_tile_scene_region,
             page_content_size,
