@@ -303,7 +303,7 @@ async function navigateToResult(result) {
 
     if (getActiveDocument()?.viewMode === 'continuous') {
       // Scroll to page in continuous mode
-      const pageWrapper = document.querySelector(`[data-page-num="${result.pageNum}"]`);
+      const pageWrapper = document.querySelector(`.page-wrapper[data-page="${result.pageNum}"]`);
       if (pageWrapper) {
         pageWrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
@@ -395,147 +395,71 @@ export function highlightResults() {
 }
 
 /**
- * Find all occurrences of search text in the text layer and return their positions
- */
-function findAllMatchPositions(textLayer, searchText, matchCase, wholeWord) {
-  const positions = [];
-  const textSpans = textLayer.querySelectorAll('span');
-  const compareSearchText = matchCase ? searchText : searchText.toLowerCase();
-
-  for (const span of textSpans) {
-    const spanText = span.textContent;
-    if (!spanText) continue;
-
-    const compareSpanText = matchCase ? spanText : spanText.toLowerCase();
-    let startIndex = 0;
-
-    while (true) {
-      const matchIndex = compareSpanText.indexOf(compareSearchText, startIndex);
-      if (matchIndex === -1) break;
-
-      // Whole word check: verify word boundaries in the span text
-      if (wholeWord) {
-        const before = matchIndex > 0 ? compareSpanText[matchIndex - 1] : ' ';
-        const after = matchIndex + compareSearchText.length < compareSpanText.length
-          ? compareSpanText[matchIndex + compareSearchText.length] : ' ';
-        const isWordChar = (c) => /\w/.test(c);
-        if (isWordChar(before) || isWordChar(after)) {
-          startIndex = matchIndex + 1;
-          continue;
-        }
-      }
-
-      const textNode = span.firstChild;
-      if (textNode && textNode.nodeType === Node.TEXT_NODE) {
-        try {
-          // Get span's position within the text layer (from its style)
-          const spanLeft = parseFloat(span.style.left) || 0;
-          const spanTop = parseFloat(span.style.top) || 0;
-
-          // Get the scaleX factor from transform if present
-          let scaleX = 1;
-          const transform = span.style.transform;
-          if (transform) {
-            const scaleMatch = transform.match(/scaleX\(([^)]+)\)/);
-            if (scaleMatch) {
-              scaleX = parseFloat(scaleMatch[1]) || 1;
-            }
-          }
-
-          // Measure the width of text before the match (in original coordinates)
-          let preWidth = 0;
-          if (matchIndex > 0) {
-            const preRange = document.createRange();
-            preRange.setStart(textNode, 0);
-            preRange.setEnd(textNode, matchIndex);
-            preWidth = preRange.getBoundingClientRect().width;
-          }
-
-          // Measure the width of the match itself
-          const matchRange = document.createRange();
-          matchRange.setStart(textNode, matchIndex);
-          matchRange.setEnd(textNode, matchIndex + searchText.length);
-          const matchRect = matchRange.getBoundingClientRect();
-
-          // Get span's visual bounding rect
-          const spanRect = span.getBoundingClientRect();
-          const textLayerRect = span.parentElement.getBoundingClientRect();
-
-          // Calculate position relative to text layer using visual coordinates
-          const highlightLeft = matchRect.left - textLayerRect.left;
-          const highlightTop = matchRect.top - textLayerRect.top;
-
-          // Store position data
-          positions.push({
-            span,
-            highlightLeft,
-            highlightTop,
-            matchWidth: matchRect.width,
-            matchHeight: matchRect.height,
-            matchIndex,
-            spanText,
-            // Also store viewport rect for sorting
-            viewportTop: matchRect.top,
-            viewportLeft: matchRect.left
-          });
-        } catch (e) {
-          console.warn('Range error:', e);
-        }
-      }
-
-      startIndex = matchIndex + 1;
-    }
-  }
-
-  // Sort by position (top to bottom, left to right)
-  positions.sort((a, b) => {
-    if (Math.abs(a.viewportTop - b.viewportTop) > 5) {
-      return a.viewportTop - b.viewportTop;
-    }
-    return a.viewportLeft - b.viewportLeft;
-  });
-
-  return positions;
-}
-
-/**
- * Highlight search results on a page
+ * Highlight search results on a page.
+ *
+ * Highlights are positioned from the matched items' own PDF-space geometry
+ * (transform/width/height captured at text extraction), NOT from measuring
+ * DOM spans. The three text-layer builders (custom single-page PDF.js,
+ * stock PDF.js TextLayer in continuous mode, Rust-extracted spans in vector
+ * mode) produce different span structures — only one of them carries
+ * data-item-index — so any DOM-based lookup breaks on the other two.
+ * Item geometry is layer-type independent, and because the rects live in
+ * layer-local coordinates they ride along with the viewport's zoom
+ * transform instead of needing re-measurement.
  */
 function highlightMatch(result, isCurrent) {
-  if (!result || !result.matchText) return;
+  if (!result || !result.items || result.items.length === 0) return;
 
   const pageNum = result.pageNum;
+  const doc = getActiveDocument();
 
   // Get the text layer for this page
   let textLayer;
-  if (getActiveDocument()?.viewMode === 'continuous') {
-    textLayer = document.querySelector(`[data-page-num="${pageNum}"] .textLayer`);
+  if (doc?.viewMode === 'continuous') {
+    const wrapper = document.querySelector(`.page-wrapper[data-page="${pageNum}"]`);
+    textLayer = wrapper?.querySelector('.textLayer');
   } else {
+    if (doc && doc.currentPage !== pageNum) return;
     textLayer = document.querySelector('.textLayer');
   }
-
   if (!textLayer) return;
 
-  // Find all match positions in the text layer
-  const positions = findAllMatchPositions(textLayer, result.matchText, state.search.matchCase, state.search.wholeWord);
+  // Layer-local px per PDF point. Every layer builder sets
+  // --total-scale-factor on the layer or an ancestor: 1 in vector mode
+  // (layout px = PDF pt, zoom applied via CSS transform), viewport.scale
+  // for the PDF.js-built layers (laid out at scaled size).
+  const scale = parseFloat(
+    getComputedStyle(textLayer).getPropertyValue('--total-scale-factor')
+  ) || 1;
+  const pageHeightPt = textLayer.offsetHeight / scale;
 
-  // Count which occurrence this result is on this page
-  const pageResults = state.search.results.filter(r => r.pageNum === pageNum);
-  const occurrenceIndex = pageResults.findIndex(r => r.index === result.index);
+  for (const item of result.items) {
+    const t = item.transform;
+    if (!t) continue; // synthetic (Add Text) items carry no geometry
 
-  if (occurrenceIndex >= 0 && occurrenceIndex < positions.length) {
-    const pos = positions[occurrenceIndex];
+    const startInItem = Math.max(0, result.startPos - item.startPos);
+    const endInItem = Math.min(item.str.length, result.endPos - item.startPos);
+    if (endInItem <= startInItem) continue;
+
+    // Partial matches inside an item: slice the run width proportionally
+    // by character count. Approximate for proportional fonts, but close
+    // enough for a highlight and independent of DOM/font availability.
+    const len = item.str.length || 1;
+    const itemH = item.height || Math.abs(t[3]) || 10;
+    const itemW = item.width || 0;
+    const x0 = t[4] + itemW * (startInItem / len);
+    const x1 = t[4] + itemW * (endInItem / len);
+    // t[5] is the baseline; ascent ≈ 0.8em above it (same convention the
+    // vector-mode span builder uses), Y flipped into top-left space.
+    const topPt = pageHeightPt - t[5] - itemH * 0.8;
 
     const highlight = document.createElement('div');
     highlight.className = 'search-highlight' + (isCurrent ? ' current' : '');
     highlight.dataset.resultIndex = result.index;
-
-    // Position using calculated visual coordinates
-    highlight.style.left = pos.highlightLeft + 'px';
-    highlight.style.top = pos.highlightTop + 'px';
-    highlight.style.width = pos.matchWidth + 'px';
-    highlight.style.height = pos.matchHeight + 'px';
-
+    highlight.style.left = (x0 * scale) + 'px';
+    highlight.style.top = (topPt * scale) + 'px';
+    highlight.style.width = (Math.max(x1 - x0, 2) * scale) + 'px';
+    highlight.style.height = (itemH * scale) + 'px';
     textLayer.appendChild(highlight);
   }
 }
