@@ -10,11 +10,11 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - arm64
+      - windows-build
     paths:
       - 'open-pdf-studio/**'
       - 'pdfium-worker/**'
-      - '.github/workflows/build-arm64.yml'
+      - '.github/workflows/build-windows.yml'
 
 # A newer push supersedes an in-flight build of the same branch; don't burn
 # runners (or race artifact downloads) finishing installers nobody will use.
