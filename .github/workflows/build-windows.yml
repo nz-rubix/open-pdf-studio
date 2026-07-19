@@ -61,15 +61,22 @@ jobs:
           $conf = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
 
           if ($env:BUILD_ARCH -eq 'arm64') {
-            # Swap the x64-only bundled resources for their win-arm64 twins
-            # (see src-tauri/binaries/win-arm64/README.md for provenance).
-            $res = [ordered]@{
-              'icons/file-icon.ico'                     = 'file-icon.ico'
-              'binaries/win-arm64/pdfium.dll'           = 'pdfium.dll'
-              'binaries/win-arm64/WebView2Loader.dll'   = 'WebView2Loader.dll'
-              'resources/kaders'                        = 'kaders'
+            # The Windows-bundled native DLLs (pdfium.dll, WebView2Loader.dll)
+            # are declared in tauri.windows.conf.json, which Tauri deep-merges
+            # OVER tauri.conf.json for Windows builds. They MUST be swapped
+            # there for arm64 — editing the base tauri.conf.json is a no-op the
+            # platform override silently undoes, shipping the x64 pdfium.dll in
+            # the arm64 bundle. init_pdfium then can't load the wrong-arch DLL,
+            # PDFium stays uninitialised, and every page renders blank.
+            # (These resources moved out of the base config in upstream #293.)
+            # Provenance of the win-arm64 DLLs: src-tauri/binaries/win-arm64/README.md.
+            $wconf = Get-Content src-tauri/tauri.windows.conf.json -Raw | ConvertFrom-Json
+            $wconf.bundle.resources = [ordered]@{
+              'binaries/win-arm64/pdfium.dll'         = 'pdfium.dll'
+              'binaries/win-arm64/WebView2Loader.dll' = 'WebView2Loader.dll'
             }
-            $conf.bundle.resources = $res
+            $wconf | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.windows.conf.json
+            Get-Content src-tauri/tauri.windows.conf.json | Select-String -Pattern 'win-arm64'
           }
 
           # Focused build: no in-app fetches remain (updater check, release
@@ -87,7 +94,7 @@ jobs:
           $conf.plugins.updater.endpoints = @("https://github.com/$env:GITHUB_REPOSITORY/releases/latest/download/latest.json")
 
           $conf | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json
-          Get-Content src-tauri/tauri.conf.json | Select-String -Pattern 'win-arm64|createUpdaterArtifacts|connect-src'
+          Get-Content src-tauri/tauri.conf.json | Select-String -Pattern 'createUpdaterArtifacts|connect-src'
 
           # Lean build: the virtual-printer feature is compiled out of the app
           # (OPS_FEATURE_VPRINTER=false), so skip its installer wizard page too.
@@ -131,6 +138,21 @@ jobs:
           $expected = [Convert]::ToUInt16($env:EXPECTED_MACHINE, 16)
           Write-Output ("Machine type: 0x{0:X4} (expected 0x{1:X4})" -f $machine, $expected)
           if ($machine -ne $expected) { Write-Error "Main exe architecture mismatch!"; exit 1 }
+
+          # The bundled pdfium.dll must match the target arch too: an x64 DLL in
+          # an arm64 bundle loads-fails at runtime, PDFium stays uninitialised,
+          # and every page renders blank (the app still "works", so the main-exe
+          # check above passes while rendering is silently dead). Fail the build
+          # instead. See the arm64 resource swap in the Configure bundle step.
+          $dlls = Get-ChildItem -Path target/release -Recurse -Filter pdfium.dll -ErrorAction SilentlyContinue
+          if (-not $dlls) { Write-Warning "No bundled pdfium.dll found under target/release to verify" }
+          foreach ($dll in $dlls) {
+            $db = [System.IO.File]::ReadAllBytes($dll.FullName)
+            $dpe = [BitConverter]::ToInt32($db, 0x3C)
+            $dm = [BitConverter]::ToUInt16($db, $dpe + 4)
+            Write-Output ("pdfium.dll ($($dll.FullName)): 0x{0:X4} (expected 0x{1:X4})" -f $dm, $expected)
+            if ($dm -ne $expected) { Write-Error "Bundled pdfium.dll architecture mismatch!"; exit 1 }
+          }
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
