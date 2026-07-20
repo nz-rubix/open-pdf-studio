@@ -31,7 +31,8 @@
     "rejected": "거부됨",
     "cancelled": "취소됨",
     "completed": "완료됨",
-    "reviewed": "검토됨"
+    "reviewed": "검토됨",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "없음",
   "moreColors": "더 많은 색상...",

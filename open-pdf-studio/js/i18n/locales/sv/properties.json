@@ -31,7 +31,8 @@
     "rejected": "Avvisad",
     "cancelled": "Avbruten",
     "completed": "Slutförd",
-    "reviewed": "Granskad"
+    "reviewed": "Granskad",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "Ingen",
   "moreColors": "Fler färger...",

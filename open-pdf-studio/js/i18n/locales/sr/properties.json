@@ -31,7 +31,8 @@
     "rejected": "Одбијено",
     "cancelled": "Отказано",
     "completed": "Завршено",
-    "reviewed": "Прегледано"
+    "reviewed": "Прегледано",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "Ништа",
   "moreColors": "Више боја...",

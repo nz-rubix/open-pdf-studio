@@ -31,7 +31,8 @@
     "rejected": "已拒绝",
     "cancelled": "已取消",
     "completed": "已完成",
-    "reviewed": "已审阅"
+    "reviewed": "已审阅",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "无",
   "moreColors": "更多颜色...",

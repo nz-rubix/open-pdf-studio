@@ -31,7 +31,8 @@
     "rejected": "প্রত্যাখ্যাত",
     "cancelled": "বাতিল করা হয়েছে",
     "completed": "সম্পন্ন",
-    "reviewed": "পর্যালোচিত"
+    "reviewed": "পর্যালোচিত",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "কোনোটি নয়",
   "moreColors": "আরও রঙ...",

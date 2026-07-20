@@ -31,7 +31,8 @@
     "rejected": "Απορριφθέν",
     "cancelled": "Ακυρωμένο",
     "completed": "Ολοκληρωμένο",
-    "reviewed": "Αξιολογημένο"
+    "reviewed": "Αξιολογημένο",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "Κανένα",
   "moreColors": "Περισσότερα χρώματα...",

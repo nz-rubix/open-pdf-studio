@@ -20,7 +20,8 @@
     "rejected": "Afgewezen",
     "cancelled": "Geannuleerd",
     "completed": "Voltooid",
-    "reviewed": "Beoordeeld"
+    "reviewed": "Beoordeeld",
+    "statusSetBy": "Gezet door {{author}} op {{date}}"
   },
   "colorNone": "Geen",
   "moreColors": "Meer kleuren...",

@@ -31,7 +31,8 @@
     "rejected": "却下",
     "cancelled": "取消",
     "completed": "完了",
-    "reviewed": "レビュー済み"
+    "reviewed": "レビュー済み",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "なし",
   "moreColors": "その他の色...",

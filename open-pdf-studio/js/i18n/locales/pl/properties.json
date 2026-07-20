@@ -31,7 +31,8 @@
     "rejected": "Odrzucone",
     "cancelled": "Anulowane",
     "completed": "Zakończone",
-    "reviewed": "Zrecenzowane"
+    "reviewed": "Zrecenzowane",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "Brak",
   "moreColors": "Więcej Kolorów...",

@@ -31,7 +31,8 @@
     "rejected": "Zamietnuté",
     "cancelled": "Zrušené",
     "completed": "Dokončené",
-    "reviewed": "Skontrolované"
+    "reviewed": "Skontrolované",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "Žiadna",
   "moreColors": "Viac farieb...",

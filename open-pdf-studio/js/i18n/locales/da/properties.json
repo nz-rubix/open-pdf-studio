@@ -31,7 +31,8 @@
     "rejected": "Afvist",
     "cancelled": "Annulleret",
     "completed": "Fuldført",
-    "reviewed": "Gennemgået"
+    "reviewed": "Gennemgået",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "Ingen",
   "moreColors": "Flere farver...",

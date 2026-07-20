@@ -17,15 +17,26 @@ import { showMessage } from '../bridge.js';
 import { extractAnnotationColors } from './loader/color-extraction.js';
 import { extractStampImagesHybrid } from './loader/image-extraction.js';
 import { convertPdfAnnotation } from './loader/annotation-converter.js';
+import { statusReplyFromPdfAnnotation, applyStatusReplies } from './loader/status-replies.js';
 
 
 // Convert one batch of pdf.js annotations and push them to doc.annotations,
 // detecting textbox-leader PolyLines (linked via IRT) and attaching them
 // to their parent textbox instead of pushing a standalone annotation.
+// Review-status replies (Text + /IRT + /State, issue #308) worden hier ook
+// herkend: die worden NIET als losse sticky note gepusht maar als status
+// op de doel-annotatie gezet.
 async function _convertAndPushAnnotations(annots, pageNum, viewport, stampImageMap, annotColorMap, doc) {
   const textboxByRect = new Map();
+  const byPdfId = new Map();
   const pendingLeaders = [];
+  const pendingStatuses = [];
   for (const annot of annots) {
+    const statusReply = statusReplyFromPdfAnnotation(annot);
+    if (statusReply) {
+      pendingStatuses.push(statusReply);
+      continue;
+    }
     const converted = await convertPdfAnnotation(annot, pageNum, viewport, stampImageMap, annotColorMap);
     if (!converted) continue;
     if (converted.__textboxLeader) {
@@ -35,6 +46,7 @@ async function _convertAndPushAnnotations(annots, pageNum, viewport, stampImageM
     if (converted.type === 'textbox' && converted._pdfRectKey) {
       textboxByRect.set(converted._pdfRectKey, converted);
     }
+    if (annot.id) byPdfId.set(annot.id, converted);
     doc.annotations.push(converted);
   }
   for (const pl of pendingLeaders) {
@@ -45,6 +57,7 @@ async function _convertAndPushAnnotations(annots, pageNum, viewport, stampImageM
     }
   }
   for (const tb of textboxByRect.values()) delete tb._pdfRectKey;
+  applyStatusReplies(pendingStatuses, byPdfId);
 }
 
 // Cache for original PDF bytes (used by saver to avoid re-reading)

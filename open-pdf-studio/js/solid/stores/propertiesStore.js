@@ -65,6 +65,8 @@ const [annotProps, setAnnotProps] = createStore({
   marked: false,
   altText: '',
   status: 'none',
+  statusBy: '',
+  statusAt: '',
   color: '#000000',
   fillColor: null,
   strokeColor: '#000000',
@@ -258,6 +260,8 @@ export function storeShowProperties(annotation) {
     marked: annotation.marked || false,
     altText: annotation.altText || '',
     status: annotation.status || 'none',
+    statusBy: annotation.statusBy || '',
+    statusAt: annotation.statusAt ? formatDate(annotation.statusAt) : '',
     ifcCategory: annotation.ifcCategory || '',
     color: annotation.color || '#000000',
     fillColor: annotation.fillColor || null,
@@ -690,6 +694,19 @@ export async function populateDocInfo() {
 }
 
 // Apply a property change to a single annotation object
+// Review-status metadata (issue #308): onthoud wie de status zette en
+// wanneer, zodat de saver de status als spec-conforme status-reply
+// (Text + /IRT + /State) met juiste auteur/datum kan wegschrijven.
+function _stampStatusMeta(ann, value) {
+  if (value === 'none') {
+    delete ann.statusBy;
+    delete ann.statusAt;
+  } else {
+    ann.statusBy = state.defaultAuthor || ann.author || 'User';
+    ann.statusAt = new Date().toISOString();
+  }
+}
+
 function applyPropToAnnotation(ann, key, value) {
   ann.modifiedAt = new Date().toISOString();
   switch (key) {
@@ -700,7 +717,10 @@ function applyPropToAnnotation(ann, key, value) {
     case 'readOnly': ann.readOnly = value; break;
     case 'marked': ann.marked = value; break;
     case 'altText': ann.altText = value; break;
-    case 'status': ann.status = value === 'none' ? undefined : value; break;
+    case 'status':
+      ann.status = value === 'none' ? undefined : value;
+      _stampStatusMeta(ann, value);
+      break;
     case 'ifcCategory': ann.ifcCategory = value || undefined; break;
     case 'color': ann.color = value; break;
     case 'fillColor': ann.fillColor = value; break;
@@ -938,7 +958,14 @@ export function updateAnnotProp(key, value) {
     case 'readOnly': currentAnnotation.readOnly = value; break;
     case 'marked': currentAnnotation.marked = value; break;
     case 'altText': currentAnnotation.altText = value; break;
-    case 'status': currentAnnotation.status = value === 'none' ? undefined : value; break;
+    case 'status':
+      currentAnnotation.status = value === 'none' ? undefined : value;
+      _stampStatusMeta(currentAnnotation, value);
+      setAnnotProps({
+        statusBy: currentAnnotation.statusBy || '',
+        statusAt: currentAnnotation.statusAt ? formatDate(currentAnnotation.statusAt) : '',
+      });
+      break;
     case 'ifcCategory': currentAnnotation.ifcCategory = value || undefined; break;
     case 'color':
       currentAnnotation.color = value;

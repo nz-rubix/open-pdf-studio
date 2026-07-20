@@ -2156,6 +2156,32 @@ export async function savePDF(saveAsPath = null) {
           annotsArray.push(parentAnnotRef);
         }
 
+        // Review-status (issue #308): schrijf de status als aparte Text-
+        // annotatie met /IRT + /State + /StateModel (PDF-spec), zodat de
+        // status ook in externe PDF-programma's zichtbaar blijft en bij
+        // heropenen weer aan de doel-annotatie gekoppeld wordt.
+        if (parentAnnotRef && ann.status && ann.status !== 'none') {
+          const stateStr = String(ann.status).charAt(0).toUpperCase() + String(ann.status).slice(1);
+          const stDate = ann.statusAt ? new Date(ann.statusAt) : new Date();
+          const stDateObj = isNaN(stDate.getTime()) ? new Date() : stDate;
+          // Rect van de doel-annotatie hergebruiken (status-reply is verborgen)
+          const parentRect = annotDict.get(PDFName.of('Rect'));
+          const stDict = context.obj({
+            Type: 'Annot',
+            Subtype: 'Text',
+            Contents: PDFString.of(stateStr),
+            T: PDFString.of(ann.statusBy || ann.author || 'User'),
+            M: PDFString.fromDate(stDateObj),
+            CreationDate: PDFString.fromDate(stDateObj),
+            F: 30, // Hidden + Print + NoZoom + NoRotate — niet los tonen
+            State: PDFString.of(stateStr),
+            StateModel: PDFString.of('Review'),
+          });
+          stDict.set(PDFName.of('Rect'), parentRect);
+          stDict.set(PDFName.of('IRT'), parentAnnotRef);
+          annotsArray.push(context.register(stDict));
+        }
+
         // Textbox leaders: emit one PolyLine annotation per leader, linked
         // back to the textbox via /IRT for round-trip support.
         if (parentAnnotRef && ann.type === 'textbox' &&

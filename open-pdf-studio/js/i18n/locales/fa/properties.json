@@ -31,7 +31,8 @@
     "rejected": "ردشده",
     "cancelled": "لغوشده",
     "completed": "تکمیل‌شده",
-    "reviewed": "بررسی‌شده"
+    "reviewed": "بررسی‌شده",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "هیچ",
   "moreColors": "رنگ‌های بیشتر...",

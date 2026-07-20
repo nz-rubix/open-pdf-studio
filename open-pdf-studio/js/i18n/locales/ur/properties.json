@@ -31,7 +31,8 @@
     "rejected": "مسترد",
     "cancelled": "منسوخ",
     "completed": "مکمل",
-    "reviewed": "جائزہ شدہ"
+    "reviewed": "جائزہ شدہ",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "کوئی نہیں",
   "moreColors": "مزید رنگ...",

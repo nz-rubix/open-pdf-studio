@@ -31,7 +31,8 @@
     "rejected": "Отклонено",
     "cancelled": "Отменено",
     "completed": "Завершено",
-    "reviewed": "Проверено"
+    "reviewed": "Проверено",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "Нет",
   "moreColors": "Больше цветов...",

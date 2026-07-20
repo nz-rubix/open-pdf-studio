@@ -31,7 +31,8 @@
     "rejected": "Từ chối",
     "cancelled": "Đã hủy",
     "completed": "Hoàn thành",
-    "reviewed": "Đã xem xét"
+    "reviewed": "Đã xem xét",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "Không có",
   "moreColors": "Thêm Màu...",

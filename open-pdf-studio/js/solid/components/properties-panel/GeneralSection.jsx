@@ -142,6 +142,10 @@ export default function GeneralSection() {
             <Show when={annotProps.status === 'mixed'}>
               <option value="mixed" disabled hidden>{tCommon('mixed')}</option>
             </Show>
+            <Show when={!['mixed', 'none', 'accepted', 'rejected', 'cancelled', 'completed', 'reviewed'].includes(annotProps.status)}>
+              {/* Niet-standaard status uit een extern PDF-programma — toon as-is */}
+              <option value={annotProps.status}>{annotProps.status.charAt(0).toUpperCase() + annotProps.status.slice(1)}</option>
+            </Show>
             <option value="none">{tCommon('none')}</option>
             <option value="accepted">{t('general.accepted')}</option>
             <option value="rejected">{t('general.rejected')}</option>
@@ -149,6 +153,11 @@ export default function GeneralSection() {
             <option value="completed">{t('general.completed')}</option>
             <option value="reviewed">{t('general.reviewed')}</option>
           </select>
+          <Show when={annotProps.status && annotProps.status !== 'none' && annotProps.statusBy}>
+            <small style="display:block; margin-top:2px; font-size:11px; color: var(--theme-text-secondary, #888);">
+              {t('general.statusSetBy', { author: annotProps.statusBy, date: annotProps.statusAt })}
+            </small>
+          </Show>
         </div>
       </CollapsibleSection>
     </Show>

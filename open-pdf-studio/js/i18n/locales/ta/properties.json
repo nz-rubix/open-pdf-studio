@@ -31,7 +31,8 @@
     "rejected": "நிராகரிக்கப்பட்டது",
     "cancelled": "ரத்துசெய்யப்பட்டது",
     "completed": "நிறைவடைந்தது",
-    "reviewed": "மதிப்பாய்வு செய்யப்பட்டது"
+    "reviewed": "மதிப்பாய்வு செய்யப்பட்டது",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "எதுவுமில்லை",
   "moreColors": "மேலும் நிறங்கள்...",

@@ -31,7 +31,8 @@
     "rejected": "अस्वीकृत",
     "cancelled": "रद्द",
     "completed": "पूर्ण",
-    "reviewed": "समीक्षित"
+    "reviewed": "समीक्षित",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "कोई नहीं",
   "moreColors": "और रंग...",

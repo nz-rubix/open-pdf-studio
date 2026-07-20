@@ -31,7 +31,8 @@
     "rejected": "Respins",
     "cancelled": "Anulat",
     "completed": "Finalizat",
-    "reviewed": "Revizuit"
+    "reviewed": "Revizuit",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "Niciunul",
   "moreColors": "Mai multe culori...",

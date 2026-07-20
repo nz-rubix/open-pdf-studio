@@ -31,7 +31,8 @@
     "rejected": "ปฏิเสธแล้ว",
     "cancelled": "ยกเลิกแล้ว",
     "completed": "เสร็จสิ้นแล้ว",
-    "reviewed": "ตรวจสอบแล้ว"
+    "reviewed": "ตรวจสอบแล้ว",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "ไม่มี",
   "moreColors": "สีเพิ่มเติม...",

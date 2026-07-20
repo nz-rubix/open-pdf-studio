@@ -31,7 +31,8 @@
     "rejected": "Rifiutato",
     "cancelled": "Annullato",
     "completed": "Completato",
-    "reviewed": "Revisionato"
+    "reviewed": "Revisionato",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "Nessuno",
   "moreColors": "Altri colori...",

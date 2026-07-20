@@ -31,7 +31,8 @@
     "rejected": "Rebutjat",
     "cancelled": "Cancel·lat",
     "completed": "Completat",
-    "reviewed": "Revisat"
+    "reviewed": "Revisat",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "Cap",
   "moreColors": "Més colors...",

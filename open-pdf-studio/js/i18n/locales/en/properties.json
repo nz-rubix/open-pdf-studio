@@ -20,7 +20,8 @@
     "rejected": "Rejected",
     "cancelled": "Cancelled",
     "completed": "Completed",
-    "reviewed": "Reviewed"
+    "reviewed": "Reviewed",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "None",
   "moreColors": "More Colors...",

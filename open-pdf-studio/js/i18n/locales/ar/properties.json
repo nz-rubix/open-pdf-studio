@@ -31,7 +31,8 @@
     "rejected": "مرفوض",
     "cancelled": "ملغي",
     "completed": "مكتمل",
-    "reviewed": "تمت المراجعة"
+    "reviewed": "تمت المراجعة",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "بدون",
   "moreColors": "ألوان أخرى...",

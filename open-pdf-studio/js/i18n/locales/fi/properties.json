@@ -31,7 +31,8 @@
     "rejected": "Hylätty",
     "cancelled": "Peruutettu",
     "completed": "Valmis",
-    "reviewed": "Tarkastettu"
+    "reviewed": "Tarkastettu",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "Ei mitään",
   "moreColors": "Lisää värejä...",

@@ -31,7 +31,8 @@
     "rejected": "Rechazado",
     "cancelled": "Cancelado",
     "completed": "Completado",
-    "reviewed": "Revisado"
+    "reviewed": "Revisado",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "Ninguno",
   "moreColors": "Más colores...",

@@ -31,7 +31,8 @@
     "rejected": "Elutasítva",
     "cancelled": "Lemondva",
     "completed": "Befejezve",
-    "reviewed": "Felülvizsgálva"
+    "reviewed": "Felülvizsgálva",
+    "statusSetBy": "Set by {{author}} on {{date}}"
   },
   "colorNone": "Nincs",
   "moreColors": "További színek...",
