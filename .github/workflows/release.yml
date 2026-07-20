@@ -208,6 +208,12 @@ jobs:
             exit 1
           }
 
+      - name: Write App Store Connect API key (macOS)
+        if: matrix.target == 'macos'
+        shell: bash
+        run: |
+          printf '%s' "${{ secrets.APPLE_API_KEY_CONTENT }}" > "${{ runner.temp }}/apple-api-key.p8"
+
       - name: Build Tauri app (with release upload)
         if: matrix.target != 'windows-user' && matrix.target != 'macos'
         uses: tauri-apps/tauri-action@action-v0.6.1
@@ -234,8 +240,13 @@ jobs:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          # Notarisatie via App Store Connect API-key: Apple-ID + app-specifiek
+          # wachtwoord gaf een permanente HTTP 500 op de notary-API (bekend
+          # probleem met die auth-methode); de API-key-route is de door Apple
+          # aanbevolen en betrouwbare CI-methode.
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_PATH: ${{ runner.temp }}/apple-api-key.p8
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           projectPath: open-pdf-studio
