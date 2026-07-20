@@ -667,11 +667,20 @@ export async function openPDFFile() {
       }
     } catch { /* recents is best-effort */ }
 
-    const result = await openFileDialog(undefined, { defaultPath });
+    // Allow selecting multiple PDFs at once; each opens in its own tab.
+    const result = await openFileDialog(undefined, { defaultPath, multiple: true });
     if (result) {
-      // Create a new tab for the file (will switch to existing tab if already open)
-      const { index } = createTab(result);
-      await loadPDF(result, index);
+      // Tauri returns an array with { multiple: true }; the invoke-fallback
+      // still returns a single string — normalize to an array of paths.
+      const paths = Array.isArray(result) ? result : [result];
+      // Open sequentially (await per file) so tabs appear in selection order.
+      // The last selected file ends up as the active tab — same behaviour as
+      // opening files one after another by hand.
+      for (const path of paths) {
+        // Create a new tab for the file (will switch to existing tab if already open)
+        const { index } = createTab(path);
+        await loadPDF(path, index);
+      }
     }
   } catch (error) {
     console.error('Error opening file dialog:', error);

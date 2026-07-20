@@ -161,7 +161,10 @@ export async function openFileDialog(extensions, options = {}) {
     // Try using the dialog plugin via window.__TAURI__.dialog
     if (window.__TAURI__.dialog) {
       try {
-        const args = { multiple: false, filters };
+        // With { multiple: true } the Tauri dialog resolves to an array of
+        // paths (or null on cancel); callers that pass options.multiple must
+        // handle both shapes.
+        const args = { multiple: !!options.multiple, filters };
         if (options.defaultPath) args.defaultPath = options.defaultPath;
         const result = await window.__TAURI__.dialog.open(args);
         if (dbg) console.log(`[openFileDialog] dialog.open resolved in ${(performance.now() - t0).toFixed(0)}ms (result=${result ? 'picked' : 'cancelled'})`);
@@ -183,14 +186,21 @@ export async function openFileDialog(extensions, options = {}) {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = accept;
+    if (options.multiple) input.multiple = true;
     input.style.display = 'none';
     input.addEventListener('change', async () => {
-      const file = input.files?.[0];
+      const files = Array.from(input.files || []);
       document.body.removeChild(input);
-      if (!file) { resolve(null); return; }
-      const data = new Uint8Array(await file.arrayBuffer());
-      _webFileCache.set(file.name, data);
-      resolve(file.name);
+      if (files.length === 0) { resolve(null); return; }
+      const names = [];
+      for (const file of files) {
+        const data = new Uint8Array(await file.arrayBuffer());
+        _webFileCache.set(file.name, data);
+        names.push(file.name);
+      }
+      // Mirror the Tauri dialog contract: array when multiple was requested,
+      // single name otherwise.
+      resolve(options.multiple ? names : names[0]);
     });
     input.addEventListener('cancel', () => {
       document.body.removeChild(input);
