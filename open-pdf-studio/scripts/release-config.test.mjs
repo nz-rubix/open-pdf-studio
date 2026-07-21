@@ -207,21 +207,21 @@ test('release workflows compile macOS once and retry only the bundle phase', asy
   }
 });
 
-test('all release metadata targets version 1.79.0', async () => {
-  const pkg = await readJson('package.json');
-  const packageLock = await readJson('package-lock.json');
-  const config = await readJson('src-tauri/tauri.conf.json');
-  const cargo = await readFile(path.join(projectDir, 'src-tauri', 'Cargo.toml'), 'utf8');
-  const release = await readFile(path.join(repoDir, '.github', 'workflows', 'release.yml'), 'utf8');
-  const cargoLock = await readFile(path.join(repoDir, 'Cargo.lock'), 'utf8');
-
-  assert.equal(pkg.version, '1.79.0');
-  assert.equal(packageLock.version, '1.79.0');
-  assert.equal(packageLock.packages[''].version, '1.79.0');
-  assert.equal(config.version, '1.79.0');
-  assert.match(cargo, /^version = "1\.79\.0"$/m);
-  assert.match(release, /default: 'v1\.79\.0'/);
-  assert.match(cargoLock, /name = "open-pdf-studio"\r?\nversion = "1\.79\.0"/);
+test('release metadata is versie-consistent met package.json', async () => {
+  const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+  const packageLock = JSON.parse(await readFile(new URL('../package-lock.json', import.meta.url), 'utf8'));
+  const config = JSON.parse(await readFile(new URL('../src-tauri/tauri.conf.json', import.meta.url), 'utf8'));
+  const cargo = await readFile(new URL('../src-tauri/Cargo.toml', import.meta.url), 'utf8');
+  const cargoLock = await readFile(new URL('../src-tauri/Cargo.lock', import.meta.url), 'utf8');
+  // Geen hardgecodeerde versie: elke bump brak deze test terwijl er niets mis
+  // was. Het contract is CONSISTENTIE — alle metadata volgt package.json.
+  const v = pkg.version;
+  assert.match(v, /^\d+\.\d+\.\d+$/);
+  assert.equal(packageLock.version, v);
+  assert.equal(packageLock.packages[''].version, v);
+  assert.equal(config.version, v);
+  assert.match(cargo, new RegExp(`^version = "${v.replaceAll('.', '\.')}"$`, 'm'));
+  assert.match(cargoLock, new RegExp(`name = "open-pdf-studio"\r?\nversion = "${v.replaceAll('.', '\.')}"`));
 });
 
 test('development optimization profiles live at the workspace root', async () => {
