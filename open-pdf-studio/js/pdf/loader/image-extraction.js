@@ -198,6 +198,91 @@ export async function extractImageFromFormXObject(context, formStream) {
   return null;
 }
 
+// Resolve the /DecodeParms (or /DP) dictionary of a stream. When the value is
+// an array (parallel to a /Filter array) the first dictionary entry is used —
+// FlateDecode is the only filter we decode manually that carries parms.
+export function getDecodeParms(context, dict) {
+  let dp = dict.get(PDFName.of('DecodeParms')) || dict.get(PDFName.of('DP'));
+  if (!dp) return null;
+  dp = context.lookup(dp) || dp;
+  if (dp instanceof PDFArray) {
+    for (let i = 0; i < dp.size(); i++) {
+      const el = context.lookup(dp.get(i)) || dp.get(i);
+      if (el && typeof el.get === 'function' && !(el instanceof PDFArray)) return el;
+    }
+    return null;
+  }
+  return typeof dp.get === 'function' ? dp : null;
+}
+
+// Undo the FlateDecode predictor described by a /DecodeParms dictionary.
+// Supports the PNG predictors (10-15, per-row filter byte) and the TIFF
+// predictor (2, 8-bit only). Without this step, predictor-encoded image and
+// SMask streams decode to delta bytes: near-black pixels and (worse) an
+// all-transparent alpha channel, which made e.g. SquareImage annotation
+// images from external PDF programs invisible.
+export function applyPredictor(bytes, parms, context) {
+  const num = (name) => {
+    const raw = parms.get(PDFName.of(name));
+    if (raw === undefined || raw === null) return null;
+    const resolved = (context && context.lookup(raw)) || raw;
+    return pdfNum(resolved);
+  };
+  const pred = num('Predictor') || 1;
+  if (pred <= 1) return bytes;
+  const colors = num('Colors') || 1;
+  const bpc = num('BitsPerComponent') || 8;
+  const columns = num('Columns') || 1;
+  const bpp = Math.ceil((colors * bpc) / 8);
+  const rowLen = Math.ceil((colors * bpc * columns) / 8);
+  if (rowLen <= 0) return bytes;
+
+  if (pred === 2) {
+    // TIFF horizontal differencing (only the common 8-bit case)
+    if (bpc === 8) {
+      for (let r = 0; r + rowLen <= bytes.length; r += rowLen) {
+        for (let i = bpp; i < rowLen; i++) {
+          bytes[r + i] = (bytes[r + i] + bytes[r + i - bpp]) & 0xff;
+        }
+      }
+    }
+    return bytes;
+  }
+
+  // PNG predictors: every row starts with a filter-type byte
+  const rows = Math.floor(bytes.length / (rowLen + 1));
+  if (rows <= 0) return bytes;
+  const out = new Uint8Array(rows * rowLen);
+  let prev = new Uint8Array(rowLen);
+  for (let r = 0; r < rows; r++) {
+    const base = r * (rowLen + 1);
+    const filterType = bytes[base];
+    const dst = out.subarray(r * rowLen, (r + 1) * rowLen);
+    for (let i = 0; i < rowLen; i++) {
+      const raw = bytes[base + 1 + i];
+      const a = i >= bpp ? dst[i - bpp] : 0; // links
+      const b = prev[i];                     // boven
+      const c = i >= bpp ? prev[i - bpp] : 0; // linksboven
+      let v;
+      switch (filterType) {
+        case 1: v = raw + a; break;
+        case 2: v = raw + b; break;
+        case 3: v = raw + ((a + b) >> 1); break;
+        case 4: {
+          const p = a + b - c;
+          const pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+          v = raw + (pa <= pb && pa <= pc ? a : (pb <= pc ? b : c));
+          break;
+        }
+        default: v = raw;
+      }
+      dst[i] = v & 0xff;
+    }
+    prev = dst;
+  }
+  return out;
+}
+
 // Parse a PDF color space and return { type, numComponents, palette, baseComponents }
 // Async because Indexed palette streams may be FlateDecoded.
 export async function parseColorSpace(context, csRaw) {
@@ -397,6 +482,10 @@ export async function decodeImageStream(context, streamObj) {
           const sMaskFilter = sMaskStream.dict?.get(PDFName.of('Filter'))?.toString();
           if (sMaskFilter === '/FlateDecode') {
             sMaskBytes = await inflateBytes(sMaskBytes) || sMaskBytes;
+            // Predictor-encoded SMask: without unfiltering, the delta bytes
+            // read as alpha ~0 and the whole image becomes invisible.
+            const sParms = sMaskStream.dict ? getDecodeParms(context, sMaskStream.dict) : null;
+            if (sParms) sMaskBytes = applyPredictor(sMaskBytes, sParms, context);
           }
         }
       } catch (e) { /* ignore smask errors */ }
@@ -460,12 +549,14 @@ export async function decodeImageStream(context, streamObj) {
       return canvas.toDataURL('image/png');
     }
 
-    // FlateDecode - decompress
+    // FlateDecode - decompress (en maak een eventuele predictor ongedaan)
     let imageBytes = rawBytes;
     if (filter === '/FlateDecode') {
       const decompressed = await inflateBytes(rawBytes);
       if (!decompressed) { console.warn('Failed to decompress FlateDecode stream'); return null; }
       imageBytes = decompressed;
+      const parms = getDecodeParms(context, dict);
+      if (parms) imageBytes = applyPredictor(imageBytes, parms, context);
     }
 
     // Unpack bits if BPC < 8
