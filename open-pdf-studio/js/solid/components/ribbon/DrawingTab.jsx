@@ -148,10 +148,21 @@ export function DrawingGroups() {
           <RibbonButton id="dr-pan" title={t('home.handTool')} icon={handIcon} label={t('home.hand')}
             disabled={noPdf()} active={state.currentTool === 'hand'} onClick={() => setTool('hand')} />
           <RibbonButtonStack>
+            {/* selectAllOnPage/clearSelection zetten alleen state; zonder
+                redraw blijven selectiehandvatten en de contextuele tabs
+                (Opmaak/Schikken) achter op de werkelijke selectie. */}
             <RibbonButton size="small" id="dr-select-all" title={t('drawing.selectAll')} icon={selectCommentsIcon} label={t('drawing.selectAll')}
-              disabled={noPdf()} onClick={() => selectAllOnPage()} />
+              disabled={noPdf()} onClick={() => {
+                selectAllOnPage();
+                if (getActiveDocument()?.viewMode === 'continuous') redrawContinuous();
+                else redrawAnnotations();
+              }} />
             <RibbonButton size="small" id="dr-deselect" title={t('drawing.deselect')} icon={selectCommentsIcon} label={t('drawing.deselect')}
-              disabled={noPdf()} onClick={() => clearSelection()} />
+              disabled={noPdf()} onClick={() => {
+                clearSelection();
+                if (getActiveDocument()?.viewMode === 'continuous') redrawContinuous();
+                else redrawAnnotations();
+              }} />
             <RibbonButton size="small" id="dr-find" title={t('drawing.findReplace')} icon={findIcon} label={t('drawing.findReplace')}
               disabled={noPdf()} onClick={() => toggleFindBar()} />
           </RibbonButtonStack>
