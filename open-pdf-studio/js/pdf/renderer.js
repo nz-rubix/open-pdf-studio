@@ -1699,8 +1699,19 @@ export async function fitWidth() {
 export async function fitPage() {
   const fit = await _getFitInputs();
   if (!fit) return;
-  const { computeFitZoom } = await import('./pdf-viewport.js');
-  const newZoom = computeFitZoom('page', fit.pageW, fit.pageH, fit.canvasW, fit.canvasH, 0);
+  const m = await import('./pdf-viewport.js');
+  if (fit.mode === 'vector') {
+    // Canonieke fit + centrering. De vorige route (setZoomAtPoint verankerd op
+    // het canvas-midden) zette wel de juiste zoom maar behield de bestaande
+    // pan-offset. Na paginanavigatie binnen een document met afwijkende
+    // paginaformaten (A4 -> A0) stond de pagina daardoor deels of geheel
+    // buiten beeld — terwijl clampAndCenter() bewust een no-op is met als
+    // contract: "de gebruiker her-centreert met Fit Page". fitToViewport()
+    // centreert expliciet en gebruikt bovendien de post-rotatie-afmetingen.
+    m.fitToViewport();
+    return;
+  }
+  const newZoom = m.computeFitZoom('page', fit.pageW, fit.pageH, fit.canvasW, fit.canvasH, 0);
   await _applyZoom(fit, newZoom);
 }
 
