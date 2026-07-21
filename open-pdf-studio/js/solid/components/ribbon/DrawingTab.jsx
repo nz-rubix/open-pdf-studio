@@ -11,7 +11,7 @@ import { isPdfAReadOnly } from '../../../pdf/loader.js';
 import { clearSelection, selectAllOnPage } from '../../../core/stores/selection-helpers.js';
 import { toggleFindBar } from '../../../search/find-bar.js';
 import { contextualTabsVisible } from '../../stores/ribbonStore.js';
-import { copyAnnotation, copyAnnotations, pasteAnnotation, pasteAnnotations, pasteAnnotationsInPlace, duplicateAnnotation } from '../../../annotations/clipboard.js';
+import { copyAnnotation, copyAnnotations, pasteAnnotations, pasteAnnotationsInPlace, duplicateAnnotation } from '../../../annotations/clipboard.js';
 import { flipHorizontal, flipVertical, rotateAnnotation } from '../../../annotations/z-order.js';
 import { cloneAnnotation } from '../../../annotations/factory.js';
 import { recordBulkModify } from '../../../core/undo-manager.js';
@@ -81,10 +81,9 @@ function copySelected() {
 }
 
 function pasteFromClipboard() {
-  const ck = navigator.clipboard;
-  // Use the same logic as the keyboard handler
+  // pasteAnnotations() valt voor een enkelvoudig klembord zelf terug op
+  // pasteAnnotation() — beide aanroepen plakte elke kopie dubbel.
   pasteAnnotations();
-  pasteAnnotation();
 }
 
 function cutSelected() {
