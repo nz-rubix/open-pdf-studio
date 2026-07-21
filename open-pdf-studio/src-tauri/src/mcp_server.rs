@@ -426,6 +426,19 @@ fn handle_tools_list() -> Value {
                 }
             },
             {
+                "name": "app_set_window_size",
+                "description": "Resize the LIVE app window to a logical width x height. Protocol runs call this up-front so fit-scale, white-margin and ribbon-overflow behaviour are deterministic regardless of the size the window opened with.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "width":  { "type": "number", "minimum": 200, "description": "Logical window width in px." },
+                        "height": { "type": "number", "minimum": 200, "description": "Logical window height in px." }
+                    },
+                    "required": ["width", "height"],
+                    "additionalProperties": false
+                }
+            },
+            {
                 "name": "app_get_current_tool",
                 "description": "Return the LIVE app's currently active tool name (state.currentTool).",
                 "inputSchema": {
@@ -778,6 +791,7 @@ async fn handle_tools_call(state: &AppState, params: &Value) -> Result<Value, (i
         "app_set_tool"           => tool_app_request(state, "mcp:set-tool",           &arguments, Duration::from_secs(10)).await,
         "app_click_element"      => tool_app_request(state, "mcp:click-element",      &arguments, Duration::from_secs(15)).await,
         "app_ui_state"           => tool_app_request(state, "mcp:ui-state",           &arguments, Duration::from_secs(15)).await,
+        "app_set_window_size"    => tool_set_window_size(state, &arguments).await,
         "app_get_current_tool"   => tool_app_request(state, "mcp:get-current-tool",   &arguments, Duration::from_secs(5)).await,
         "app_merge_pdf"          => tool_app_request(state, "mcp:merge-pdf",           &arguments, Duration::from_secs(60)).await,
         "app_ai_complete"        => tool_app_request(state, "mcp:ai-complete",         &arguments, Duration::from_secs(60)).await,
@@ -812,6 +826,41 @@ async fn handle_tools_call(state: &AppState, params: &Value) -> Result<Value, (i
             format!("method not found: {other}"),
         )),
     }
+}
+
+/// `app_set_window_size` — resize the main window from the Rust side.
+/// Runs outside the WebView so no capability/ACL entry is needed; protocol
+/// runs call this up-front to make fit-scale and margin-geometry
+/// deterministic regardless of the size the window opened with.
+async fn tool_set_window_size(state: &AppState, arguments: &Value) -> Result<Value, (i32, String)> {
+    let width = arguments.get("width").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let height = arguments.get("height").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    if width < 200.0 || height < 200.0 {
+        return Err((
+            jsonrpc_error::INVALID_PARAMS,
+            "width/height must be numbers >= 200".to_string(),
+        ));
+    }
+    let app = state.app_handle.as_ref().ok_or_else(|| (
+        jsonrpc_error::INTERNAL_ERROR,
+        "AppHandle unavailable — MCP server not started from inside Tauri::setup()".to_string(),
+    ))?;
+    let window = app.get_webview_window("main").ok_or_else(|| (
+        jsonrpc_error::INTERNAL_ERROR,
+        "main window not found".to_string(),
+    ))?;
+    window
+        .set_size(tauri::LogicalSize::new(width, height))
+        .map_err(|e| (jsonrpc_error::INTERNAL_ERROR, format!("set_size failed: {e}")))?;
+    // Give the resize + reflow a beat before reporting success.
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    Ok(json!({
+        "content": [{
+            "type": "text",
+            "text": json!({ "ok": true, "requested": { "width": width, "height": height } }).to_string(),
+        }],
+        "isError": false,
+    }))
 }
 
 /// Generic dispatch for the `app_*` tools that drive the LIVE WebView via
@@ -1590,6 +1639,7 @@ mod tests {
             "app_get_current_tool",
             "app_click_element",
             "app_ui_state",
+            "app_set_window_size",
             "app_assistant_ask",
             "app_assistant_pending",
             "app_assistant_answer",
