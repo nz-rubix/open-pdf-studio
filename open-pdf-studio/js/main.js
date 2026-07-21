@@ -66,7 +66,6 @@ import { initFindBar } from './search/find-bar.js';
 import { initFontDropdowns } from './utils/fonts.js';
 
 // Auto-update
-import { checkForUpdates } from './ui/chrome/updater.js';
 
 // MCP bridge — wires up `mcp:*` event listeners so the in-process MCP
 // server (started with `--mcp-server`) can drive the LIVE WebView from
@@ -378,10 +377,12 @@ async function init() {
     console.warn('open-pdf-in-window listener setup failed:', e);
   }
 
-  // Desktop-only: check default PDF app and auto-update (deferred to avoid blocking startup)
+  // Desktop-only: check default PDF app (deferred to avoid blocking startup)
   if (!mobile) {
     setTimeout(() => checkDefaultPdfApp(), 3000);
-    checkForUpdates(true);
+    // Geen automatische update-check meer bij het opstarten: het update-venster
+    // verscheen ongevraagd. Updaten kan nog handmatig via Help → Controleren op
+    // updates (checkForUpdates(false)).
     // What's New dialog — fire-and-forget, never blocks startup.
     setTimeout(() => {
       import('./help/whats-new-trigger.js')
