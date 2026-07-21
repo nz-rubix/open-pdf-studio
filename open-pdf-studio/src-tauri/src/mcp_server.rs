@@ -400,6 +400,32 @@ fn handle_tools_list() -> Value {
                 }
             },
             {
+                "name": "app_click_element",
+                "description": "Click an arbitrary DOM element in the LIVE app by CSS selector (usually '#button-id'). If the element lives on an inactive ribbon tab, the matching tab is activated first (the ribbon only renders the active tab's content). Returns { ok, found, disabled, clicked, activatedTab }. Disabled elements are reported but NOT clicked. Set searchTabs=false to probe only the current DOM (e.g. for dialogs) without touching the ribbon tabs.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "selector":   { "type": "string", "description": "CSS selector of the element to click, e.g. '#dr-line'." },
+                        "searchTabs": { "type": "boolean", "default": true, "description": "Walk the ribbon tabs when the selector is not in the current DOM." }
+                    },
+                    "required": ["selector"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "app_ui_state",
+                "description": "Probe the UI state of a DOM element by CSS selector: { found, visible, disabled, active ('active' class or aria-pressed), text, tag, activatedTab }. Uses the same ribbon-tab search as app_click_element; set searchTabs=false to probe only the current DOM (e.g. '.modal-dialog' while a dialog is open).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "selector":   { "type": "string", "description": "CSS selector of the element to inspect." },
+                        "searchTabs": { "type": "boolean", "default": true, "description": "Walk the ribbon tabs when the selector is not in the current DOM." }
+                    },
+                    "required": ["selector"],
+                    "additionalProperties": false
+                }
+            },
+            {
                 "name": "app_get_current_tool",
                 "description": "Return the LIVE app's currently active tool name (state.currentTool).",
                 "inputSchema": {
@@ -750,6 +776,8 @@ async fn handle_tools_call(state: &AppState, params: &Value) -> Result<Value, (i
         "app_clear_caches"       => tool_app_request(state, "mcp:clear-caches",       &arguments, Duration::from_secs(10)).await,
         "app_go_to_page"         => tool_app_request(state, "mcp:go-to-page",         &arguments, Duration::from_secs(15)).await,
         "app_set_tool"           => tool_app_request(state, "mcp:set-tool",           &arguments, Duration::from_secs(10)).await,
+        "app_click_element"      => tool_app_request(state, "mcp:click-element",      &arguments, Duration::from_secs(15)).await,
+        "app_ui_state"           => tool_app_request(state, "mcp:ui-state",           &arguments, Duration::from_secs(15)).await,
         "app_get_current_tool"   => tool_app_request(state, "mcp:get-current-tool",   &arguments, Duration::from_secs(5)).await,
         "app_merge_pdf"          => tool_app_request(state, "mcp:merge-pdf",           &arguments, Duration::from_secs(60)).await,
         "app_ai_complete"        => tool_app_request(state, "mcp:ai-complete",         &arguments, Duration::from_secs(60)).await,
@@ -1560,6 +1588,8 @@ mod tests {
         for tool in [
             "app_set_tool",
             "app_get_current_tool",
+            "app_click_element",
+            "app_ui_state",
             "app_assistant_ask",
             "app_assistant_pending",
             "app_assistant_answer",

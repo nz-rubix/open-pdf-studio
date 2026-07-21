@@ -571,22 +571,39 @@ async function handleGetViewportState() {
   let activePageNum = null;
   let viewMode = null;
   let bookSpread = null;
+  let currentTool = null;
+  let annotationCount = null;
+  let selectedCount = null;
+  let pageCount = null;
+  let statusMessage = null;
   try {
     const stateMod = await import('/js/core/state.ts');
     renderEngine = stateMod.state?.renderEngine ?? null;
     renderTiming = stateMod.state?.renderTiming ?? null;
+    currentTool = stateMod.state?.currentTool ?? null;
+    statusMessage = stateMod.state?.statusMessage ?? null;
     const doc = stateMod.state?.documents?.[stateMod.state.activeDocumentIndex];
     docScale = doc?.scale ?? null;
     activeDocPath = doc?.filePath ?? null;
     activePageNum = doc?.currentPage ?? null;
     viewMode = doc?.viewMode ?? null;
     bookSpread = !!doc?.bookSpread;
+    annotationCount = (doc?.annotations || []).length;
+    selectedCount = (doc?.selectedAnnotations || []).length;
+    pageCount = doc?.pdfDoc?.numPages ?? null;
   } catch {
     // Module may not be loaded yet; leave fields null.
   }
 
   return {
     ok: true,
+    // App-level tool + annotation snapshot (used by the button-sweep
+    // protocol scenarios to assert tool switches and annotation effects).
+    currentTool,
+    annotationCount,
+    selectedCount,
+    pageCount,
+    statusMessage,
     // Engine + timing — what the user sees in the status-bar chip.
     engine: renderEngine,
     renderTiming,
@@ -1893,6 +1910,113 @@ async function handleGetTakeoff(params) {
   return { ok: true, schedules: sel.map(wanted) };
 }
 
+// ─── Generic UI drivers: click / inspect any element by CSS selector ─────
+//
+// The ribbon renders only the ACTIVE tab's content (SolidJS <Match>), so a
+// button that lives on an inactive tab simply does not exist in the DOM.
+// `_findElementAcrossTabs` therefore walks the ribbon tab strip (clicking
+// each tab button and giving Solid ~150 ms to mount the content) until the
+// selector matches. Contextual tabs (Opmaak/Schikken/Afbeelding) only have
+// a tab button while a matching selection exists — otherwise their content
+// is unreachable and the element is reported as not found.
+
+const RIBBON_TAB_ORDER = ['home', 'view', 'drawing', 'comment', 'organize', 'arrange', 'format', 'image', 'help'];
+
+function _isElementDisabled(el) {
+  return el.disabled === true ||
+         el.getAttribute?.('aria-disabled') === 'true' ||
+         el.classList?.contains('disabled') === true;
+}
+
+async function _findElementAcrossTabs(selector, searchTabs = true) {
+  let el = document.querySelector(selector);
+  if (el) return { el, activatedTab: null };
+  if (!searchTabs) return { el: null, activatedTab: null };
+
+  let originalTab = null;
+  try {
+    const store = await import('./solid/stores/ribbonStore.js');
+    originalTab = store.activeTab();
+  } catch { /* store unavailable — still try the tab buttons below */ }
+
+  const wait = (ms) => new Promise(r => setTimeout(r, ms));
+  for (const tab of RIBBON_TAB_ORDER) {
+    if (tab === originalTab) continue;
+    const btn = document.querySelector(`.ribbon-tab[data-tab="${tab}"]`);
+    if (!btn) continue; // contextual tab without matching selection
+    btn.click();
+    await wait(150);
+    el = document.querySelector(selector);
+    if (el) return { el, activatedTab: tab };
+  }
+  // Not found anywhere — restore the original tab so the sweep is side-effect-free.
+  if (originalTab) {
+    const back = document.querySelector(`.ribbon-tab[data-tab="${originalTab}"]`);
+    if (back) { back.click(); await wait(150); }
+  }
+  return { el: null, activatedTab: null };
+}
+
+async function handleClickElement(params) {
+  const selector = params?.selector;
+  if (typeof selector !== 'string' || !selector) {
+    return { ok: false, found: false, disabled: false, error: 'missing or invalid params.selector' };
+  }
+  let found;
+  try {
+    found = await _findElementAcrossTabs(selector, params?.searchTabs !== false);
+  } catch (e) {
+    return { ok: false, found: false, disabled: false, error: `${e?.message ?? e}` };
+  }
+  const el = found.el;
+  if (!el) {
+    return { ok: false, found: false, disabled: false, error: `no element matches: ${selector}` };
+  }
+  const disabled = _isElementDisabled(el);
+  if (!disabled) el.click();
+  return {
+    ok: true,
+    found: true,
+    disabled,
+    clicked: !disabled,
+    activatedTab: found.activatedTab,
+  };
+}
+
+async function handleUiState(params) {
+  const selector = params?.selector;
+  if (typeof selector !== 'string' || !selector) {
+    return { ok: false, found: false, error: 'missing or invalid params.selector' };
+  }
+  let found;
+  try {
+    found = await _findElementAcrossTabs(selector, params?.searchTabs !== false);
+  } catch (e) {
+    return { ok: false, found: false, error: `${e?.message ?? e}` };
+  }
+  const el = found.el;
+  if (!el) return { ok: true, found: false };
+  const r = el.getBoundingClientRect();
+  let visible = r.width > 0 && r.height > 0;
+  if (visible) {
+    try {
+      const cs = getComputedStyle(el);
+      visible = cs.display !== 'none' && cs.visibility !== 'hidden';
+    } catch { /* keep rect-based answer */ }
+  }
+  return {
+    ok: true,
+    found: true,
+    visible,
+    disabled: _isElementDisabled(el),
+    active: el.classList?.contains('active') === true ||
+            el.getAttribute?.('aria-pressed') === 'true',
+    text: (el.textContent || '').trim().slice(0, 300),
+    tag: el.tagName ? el.tagName.toLowerCase() : null,
+    activatedTab: found.activatedTab,
+  };
+}
+
 const HANDLERS = {
   'mcp:open-pdf':           handleOpenPdf,
   'mcp:set-zoom':           handleSetZoom,
@@ -1911,6 +2035,8 @@ const HANDLERS = {
   'mcp:zoom-anchor-test':   handleZoomAnchorTest,
   'mcp:clear-caches':       handleClearCaches,
   'mcp:go-to-page':         handleGoToPage,
+  'mcp:click-element':      handleClickElement,
+  'mcp:ui-state':           handleUiState,
   'mcp:merge-pdf':          handleMergePdf,
   // App control: tools & annotations
   'mcp:set-tool':           handleSetTool,
