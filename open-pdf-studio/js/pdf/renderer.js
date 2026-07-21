@@ -1691,8 +1691,15 @@ async function _applyZoom(fitInputs, newZoom) {
 export async function fitWidth() {
   const fit = await _getFitInputs();
   if (!fit) return;
-  const { computeFitZoom } = await import('./pdf-viewport.js');
-  const newZoom = computeFitZoom('width', fit.pageW, fit.pageH, fit.canvasW, fit.canvasH, 0);
+  const m = await import('./pdf-viewport.js');
+  if (fit.mode === 'vector') {
+    // Zelfde centreringscontract als fitPage(): de oude route zette alleen de
+    // zoom en behield de pan-offset, waardoor de pagina na navigatie tussen
+    // afwijkende formaten deels buiten beeld bleef staan.
+    m.fitToViewport('width');
+    return;
+  }
+  const newZoom = m.computeFitZoom('width', fit.pageW, fit.pageH, fit.canvasW, fit.canvasH, 0);
   await _applyZoom(fit, newZoom);
 }
 
