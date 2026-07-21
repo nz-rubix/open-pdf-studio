@@ -1,0 +1,45 @@
+{
+  "name": "a-image",
+  "description": "Fase A rooktest — Afbeelding-tab (ImageTab, contextueel): verschijnt bij selectie van precies één afbeelding-annotatie; cropmodus aan/uit, grijswaarden-toggle met props-effect, reset-aanpassingen. Helderheid/contrast zijn sliders (waarde-wijziging geen click-actie) — aanwezigheid en enabled getoetst. Blanco document; niets wordt opgeslagen.",
+  "skippedButtons": [],
+  "steps": [
+    { "action": "tool", "name": "app_new_blank_pdf", "args": { "widthPt": 595, "heightPt": 842, "pages": 1 }, "store": "newdoc" },
+    { "action": "wait", "ms": 800 },
+    { "action": "tool", "name": "app_create_annotation", "args": { "type": "image", "page": 1, "props": { "x": 120, "y": 120, "width": 140, "height": 100 } }, "store": "crImg" },
+    { "action": "tool", "name": "app_select_annotation", "args": { "id": "={crImg.id}" } },
+    { "action": "wait", "ms": 400 },
+    { "action": "uiState", "id": "tab-image", "store": "uiTabImage" },
+
+    { "action": "clickButton", "id": "img-crop" },
+    { "action": "wait", "ms": 400 },
+    { "action": "uiState", "id": "img-crop", "store": "uiCrop1" },
+    { "action": "clickButton", "id": "img-crop" },
+    { "action": "wait", "ms": 400 },
+    { "action": "uiState", "id": "img-crop", "store": "uiCrop2" },
+
+    { "action": "tool", "name": "app_get_annotation", "args": { "id": "={crImg.id}" }, "store": "gGs0" },
+    { "action": "clickButton", "id": "img-grayscale" },
+    { "action": "wait", "ms": 300 },
+    { "action": "tool", "name": "app_get_annotation", "args": { "id": "={crImg.id}" }, "store": "gGs1" },
+
+    { "action": "uiState", "id": "img-brightness", "store": "uiBrightness" },
+    { "action": "uiState", "id": "img-contrast", "store": "uiContrast" },
+
+    { "action": "clickButton", "id": "img-reset-adjust" },
+    { "action": "wait", "ms": 300 },
+    { "action": "tool", "name": "app_get_annotation", "args": { "id": "={crImg.id}" }, "store": "gRs" },
+
+    { "action": "tool", "name": "app_clear_selection" },
+    { "action": "tool", "name": "app_list_tabs", "store": "tabsEnd" },
+    { "action": "tool", "name": "app_close_tab", "args": { "index": "={tabsEnd.activeIndex}", "force": true } }
+  ],
+  "assertions": [
+    { "type": "elementFound", "probe": "uiTabImage", "label": "tab-image (contextueel) verschijnt bij afbeeldingsselectie" },
+    { "type": "elementActive", "probe": "uiCrop1", "label": "img-crop activeert cropmodus" },
+    { "type": "elementActive", "probe": "uiCrop2", "active": false, "label": "img-crop tweede klik verlaat cropmodus" },
+    { "type": "stateEquals", "probe": "gGs1", "field": "annotation.grayscale", "value": true, "label": "img-grayscale zet grijswaarden-vlag" },
+    { "type": "elementEnabled", "probe": "uiBrightness", "label": "img-brightness slider aanwezig en enabled" },
+    { "type": "elementEnabled", "probe": "uiContrast", "label": "img-contrast slider aanwezig en enabled" },
+    { "type": "stateChanged", "preProbe": "gGs1", "postProbe": "gRs", "field": "annotation.grayscale", "label": "img-reset-adjust wist grijswaarden-vlag" }
+  ]
+}

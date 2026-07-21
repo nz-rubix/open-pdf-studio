@@ -82,10 +82,20 @@ function resolveValue(v, ctx) {
     throw new Error(`expression failed: "${v}" — ${e.message}`);
   }
 }
+function resolveDeep(v, ctx) {
+  if (typeof v === 'string' && v.startsWith('=')) return resolveValue(v, ctx);
+  if (Array.isArray(v)) return v.map(x => resolveDeep(x, ctx));
+  if (v && typeof v === 'object') {
+    const out = {};
+    for (const [k, val] of Object.entries(v)) out[k] = resolveDeep(val, ctx);
+    return out;
+  }
+  return v;
+}
 function resolveStep(step, ctx) {
   const out = {};
   for (const [k, v] of Object.entries(step)) {
-    out[k] = (typeof v === 'string' && v.startsWith('=')) ? resolveValue(v, ctx) : v;
+    out[k] = resolveDeep(v, ctx);
   }
   return out;
 }
@@ -114,6 +124,54 @@ async function runStep(ctx, rawStep) {
     case 'probe': {
       const r = await tool('app_get_viewport_state', {});
       ctx.probes[step.store || 'last'] = r;
+      return;
+    }
+    // ── Button-sweep actions (Fase A testprotocol) ────────────────────
+    case 'clickButton': {
+      // Click a ribbon/UI element by id (or raw CSS selector). Records the
+      // id for the coverage report. Fails the scenario when the element is
+      // missing; a disabled element only fails when allowDisabled !== true.
+      const selector = step.selector || `#${step.id}`;
+      if (step.id) ctx.testedIds.add(step.id);
+      const r = await tool('app_click_element', {
+        selector,
+        ...(step.searchTabs === false ? { searchTabs: false } : {}),
+      });
+      ctx.lastResult = r;
+      if (step.store) ctx.probes[step.store] = r;
+      if (!r.found) throw new Error(`clickButton ${selector}: element not found (${r.error ?? 'no match'})`);
+      if (r.disabled && step.allowDisabled !== true) {
+        throw new Error(`clickButton ${selector}: element is disabled (click skipped)`);
+      }
+      return;
+    }
+    case 'uiState': {
+      // Probe {found, visible, disabled, active, text} of an element and
+      // store it for assertions. Also counts as coverage for step.id.
+      const selector = step.selector || `#${step.id}`;
+      if (step.id) ctx.testedIds.add(step.id);
+      const r = await tool('app_ui_state', {
+        selector,
+        ...(step.searchTabs === false ? { searchTabs: false } : {}),
+      });
+      ctx.probes[step.store || 'ui'] = r;
+      ctx.lastResult = r;
+      return;
+    }
+    case 'escape': {
+      // Convenience: Escape + settle time (close dialogs/popups/tools).
+      await tool('app_key', { key: 'Escape' });
+      return sleep(step.ms ?? 250);
+    }
+    case 'tool': {
+      // Generic MCP tool escape-hatch: { action:'tool', name, args, store }.
+      // Throws when the tool reports ok:false unless expectOk === false.
+      const r = await tool(step.name, step.args || {});
+      ctx.lastResult = r;
+      if (step.store) ctx.probes[step.store] = r;
+      if (step.expectOk !== false && r && r.ok === false) {
+        throw new Error(`tool ${step.name}: ${r.error ?? 'ok=false'}`);
+      }
       return;
     }
     case 'screenshot': {
@@ -158,6 +216,58 @@ function evalAssertion(ctx, a) {
       const ok = v === a.value;
       return { ok, label: a.label || `${a.field} === ${JSON.stringify(a.value)}`, detail: `got=${JSON.stringify(v)}` };
     }
+    case 'elementEnabled': {
+      // Assert an element (captured via a uiState step) is enabled/disabled.
+      const p = probes[a.probe || 'ui'];
+      const wantEnabled = a.enabled !== false;
+      const ok = p?.found === true && p.disabled === !wantEnabled;
+      return {
+        ok,
+        label: a.label || `${a.probe || 'ui'} ${wantEnabled ? 'enabled' : 'disabled'}`,
+        detail: `found=${p?.found} disabled=${p?.disabled}`,
+      };
+    }
+    case 'elementActive': {
+      // Assert the 'active' class / aria-pressed state captured via uiState.
+      const p = probes[a.probe || 'ui'];
+      const wantActive = a.active !== false;
+      const ok = p?.found === true && p.active === wantActive;
+      return {
+        ok,
+        label: a.label || `${a.probe || 'ui'} ${wantActive ? 'active' : 'not active'}`,
+        detail: `found=${p?.found} active=${p?.active}`,
+      };
+    }
+    case 'elementFound': {
+      const p = probes[a.probe || 'ui'];
+      const wantFound = a.found !== false;
+      const ok = (p?.found === true) === wantFound;
+      return {
+        ok,
+        label: a.label || `${a.probe || 'ui'} ${wantFound ? 'found' : 'absent'}`,
+        detail: `found=${p?.found}`,
+      };
+    }
+    case 'dialogOpen': {
+      // Assert a visible dialog was captured via a uiState step (typically
+      // selector '.modal-overlay .modal-dialog', searchTabs:false). Optional
+      // `title` requires the captured text to contain the substring.
+      const p = probes[a.probe || 'ui'];
+      const wantOpen = a.open !== false;
+      const isOpen = p?.found === true && p.visible === true &&
+        (a.title == null || String(p.text || '').toLowerCase().includes(String(a.title).toLowerCase()));
+      const ok = isOpen === wantOpen;
+      return {
+        ok,
+        label: a.label || `dialog ${a.title ? `"${a.title}" ` : ''}${wantOpen ? 'open' : 'closed'} (${a.probe || 'ui'})`,
+        detail: `found=${p?.found} visible=${p?.visible} text=${JSON.stringify((p?.text || '').slice(0, 80))}`,
+      };
+    }
+    case 'annotationCountEquals': {
+      const v = dig(probes[a.probe || 'last'], 'annotationCount');
+      const ok = v === a.value;
+      return { ok, label: a.label || `annotationCount === ${a.value}`, detail: `got=${v}` };
+    }
     case 'annotationCountDelta': {
       const v1 = dig(probes[a.preProbe || 'pre'], 'annotationCount') ?? 0;
       const v2 = dig(probes[a.postProbe || 'post'], 'annotationCount') ?? 0;
@@ -178,7 +288,7 @@ async function runScenario(file, runDir) {
   const outDir = join(runDir, scenarioName);
   await mkdir(outDir, { recursive: true });
 
-  const ctx = { scenarioName, outDir, probes: {}, screenshots: [], lastResult: null };
+  const ctx = { scenarioName, outDir, probes: {}, screenshots: [], lastResult: null, testedIds: new Set() };
 
   // Apply setup as implicit leading steps so scenarios stay concise.
   const setupSteps = [];
@@ -194,7 +304,11 @@ async function runScenario(file, runDir) {
       await runStep(ctx, step);
     }
   } catch (e) {
-    return { name: scenarioName, ok: false, error: `step failure: ${e?.message ?? e}`, assertions: [], outDir };
+    return {
+      name: scenarioName, ok: false, error: `step failure: ${e?.message ?? e}`,
+      assertions: [], outDir,
+      testedIds: [...ctx.testedIds], skippedButtons: json.skippedButtons || [],
+    };
   }
 
   const results = (json.assertions || []).map(a => evalAssertion(ctx, a));
@@ -210,7 +324,65 @@ async function runScenario(file, runDir) {
     screenshots: ctx.screenshots,
   }, null, 2));
 
-  return { name: scenarioName, ok, assertions: results, outDir };
+  return {
+    name: scenarioName, ok, assertions: results, outDir,
+    testedIds: [...ctx.testedIds], skippedButtons: json.skippedButtons || [],
+  };
+}
+
+// ── Coverage report ─────────────────────────────────────────────────────
+//
+// Compares the button-ids exercised by clickButton/uiState steps against
+// every literal id="…" in the ribbon tab components, so a newly added
+// (untested) button automatically shows up as a GAP. Scenarios document
+// deliberately untestable buttons via a top-level "skippedButtons":
+// [{ "id": "...", "reason": "..." }] — those are listed separately.
+
+const RIBBON_DIR = join(REPO_ROOT, 'open-pdf-studio', 'js', 'solid', 'components', 'ribbon');
+
+async function collectRibbonIds() {
+  const ids = new Map(); // id -> file
+  let files = [];
+  try {
+    files = (await readdir(RIBBON_DIR)).filter(n => n.endsWith('Tab.jsx'));
+  } catch {
+    return ids;
+  }
+  for (const f of files) {
+    const src = await readFile(join(RIBBON_DIR, f), 'utf8');
+    for (const m of src.matchAll(/id="([^"]+)"/g)) {
+      if (!ids.has(m[1])) ids.set(m[1], f);
+    }
+  }
+  return ids;
+}
+
+async function buildCoverageReport(summary, { partial }) {
+  const ribbonIds = await collectRibbonIds();
+  const tested = new Set();
+  const skipped = new Map(); // id -> reason
+  for (const s of summary) {
+    for (const id of s.testedIds || []) tested.add(id);
+    for (const sk of s.skippedButtons || []) {
+      if (sk?.id) skipped.set(sk.id, sk.reason || sk.skipReason || 'skipped (no reason given)');
+    }
+  }
+  const gaps = [];
+  const skippedList = [];
+  let covered = 0;
+  for (const [id, file] of ribbonIds) {
+    if (tested.has(id)) { covered++; continue; }
+    if (skipped.has(id)) { skippedList.push({ id, file, reason: skipped.get(id) }); continue; }
+    gaps.push({ id, file });
+  }
+  return {
+    partial,
+    ribbonIdCount: ribbonIds.size,
+    testedRibbonIds: covered,
+    testedIdsTotal: tested.size,
+    skipped: skippedList.sort((a, b) => a.id.localeCompare(b.id)),
+    gaps: gaps.sort((a, b) => a.id.localeCompare(b.id)),
+  };
 }
 
 // ── Entrypoint ──────────────────────────────────────────────────────────
@@ -237,6 +409,13 @@ async function main() {
     process.exit(3);
   }
 
+  // Deterministic window size: fit-scale, white-margin geometry and ribbon
+  // overflow all depend on it. Best-effort — older binaries lack the tool.
+  try {
+    const r = await tool('app_set_window_size', { width: 1400, height: 900 });
+    if (r?.ok) console.log('▸ venster op 1400x900 gezet');
+  } catch { /* older binary — scenarios fall back to probe-relative coords */ }
+
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
   const runDir = join(RESULTS_BASE, ts);
   await mkdir(runDir, { recursive: true });
@@ -260,6 +439,22 @@ async function main() {
   }
 
   await writeFile(join(runDir, 'summary.json'), JSON.stringify(summary, null, 2));
+
+  // Coverage: tested button-ids vs every id="…" in the ribbon components.
+  const coverage = await buildCoverageReport(summary, { partial: !!filter });
+  await writeFile(join(runDir, 'coverage.json'), JSON.stringify(coverage, null, 2));
+  console.log(`\n■ Dekking ribbon-knoppen: ${coverage.testedRibbonIds}/${coverage.ribbonIdCount} ids getest` +
+    (coverage.partial ? ' (deelrun — dekking onvolledig per definitie)' : ''));
+  if (coverage.skipped.length) {
+    console.log(`  Bewust overgeslagen (${coverage.skipped.length}):`);
+    for (const s of coverage.skipped) console.log(`    ~ ${s.id} — ${s.reason}`);
+  }
+  if (coverage.gaps.length) {
+    console.log(`  GATEN (${coverage.gaps.length}) — niet getest, niet gedocumenteerd:`);
+    for (const g of coverage.gaps) console.log(`    × ${g.id} (${g.file})`);
+  } else {
+    console.log('  Geen gaten — alle ribbon-ids getest of gedocumenteerd overgeslagen.');
+  }
 
   const passed = summary.filter(s => s.ok).length;
   console.log(`\n${passed}/${summary.length} scenarios passed`);

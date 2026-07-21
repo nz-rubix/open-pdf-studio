@@ -1,0 +1,53 @@
+{
+  "name": "a-help",
+  "description": "Fase A rooktest — Help-tab (HelpTab): extensies-, sneltoetsen-, info-, wat-is-nieuw- en bestandskoppelingen-dialogen openen en met Escape sluiten. Update-check en opstartdiagnose raken OS/netwerk — alleen enabled-gedrag.",
+  "skippedButtons": [
+    { "id": "ribbon-check-updates", "reason": "niet-stille updatecheck toont OS-meldingsdialoog (geen update/fout) — blokkeert headless run; enabled-gedrag wel getoetst" },
+    { "id": "ribbon-startup-diagnostics", "reason": "opent OS-verkenner (reveal_in_file_manager) — blokkeert/vervuilt de run; enabled-gedrag wel getoetst" }
+  ],
+  "steps": [
+    { "action": "uiState", "id": "tab-help", "store": "uiTabHelp" },
+
+    { "action": "clickButton", "id": "ribbon-extensions" },
+    { "action": "wait", "ms": 500 },
+    { "action": "uiState", "selector": ".modal-overlay .modal-dialog", "searchTabs": false, "store": "dlgExtensions" },
+    { "action": "escape", "ms": 400 },
+    { "action": "uiState", "selector": ".modal-overlay .modal-dialog", "searchTabs": false, "store": "dlgExtensionsClosed" },
+
+    { "action": "clickButton", "id": "ribbon-file-assoc" },
+    { "action": "wait", "ms": 500 },
+    { "action": "uiState", "selector": ".modal-overlay .modal-dialog", "searchTabs": false, "store": "dlgFileAssoc" },
+    { "action": "escape", "ms": 400 },
+
+    { "action": "clickButton", "id": "ribbon-shortcuts" },
+    { "action": "wait", "ms": 500 },
+    { "action": "uiState", "selector": ".modal-overlay .modal-dialog", "searchTabs": false, "store": "dlgShortcuts" },
+    { "action": "escape", "ms": 400 },
+
+    { "action": "clickButton", "id": "ribbon-about" },
+    { "action": "wait", "ms": 500 },
+    { "action": "uiState", "selector": ".modal-overlay .modal-dialog", "searchTabs": false, "store": "dlgAbout" },
+    { "action": "escape", "ms": 400 },
+
+    { "action": "clickButton", "id": "ribbon-whats-new" },
+    { "action": "wait", "ms": 800 },
+    { "action": "uiState", "selector": ".modal-overlay .modal-dialog", "searchTabs": false, "store": "dlgWhatsNew" },
+    { "action": "escape", "ms": 400 },
+    { "action": "uiState", "selector": ".modal-overlay .modal-dialog", "searchTabs": false, "store": "dlgAllClosed" },
+
+    { "action": "uiState", "id": "ribbon-check-updates", "store": "uiCheckUpdates" },
+    { "action": "uiState", "id": "ribbon-startup-diagnostics", "store": "uiDiagnostics" }
+  ],
+  "assertions": [
+    { "type": "elementFound", "probe": "uiTabHelp", "label": "tab-help content aanwezig" },
+    { "type": "dialogOpen", "probe": "dlgExtensions", "label": "ribbon-extensions opent dialoog" },
+    { "type": "dialogOpen", "probe": "dlgExtensionsClosed", "open": false, "label": "Escape sluit extensies-dialoog" },
+    { "type": "dialogOpen", "probe": "dlgFileAssoc", "label": "ribbon-file-assoc opent voorkeuren (bestandskoppelingen)" },
+    { "type": "dialogOpen", "probe": "dlgShortcuts", "label": "ribbon-shortcuts opent sneltoetsen-dialoog" },
+    { "type": "dialogOpen", "probe": "dlgAbout", "label": "ribbon-about opent info-dialoog" },
+    { "type": "dialogOpen", "probe": "dlgWhatsNew", "label": "ribbon-whats-new opent wat-is-nieuw-dialoog" },
+    { "type": "dialogOpen", "probe": "dlgAllClosed", "open": false, "label": "alle dialogen gesloten aan het einde" },
+    { "type": "elementEnabled", "probe": "uiCheckUpdates", "label": "ribbon-check-updates aanwezig en enabled" },
+    { "type": "elementEnabled", "probe": "uiDiagnostics", "label": "ribbon-startup-diagnostics aanwezig en enabled" }
+  ]
+}

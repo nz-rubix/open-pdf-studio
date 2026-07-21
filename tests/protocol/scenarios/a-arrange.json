@@ -1,0 +1,1006 @@
+{
+  "name": "a-arrange",
+  "description": "Fase A rooktest — Schikken-tab (ArrangeTab, contextueel): 3 gelijke rechthoeken + lijn, alle uitlijn-, verdeel-, roteer-, spiegel- en z-ordeknoppen met positie-/rotatie-/volgorde-probes. arr-same-* en arr-align-to hebben geen handler (gedocumenteerde bevinding). Blanco document; niets wordt opgeslagen.",
+  "skippedButtons": [],
+  "steps": [
+    {
+      "action": "tool",
+      "name": "app_new_blank_pdf",
+      "args": {
+        "widthPt": 595,
+        "heightPt": 842,
+        "pages": 1
+      },
+      "store": "newdoc"
+    },
+    {
+      "action": "wait",
+      "ms": 800
+    },
+    {
+      "action": "tool",
+      "name": "app_create_annotation",
+      "args": {
+        "type": "box",
+        "page": 1,
+        "props": {
+          "x": 100,
+          "y": 100,
+          "width": 60,
+          "height": 40
+        }
+      },
+      "store": "crA"
+    },
+    {
+      "action": "tool",
+      "name": "app_create_annotation",
+      "args": {
+        "type": "box",
+        "page": 1,
+        "props": {
+          "x": 200,
+          "y": 180,
+          "width": 60,
+          "height": 40
+        }
+      },
+      "store": "crB"
+    },
+    {
+      "action": "tool",
+      "name": "app_create_annotation",
+      "args": {
+        "type": "box",
+        "page": 1,
+        "props": {
+          "x": 400,
+          "y": 500,
+          "width": 60,
+          "height": 40
+        }
+      },
+      "store": "crC"
+    },
+    {
+      "action": "wait",
+      "ms": 300
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crA.id}"
+      }
+    },
+    {
+      "action": "wait",
+      "ms": 400
+    },
+    {
+      "action": "uiState",
+      "id": "tab-arrange",
+      "store": "uiTabArrange"
+    },
+    {
+      "action": "tool",
+      "name": "app_update_annotation",
+      "args": {
+        "id": "={crB.id}",
+        "props": {
+          "x": 200
+        }
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-select-all"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-align-left"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gAl0A"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gAl0B"
+    },
+    {
+      "action": "tool",
+      "name": "app_update_annotation",
+      "args": {
+        "id": "={crB.id}",
+        "props": {
+          "x": 250
+        }
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-select-all"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-align-center"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gAl1A"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gAl1B"
+    },
+    {
+      "action": "tool",
+      "name": "app_update_annotation",
+      "args": {
+        "id": "={crB.id}",
+        "props": {
+          "x": 280
+        }
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-select-all"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-align-right"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gAl2A"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gAl2B"
+    },
+    {
+      "action": "tool",
+      "name": "app_update_annotation",
+      "args": {
+        "id": "={crB.id}",
+        "props": {
+          "y": 300
+        }
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-select-all"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-align-top"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gAl3A"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gAl3B"
+    },
+    {
+      "action": "tool",
+      "name": "app_update_annotation",
+      "args": {
+        "id": "={crB.id}",
+        "props": {
+          "y": 320
+        }
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-select-all"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-align-middle"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gAl4A"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gAl4B"
+    },
+    {
+      "action": "tool",
+      "name": "app_update_annotation",
+      "args": {
+        "id": "={crB.id}",
+        "props": {
+          "y": 340
+        }
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-select-all"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-align-bottom"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gAl5A"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gAl5B"
+    },
+    {
+      "action": "tool",
+      "name": "app_update_annotation",
+      "args": {
+        "id": "={crA.id}",
+        "props": {
+          "x": 100,
+          "y": 100
+        }
+      }
+    },
+    {
+      "action": "tool",
+      "name": "app_update_annotation",
+      "args": {
+        "id": "={crC.id}",
+        "props": {
+          "x": 400,
+          "y": 500
+        }
+      }
+    },
+    {
+      "action": "tool",
+      "name": "app_update_annotation",
+      "args": {
+        "id": "={crB.id}",
+        "props": {
+          "x": 120,
+          "y": 120
+        }
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-select-all"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-dist-space-h"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gDs0"
+    },
+    {
+      "action": "tool",
+      "name": "app_update_annotation",
+      "args": {
+        "id": "={crB.id}",
+        "props": {
+          "x": 120,
+          "y": 120
+        }
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-select-all"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-dist-space-v"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gDs1"
+    },
+    {
+      "action": "tool",
+      "name": "app_update_annotation",
+      "args": {
+        "id": "={crB.id}",
+        "props": {
+          "x": 130,
+          "y": 130
+        }
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-select-all"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-dist-left"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gDs2"
+    },
+    {
+      "action": "tool",
+      "name": "app_update_annotation",
+      "args": {
+        "id": "={crB.id}",
+        "props": {
+          "x": 130,
+          "y": 130
+        }
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-select-all"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-dist-top"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gDs3"
+    },
+    {
+      "action": "tool",
+      "name": "app_update_annotation",
+      "args": {
+        "id": "={crB.id}",
+        "props": {
+          "x": 140,
+          "y": 140
+        }
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-select-all"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-dist-center"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gDs4"
+    },
+    {
+      "action": "tool",
+      "name": "app_update_annotation",
+      "args": {
+        "id": "={crB.id}",
+        "props": {
+          "x": 140,
+          "y": 140
+        }
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-select-all"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-dist-middle"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gDs5"
+    },
+    {
+      "action": "tool",
+      "name": "app_update_annotation",
+      "args": {
+        "id": "={crB.id}",
+        "props": {
+          "x": 150,
+          "y": 150
+        }
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-select-all"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-dist-right"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gDs6"
+    },
+    {
+      "action": "tool",
+      "name": "app_update_annotation",
+      "args": {
+        "id": "={crB.id}",
+        "props": {
+          "x": 150,
+          "y": 150
+        }
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-select-all"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-dist-bottom"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gDs7"
+    },
+    {
+      "action": "uiState",
+      "id": "arr-same-size",
+      "store": "ui_arr_same_size"
+    },
+    {
+      "action": "uiState",
+      "id": "arr-same-width",
+      "store": "ui_arr_same_width"
+    },
+    {
+      "action": "uiState",
+      "id": "arr-same-height",
+      "store": "ui_arr_same_height"
+    },
+    {
+      "action": "uiState",
+      "id": "arr-align-to",
+      "store": "ui_arr_align_to"
+    },
+    {
+      "action": "tool",
+      "name": "app_create_annotation",
+      "args": {
+        "type": "line",
+        "page": 1,
+        "props": {
+          "startX": 100,
+          "startY": 600,
+          "endX": 200,
+          "endY": 650
+        }
+      },
+      "store": "crL"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crB.id}"
+      }
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gRt0"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-rotate-ccw"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gRt1"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-rotate-cw"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gRt2"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-rotate-180"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gRt3"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-rotate-180"
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crL.id}"
+      }
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crL.id}"
+      },
+      "store": "gFl0"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-flip-h"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crL.id}"
+      },
+      "store": "gFl1"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-flip-v"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crL.id}"
+      },
+      "store": "gFl2"
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crA.id}"
+      }
+    },
+    {
+      "action": "tool",
+      "name": "app_list_annotations",
+      "store": "zl0"
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-bring-forward"
+    },
+    {
+      "action": "tool",
+      "name": "app_list_annotations",
+      "store": "zl1"
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crA.id}"
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-bring-front"
+    },
+    {
+      "action": "tool",
+      "name": "app_list_annotations",
+      "store": "zl2"
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crA.id}"
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-send-backward"
+    },
+    {
+      "action": "tool",
+      "name": "app_list_annotations",
+      "store": "zl3"
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crA.id}"
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "arr-send-back"
+    },
+    {
+      "action": "tool",
+      "name": "app_list_annotations",
+      "store": "zl4"
+    },
+    {
+      "action": "tool",
+      "name": "app_clear_selection"
+    },
+    {
+      "action": "tool",
+      "name": "app_list_tabs",
+      "store": "tabsEnd"
+    },
+    {
+      "action": "tool",
+      "name": "app_close_tab",
+      "args": {
+        "index": "={tabsEnd.activeIndex}",
+        "force": true
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "type": "elementFound",
+      "probe": "uiTabArrange",
+      "label": "tab-arrange (contextueel) verschijnt na selectie"
+    },
+    {
+      "type": "stateEqualField",
+      "preProbe": "gAl0A",
+      "postProbe": "gAl0B",
+      "field": "annotation.x",
+      "tolerance": 0.5,
+      "label": "arr-align-left lijnt selectie links uit"
+    },
+    {
+      "type": "stateEqualField",
+      "preProbe": "gAl1A",
+      "postProbe": "gAl1B",
+      "field": "annotation.x",
+      "tolerance": 0.5,
+      "label": "arr-align-center lijnt selectie gecentreerd uit"
+    },
+    {
+      "type": "stateEqualField",
+      "preProbe": "gAl2A",
+      "postProbe": "gAl2B",
+      "field": "annotation.x",
+      "tolerance": 0.5,
+      "label": "arr-align-right lijnt selectie rechts uit"
+    },
+    {
+      "type": "stateEqualField",
+      "preProbe": "gAl3A",
+      "postProbe": "gAl3B",
+      "field": "annotation.y",
+      "tolerance": 0.5,
+      "label": "arr-align-top lijnt selectie boven uit"
+    },
+    {
+      "type": "stateEqualField",
+      "preProbe": "gAl4A",
+      "postProbe": "gAl4B",
+      "field": "annotation.y",
+      "tolerance": 0.5,
+      "label": "arr-align-middle lijnt selectie midden uit"
+    },
+    {
+      "type": "stateEqualField",
+      "preProbe": "gAl5A",
+      "postProbe": "gAl5B",
+      "field": "annotation.y",
+      "tolerance": 0.5,
+      "label": "arr-align-bottom lijnt selectie onder uit"
+    },
+    {
+      "type": "stateInRange",
+      "probe": "gDs0",
+      "field": "annotation.x",
+      "min": 249,
+      "max": 251,
+      "label": "arr-dist-space-h verdeelt horizontale ruimte (middelste op 250)"
+    },
+    {
+      "type": "stateInRange",
+      "probe": "gDs1",
+      "field": "annotation.y",
+      "min": 299,
+      "max": 301,
+      "label": "arr-dist-space-v verdeelt verticale ruimte (middelste op 300)"
+    },
+    {
+      "type": "stateInRange",
+      "probe": "gDs2",
+      "field": "annotation.x",
+      "min": 249,
+      "max": 251,
+      "label": "arr-dist-left verdeelt linkerranden (middelste op 250)"
+    },
+    {
+      "type": "stateInRange",
+      "probe": "gDs3",
+      "field": "annotation.y",
+      "min": 299,
+      "max": 301,
+      "label": "arr-dist-top verdeelt bovenranden (middelste op 300)"
+    },
+    {
+      "type": "stateInRange",
+      "probe": "gDs4",
+      "field": "annotation.x",
+      "min": 249,
+      "max": 251,
+      "label": "arr-dist-center verdeelt middens (h) (middelste op 250)"
+    },
+    {
+      "type": "stateInRange",
+      "probe": "gDs5",
+      "field": "annotation.y",
+      "min": 299,
+      "max": 301,
+      "label": "arr-dist-middle verdeelt middens (v) (middelste op 300)"
+    },
+    {
+      "type": "stateInRange",
+      "probe": "gDs6",
+      "field": "annotation.x",
+      "min": 249,
+      "max": 251,
+      "label": "arr-dist-right verdeelt rechterranden (middelste op 250)"
+    },
+    {
+      "type": "stateInRange",
+      "probe": "gDs7",
+      "field": "annotation.y",
+      "min": 299,
+      "max": 301,
+      "label": "arr-dist-bottom verdeelt onderranden (middelste op 300)"
+    },
+    {
+      "type": "elementFound",
+      "probe": "ui_arr_same_size",
+      "label": "arr-same-size aanwezig (geen handler — zie eindrapport)"
+    },
+    {
+      "type": "elementFound",
+      "probe": "ui_arr_same_width",
+      "label": "arr-same-width aanwezig (geen handler — zie eindrapport)"
+    },
+    {
+      "type": "elementFound",
+      "probe": "ui_arr_same_height",
+      "label": "arr-same-height aanwezig (geen handler — zie eindrapport)"
+    },
+    {
+      "type": "elementFound",
+      "probe": "ui_arr_align_to",
+      "label": "arr-align-to aanwezig (geen handler — zie eindrapport)"
+    },
+    {
+      "type": "stateChanged",
+      "preProbe": "gRt0",
+      "postProbe": "gRt1",
+      "field": "annotation.rotation",
+      "label": "arr-rotate-ccw draait selectie"
+    },
+    {
+      "type": "stateEqualField",
+      "preProbe": "gRt0",
+      "postProbe": "gRt2",
+      "field": "annotation.rotation",
+      "tolerance": 0.01,
+      "label": "arr-rotate-cw draait terug"
+    },
+    {
+      "type": "stateChanged",
+      "preProbe": "gRt2",
+      "postProbe": "gRt3",
+      "field": "annotation.rotation",
+      "label": "arr-rotate-180 draait selectie 180 graden"
+    },
+    {
+      "type": "stateChanged",
+      "preProbe": "gFl0",
+      "postProbe": "gFl1",
+      "field": "annotation.startX",
+      "label": "arr-flip-h spiegelt lijn horizontaal"
+    },
+    {
+      "type": "stateChanged",
+      "preProbe": "gFl1",
+      "postProbe": "gFl2",
+      "field": "annotation.startY",
+      "label": "arr-flip-v spiegelt lijn verticaal"
+    },
+    {
+      "type": "stateChanged",
+      "preProbe": "zl0",
+      "postProbe": "zl1",
+      "field": "annotations.0.id",
+      "label": "arr-bring-forward schuift selectie naar voren"
+    },
+    {
+      "type": "stateChanged",
+      "preProbe": "zl1",
+      "postProbe": "zl2",
+      "field": "annotations.3.id",
+      "label": "arr-bring-front zet selectie bovenaan"
+    },
+    {
+      "type": "stateChanged",
+      "preProbe": "zl2",
+      "postProbe": "zl3",
+      "field": "annotations.3.id",
+      "label": "arr-send-backward schuift selectie naar achteren"
+    },
+    {
+      "type": "stateChanged",
+      "preProbe": "zl3",
+      "postProbe": "zl4",
+      "field": "annotations.0.id",
+      "label": "arr-send-back zet selectie onderaan"
+    }
+  ]
+}

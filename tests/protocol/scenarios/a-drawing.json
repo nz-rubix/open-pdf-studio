@@ -1,0 +1,1302 @@
+{
+  "name": "a-drawing",
+  "description": "Fase A rooktest — Tekenen-tab (DrawingTab, 62 knoppen): alle tekengereedschappen activeren (currentTool-probe), selectie-acties met annotatie-effecten (spiegelen, draaien, uitlijnen, groeperen, explode/join, kopieren/plakken/knippen/verwijderen), schaalgebied en zoekbalk. Blanco document; niets wordt opgeslagen.",
+  "skippedButtons": [],
+  "steps": [
+    {
+      "action": "tool",
+      "name": "app_new_blank_pdf",
+      "args": {
+        "widthPt": 595,
+        "heightPt": 842,
+        "pages": 1
+      },
+      "store": "newdoc"
+    },
+    {
+      "action": "wait",
+      "ms": 800
+    },
+    {
+      "action": "uiState",
+      "id": "tab-drawing",
+      "store": "uiTabDrawing"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-select"
+    },
+    {
+      "action": "probe",
+      "store": "pt0_dr_select"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-pan"
+    },
+    {
+      "action": "probe",
+      "store": "pt1_dr_pan"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-line"
+    },
+    {
+      "action": "probe",
+      "store": "pt2_dr_line"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-arrow"
+    },
+    {
+      "action": "probe",
+      "store": "pt3_dr_arrow"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-spline-arrow"
+    },
+    {
+      "action": "probe",
+      "store": "pt4_dr_spline_arrow"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-draw"
+    },
+    {
+      "action": "probe",
+      "store": "pt5_dr_draw"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-rect"
+    },
+    {
+      "action": "probe",
+      "store": "pt6_dr_rect"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-arc"
+    },
+    {
+      "action": "probe",
+      "store": "pt7_dr_arc"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-polyline"
+    },
+    {
+      "action": "probe",
+      "store": "pt8_dr_polyline"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-hatch"
+    },
+    {
+      "action": "probe",
+      "store": "pt9_dr_hatch"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-text"
+    },
+    {
+      "action": "probe",
+      "store": "pt10_dr_text"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-note"
+    },
+    {
+      "action": "probe",
+      "store": "pt11_dr_note"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-spline"
+    },
+    {
+      "action": "probe",
+      "store": "pt12_dr_spline"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-circle"
+    },
+    {
+      "action": "probe",
+      "store": "pt13_dr_circle"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-ellipse"
+    },
+    {
+      "action": "probe",
+      "store": "pt14_dr_ellipse"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-count"
+    },
+    {
+      "action": "probe",
+      "store": "pt15_dr_count"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-l-shape"
+    },
+    {
+      "action": "probe",
+      "store": "pt16_dr_l_shape"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-image"
+    },
+    {
+      "action": "probe",
+      "store": "pt17_dr_image"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-cloud"
+    },
+    {
+      "action": "probe",
+      "store": "pt18_dr_cloud"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-leader"
+    },
+    {
+      "action": "probe",
+      "store": "pt19_dr_leader"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-label"
+    },
+    {
+      "action": "probe",
+      "store": "pt20_dr_label"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-area"
+    },
+    {
+      "action": "probe",
+      "store": "pt21_dr_area"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-length"
+    },
+    {
+      "action": "probe",
+      "store": "pt22_dr_length"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-dimension"
+    },
+    {
+      "action": "probe",
+      "store": "pt23_dr_dimension"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-angular"
+    },
+    {
+      "action": "probe",
+      "store": "pt24_dr_angular"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-radius"
+    },
+    {
+      "action": "probe",
+      "store": "pt25_dr_radius"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-diameter"
+    },
+    {
+      "action": "probe",
+      "store": "pt26_dr_diameter"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-measure"
+    },
+    {
+      "action": "probe",
+      "store": "pt27_dr_measure"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-remove-image"
+    },
+    {
+      "action": "probe",
+      "store": "pt28_dr_remove_image"
+    },
+    {
+      "action": "clickButton",
+      "id": "btn-create-scale-region"
+    },
+    {
+      "action": "probe",
+      "store": "pt29_btn_create_scale_region"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-array"
+    },
+    {
+      "action": "probe",
+      "store": "pt30_dr_array"
+    },
+    {
+      "action": "escape",
+      "ms": 200
+    },
+    {
+      "action": "tool",
+      "name": "app_set_tool",
+      "args": {
+        "tool": "select"
+      }
+    },
+    {
+      "action": "uiState",
+      "id": "dr-spot-coord",
+      "store": "ui_dr_spot_coord"
+    },
+    {
+      "action": "uiState",
+      "id": "dr-table",
+      "store": "ui_dr_table"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-find"
+    },
+    {
+      "action": "wait",
+      "ms": 300
+    },
+    {
+      "action": "uiState",
+      "selector": ".find-bar.visible",
+      "searchTabs": false,
+      "store": "uiFindOpen"
+    },
+    {
+      "action": "escape",
+      "ms": 400
+    },
+    {
+      "action": "uiState",
+      "selector": ".find-bar.visible",
+      "searchTabs": false,
+      "store": "uiFindClosed"
+    },
+    {
+      "action": "tool",
+      "name": "app_create_annotation",
+      "args": {
+        "type": "box",
+        "page": 1,
+        "props": {
+          "x": 100,
+          "y": 100,
+          "width": 80,
+          "height": 60
+        }
+      },
+      "store": "crA"
+    },
+    {
+      "action": "tool",
+      "name": "app_create_annotation",
+      "args": {
+        "type": "box",
+        "page": 1,
+        "props": {
+          "x": 250,
+          "y": 150,
+          "width": 80,
+          "height": 60
+        }
+      },
+      "store": "crB"
+    },
+    {
+      "action": "tool",
+      "name": "app_create_annotation",
+      "args": {
+        "type": "box",
+        "page": 1,
+        "props": {
+          "x": 400,
+          "y": 300,
+          "width": 80,
+          "height": 60
+        }
+      },
+      "store": "crC"
+    },
+    {
+      "action": "tool",
+      "name": "app_create_annotation",
+      "args": {
+        "type": "line",
+        "page": 1,
+        "props": {
+          "startX": 100,
+          "startY": 500,
+          "endX": 200,
+          "endY": 550
+        }
+      },
+      "store": "crL"
+    },
+    {
+      "action": "tool",
+      "name": "app_create_annotation",
+      "args": {
+        "type": "polyline",
+        "page": 1,
+        "props": {
+          "points": [
+            {
+              "x": 300,
+              "y": 600
+            },
+            {
+              "x": 350,
+              "y": 620
+            },
+            {
+              "x": 400,
+              "y": 600
+            }
+          ]
+        }
+      },
+      "store": "crP"
+    },
+    {
+      "action": "wait",
+      "ms": 300
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-select-all"
+    },
+    {
+      "action": "probe",
+      "store": "pSelAll"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-deselect"
+    },
+    {
+      "action": "probe",
+      "store": "pDesel"
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crA.id}"
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-trim"
+    },
+    {
+      "action": "probe",
+      "store": "pte0_dr_trim"
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crA.id}"
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-extend"
+    },
+    {
+      "action": "probe",
+      "store": "pte1_dr_extend"
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crA.id}"
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-split"
+    },
+    {
+      "action": "probe",
+      "store": "pte2_dr_split"
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crA.id}"
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-break"
+    },
+    {
+      "action": "probe",
+      "store": "pte3_dr_break"
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crA.id}"
+      }
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-lengthen"
+    },
+    {
+      "action": "probe",
+      "store": "pte4_dr_lengthen"
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crA.id}"
+      }
+    },
+    {
+      "action": "uiState",
+      "id": "dr-offset",
+      "store": "ui_dr_offset"
+    },
+    {
+      "action": "uiState",
+      "id": "dr-fillet",
+      "store": "ui_dr_fillet"
+    },
+    {
+      "action": "uiState",
+      "id": "dr-chamfer",
+      "store": "ui_dr_chamfer"
+    },
+    {
+      "action": "uiState",
+      "id": "dr-stretch",
+      "store": "ui_dr_stretch"
+    },
+    {
+      "action": "tool",
+      "name": "app_set_tool",
+      "args": {
+        "tool": "select"
+      }
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crL.id}"
+      }
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crL.id}"
+      },
+      "store": "gL0"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-mirror-h"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crL.id}"
+      },
+      "store": "gL1"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-mirror-v"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crL.id}"
+      },
+      "store": "gL2"
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crA.id}"
+      }
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gA0"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-rotate"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gA1"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-select-all"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-align"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gAlA"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gAlB"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gGr0"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-coll-create"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gGr1"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-coll-explode"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gGr2"
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crP.id}"
+      }
+    },
+    {
+      "action": "probe",
+      "store": "pExp0"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-explode"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "probe",
+      "store": "pExp1"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-join"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "probe",
+      "store": "pJoin"
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crB.id}"
+      }
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gMv0"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-move"
+    },
+    {
+      "action": "wait",
+      "ms": 300
+    },
+    {
+      "action": "escape",
+      "ms": 300
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crB.id}"
+      },
+      "store": "gMv1"
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crB.id}"
+      }
+    },
+    {
+      "action": "probe",
+      "store": "pCp0"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-copy"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "probe",
+      "store": "pCp1"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-delete"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "probe",
+      "store": "pDel"
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crC.id}"
+      }
+    },
+    {
+      "action": "probe",
+      "store": "pPc0"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-clip-copy"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-paste"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "probe",
+      "store": "pPc1"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-paste-in-place"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "probe",
+      "store": "pPc2"
+    },
+    {
+      "action": "clickButton",
+      "id": "dr-cut"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "probe",
+      "store": "pPc3"
+    },
+    {
+      "action": "probe",
+      "store": "pSr0"
+    },
+    {
+      "action": "clickButton",
+      "id": "btn-create-scale-region-full-page"
+    },
+    {
+      "action": "wait",
+      "ms": 500
+    },
+    {
+      "action": "probe",
+      "store": "pSr1"
+    },
+    {
+      "action": "uiState",
+      "selector": ".modal-overlay .modal-dialog",
+      "searchTabs": false,
+      "store": "dlgScale"
+    },
+    {
+      "action": "escape",
+      "ms": 400
+    },
+    {
+      "action": "uiState",
+      "selector": ".modal-overlay .modal-dialog",
+      "searchTabs": false,
+      "store": "dlgScaleClosed"
+    },
+    {
+      "action": "tool",
+      "name": "app_undo"
+    },
+    {
+      "action": "tool",
+      "name": "app_list_tabs",
+      "store": "tabsEnd"
+    },
+    {
+      "action": "tool",
+      "name": "app_close_tab",
+      "args": {
+        "index": "={tabsEnd.activeIndex}",
+        "force": true
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "type": "elementFound",
+      "probe": "uiTabDrawing",
+      "label": "tab-drawing content aanwezig"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt0_dr_select",
+      "field": "currentTool",
+      "value": "select",
+      "label": "dr-select activeert select-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt1_dr_pan",
+      "field": "currentTool",
+      "value": "hand",
+      "label": "dr-pan activeert hand-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt2_dr_line",
+      "field": "currentTool",
+      "value": "line",
+      "label": "dr-line activeert line-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt3_dr_arrow",
+      "field": "currentTool",
+      "value": "arrow",
+      "label": "dr-arrow activeert arrow-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt4_dr_spline_arrow",
+      "field": "currentTool",
+      "value": "splineArrow",
+      "label": "dr-spline-arrow activeert splineArrow-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt5_dr_draw",
+      "field": "currentTool",
+      "value": "draw",
+      "label": "dr-draw activeert draw-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt6_dr_rect",
+      "field": "currentTool",
+      "value": "box",
+      "label": "dr-rect activeert box-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt7_dr_arc",
+      "field": "currentTool",
+      "value": "arc",
+      "label": "dr-arc activeert arc-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt8_dr_polyline",
+      "field": "currentTool",
+      "value": "polyline",
+      "label": "dr-polyline activeert polyline-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt9_dr_hatch",
+      "field": "currentTool",
+      "value": "filledArea",
+      "label": "dr-hatch activeert filledArea-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt10_dr_text",
+      "field": "currentTool",
+      "value": "textbox",
+      "label": "dr-text activeert textbox-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt11_dr_note",
+      "field": "currentTool",
+      "value": "comment",
+      "label": "dr-note activeert comment-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt12_dr_spline",
+      "field": "currentTool",
+      "value": "spline",
+      "label": "dr-spline activeert spline-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt13_dr_circle",
+      "field": "currentTool",
+      "value": "circle",
+      "label": "dr-circle activeert circle-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt14_dr_ellipse",
+      "field": "currentTool",
+      "value": "ellipse",
+      "label": "dr-ellipse activeert ellipse-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt15_dr_count",
+      "field": "currentTool",
+      "value": "count",
+      "label": "dr-count activeert count-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt16_dr_l_shape",
+      "field": "currentTool",
+      "value": "lshape",
+      "label": "dr-l-shape activeert lshape-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt17_dr_image",
+      "field": "currentTool",
+      "value": "image",
+      "label": "dr-image activeert image-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt18_dr_cloud",
+      "field": "currentTool",
+      "value": "cloud",
+      "label": "dr-cloud activeert cloud-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt19_dr_leader",
+      "field": "currentTool",
+      "value": "callout",
+      "label": "dr-leader activeert callout-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt20_dr_label",
+      "field": "currentTool",
+      "value": "textbox",
+      "label": "dr-label activeert textbox-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt21_dr_area",
+      "field": "currentTool",
+      "value": "measureArea",
+      "label": "dr-area activeert measureArea-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt22_dr_length",
+      "field": "currentTool",
+      "value": "measureDistance",
+      "label": "dr-length activeert measureDistance-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt23_dr_dimension",
+      "field": "currentTool",
+      "value": "measureDistance",
+      "label": "dr-dimension activeert measureDistance-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt24_dr_angular",
+      "field": "currentTool",
+      "value": "measureAngle",
+      "label": "dr-angular activeert measureAngle-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt25_dr_radius",
+      "field": "currentTool",
+      "value": "radius",
+      "label": "dr-radius activeert radius-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt26_dr_diameter",
+      "field": "currentTool",
+      "value": "diameter",
+      "label": "dr-diameter activeert diameter-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt27_dr_measure",
+      "field": "currentTool",
+      "value": "measurePerimeter",
+      "label": "dr-measure activeert measurePerimeter-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt28_dr_remove_image",
+      "field": "currentTool",
+      "value": "removeImage",
+      "label": "dr-remove-image activeert removeImage-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt29_btn_create_scale_region",
+      "field": "currentTool",
+      "value": "scaleRegion",
+      "label": "btn-create-scale-region activeert scaleRegion-tool"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pt30_dr_array",
+      "field": "currentTool",
+      "value": "array",
+      "label": "dr-array activeert array-tool"
+    },
+    {
+      "type": "elementEnabled",
+      "probe": "ui_dr_spot_coord",
+      "enabled": false,
+      "label": "dr-spot-coord disabled (gepland werk)"
+    },
+    {
+      "type": "elementEnabled",
+      "probe": "ui_dr_table",
+      "enabled": false,
+      "label": "dr-table disabled (gepland werk)"
+    },
+    {
+      "type": "elementFound",
+      "probe": "uiFindOpen",
+      "label": "dr-find opent zoekbalk"
+    },
+    {
+      "type": "elementFound",
+      "probe": "uiFindClosed",
+      "found": false,
+      "label": "Escape sluit zoekbalk"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pSelAll",
+      "field": "selectedCount",
+      "value": 5,
+      "label": "dr-select-all selecteert alle 5 annotaties"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pDesel",
+      "field": "selectedCount",
+      "value": 0,
+      "label": "dr-deselect heft selectie op"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pte0_dr_trim",
+      "field": "currentTool",
+      "value": "trim",
+      "label": "dr-trim activeert trim-tool (EDIT-groep met selectie)"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pte1_dr_extend",
+      "field": "currentTool",
+      "value": "extend",
+      "label": "dr-extend activeert extend-tool (EDIT-groep met selectie)"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pte2_dr_split",
+      "field": "currentTool",
+      "value": "split",
+      "label": "dr-split activeert split-tool (EDIT-groep met selectie)"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pte3_dr_break",
+      "field": "currentTool",
+      "value": "break",
+      "label": "dr-break activeert break-tool (EDIT-groep met selectie)"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "pte4_dr_lengthen",
+      "field": "currentTool",
+      "value": "lengthen",
+      "label": "dr-lengthen activeert lengthen-tool (EDIT-groep met selectie)"
+    },
+    {
+      "type": "elementEnabled",
+      "probe": "ui_dr_offset",
+      "enabled": false,
+      "label": "dr-offset disabled (gepland werk)"
+    },
+    {
+      "type": "elementEnabled",
+      "probe": "ui_dr_fillet",
+      "enabled": false,
+      "label": "dr-fillet disabled (gepland werk)"
+    },
+    {
+      "type": "elementEnabled",
+      "probe": "ui_dr_chamfer",
+      "enabled": false,
+      "label": "dr-chamfer disabled (gepland werk)"
+    },
+    {
+      "type": "elementEnabled",
+      "probe": "ui_dr_stretch",
+      "enabled": false,
+      "label": "dr-stretch disabled (gepland werk)"
+    },
+    {
+      "type": "stateChanged",
+      "preProbe": "gL0",
+      "postProbe": "gL1",
+      "field": "annotation.startX",
+      "label": "dr-mirror-h spiegelt lijn horizontaal"
+    },
+    {
+      "type": "stateChanged",
+      "preProbe": "gL1",
+      "postProbe": "gL2",
+      "field": "annotation.startY",
+      "label": "dr-mirror-v spiegelt lijn verticaal"
+    },
+    {
+      "type": "stateChanged",
+      "preProbe": "gA0",
+      "postProbe": "gA1",
+      "field": "annotation.rotation",
+      "label": "dr-rotate draait selectie 90 graden (rotation-prop)"
+    },
+    {
+      "type": "stateEqualField",
+      "preProbe": "gAlA",
+      "postProbe": "gAlB",
+      "field": "annotation.x",
+      "tolerance": 0.5,
+      "label": "dr-align lijnt selectie links uit (x gelijk)"
+    },
+    {
+      "type": "stateChanged",
+      "preProbe": "gGr0",
+      "postProbe": "gGr1",
+      "field": "annotation.groupId",
+      "label": "dr-coll-create groepeert selectie (groupId gezet)"
+    },
+    {
+      "type": "stateChanged",
+      "preProbe": "gGr1",
+      "postProbe": "gGr2",
+      "field": "annotation.groupId",
+      "label": "dr-coll-explode heft groep op"
+    },
+    {
+      "type": "stateChanged",
+      "preProbe": "pExp0",
+      "postProbe": "pExp1",
+      "field": "annotationCount",
+      "label": "dr-explode rafelt polyline uiteen in segmenten"
+    },
+    {
+      "type": "stateChanged",
+      "preProbe": "pExp1",
+      "postProbe": "pJoin",
+      "field": "annotationCount",
+      "label": "dr-join voegt segmenten samen"
+    },
+    {
+      "type": "stateEqualField",
+      "preProbe": "gMv0",
+      "postProbe": "gMv1",
+      "field": "annotation.x",
+      "tolerance": 0.01,
+      "label": "dr-move start + Escape annuleert zonder verplaatsing"
+    },
+    {
+      "type": "annotationCountDelta",
+      "preProbe": "pCp0",
+      "postProbe": "pCp1",
+      "delta": 1,
+      "label": "dr-copy dupliceert selectie"
+    },
+    {
+      "type": "annotationCountDelta",
+      "preProbe": "pCp1",
+      "postProbe": "pDel",
+      "delta": -1,
+      "label": "dr-delete verwijdert selectie"
+    },
+    {
+      "type": "annotationCountDelta",
+      "preProbe": "pPc0",
+      "postProbe": "pPc1",
+      "delta": 1,
+      "label": "dr-clip-copy + dr-paste plakt kopie"
+    },
+    {
+      "type": "annotationCountDelta",
+      "preProbe": "pPc1",
+      "postProbe": "pPc2",
+      "delta": 1,
+      "label": "dr-paste-in-place plakt op plaats"
+    },
+    {
+      "type": "annotationCountDelta",
+      "preProbe": "pPc2",
+      "postProbe": "pPc3",
+      "delta": -1,
+      "label": "dr-cut knipt selectie weg"
+    },
+    {
+      "type": "annotationCountDelta",
+      "preProbe": "pSr0",
+      "postProbe": "pSr1",
+      "delta": 1,
+      "label": "btn-create-scale-region-full-page plaatst schaalgebied"
+    },
+    {
+      "type": "dialogOpen",
+      "probe": "dlgScale",
+      "label": "schaalgebied-dialoog opent"
+    },
+    {
+      "type": "dialogOpen",
+      "probe": "dlgScaleClosed",
+      "open": false,
+      "label": "Escape sluit schaalgebied-dialoog"
+    }
+  ]
+}

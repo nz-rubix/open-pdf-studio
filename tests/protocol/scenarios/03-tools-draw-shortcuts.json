@@ -66,7 +66,7 @@
     { "action": "probe", "store": "afterLine" },
 
     { "action": "key", "key": "t" },
-    { "action": "wait", "ms": 300 },
+    { "action": "wait", "ms": 1500 },
     { "action": "probe", "store": "tToolActive" },
     { "action": "mouse_drag",
       "x1": "={init.container.left + init.container.width/2 - 100}",

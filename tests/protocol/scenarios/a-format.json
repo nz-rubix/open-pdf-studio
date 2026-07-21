@@ -1,0 +1,539 @@
+{
+  "name": "a-format",
+  "description": "Fase A rooktest — Opmaak-tab (FormatTab, contextueel): verschijnt na selectie; stijlgalerij, vul-/lijnkleur-kiezers met props-effect, reset-locatie, verbergen, eigenschappen-paneel en type-editor (symbool-stempel). Select-elementen (lijndikte/dekking/randstijl/overvloeimodus/pijlpunten/laag) zijn geen click-doelen — aanwezigheid en enabled-gedrag getoetst; waarde-wijziging loopt via Fase B. Blanco document; niets wordt opgeslagen.",
+  "skippedButtons": [],
+  "steps": [
+    {
+      "action": "tool",
+      "name": "app_new_blank_pdf",
+      "args": {
+        "widthPt": 595,
+        "heightPt": 842,
+        "pages": 1
+      },
+      "store": "newdoc"
+    },
+    {
+      "action": "wait",
+      "ms": 800
+    },
+    {
+      "action": "tool",
+      "name": "app_create_annotation",
+      "args": {
+        "type": "box",
+        "page": 1,
+        "props": {
+          "x": 150,
+          "y": 150,
+          "width": 120,
+          "height": 80
+        }
+      },
+      "store": "crA"
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crA.id}"
+      }
+    },
+    {
+      "action": "wait",
+      "ms": 400
+    },
+    {
+      "action": "uiState",
+      "id": "tab-format",
+      "store": "uiTabFormat"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gSt0"
+    },
+    {
+      "action": "clickButton",
+      "id": "fmt-style-gallery",
+      "selector": "#fmt-style-gallery .ribbon-style-item[data-style=\"blue\"]"
+    },
+    {
+      "action": "wait",
+      "ms": 300
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gSt1"
+    },
+    {
+      "action": "uiState",
+      "id": "fmt-style-more",
+      "store": "ui_fmt_style_more"
+    },
+    {
+      "action": "uiState",
+      "id": "fmt-style-tools",
+      "store": "ui_fmt_style_tools"
+    },
+    {
+      "action": "clickButton",
+      "id": "fmt-fill-color"
+    },
+    {
+      "action": "wait",
+      "ms": 300
+    },
+    {
+      "action": "uiState",
+      "selector": "#fmt-fill-dropdown.show",
+      "searchTabs": false,
+      "store": "uiFillDd"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gFc0"
+    },
+    {
+      "action": "clickButton",
+      "selector": "#fmt-fill-palette .color-column:nth-child(6) .color-swatch",
+      "searchTabs": false
+    },
+    {
+      "action": "wait",
+      "ms": 300
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gFc1"
+    },
+    {
+      "action": "uiState",
+      "selector": "#fmt-fill-dropdown.show",
+      "searchTabs": false,
+      "store": "uiFillDdClosed"
+    },
+    {
+      "action": "clickButton",
+      "id": "fmt-stroke-color"
+    },
+    {
+      "action": "wait",
+      "ms": 300
+    },
+    {
+      "action": "uiState",
+      "selector": "#fmt-stroke-dropdown.show",
+      "searchTabs": false,
+      "store": "uiStrokeDd"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gSc0"
+    },
+    {
+      "action": "clickButton",
+      "selector": "#fmt-stroke-palette .color-column:nth-child(4) .color-swatch",
+      "searchTabs": false
+    },
+    {
+      "action": "wait",
+      "ms": 300
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gSc1"
+    },
+    {
+      "action": "uiState",
+      "id": "fmt-line-width",
+      "store": "ui_fmt_line_width"
+    },
+    {
+      "action": "uiState",
+      "id": "fmt-opacity",
+      "store": "ui_fmt_opacity"
+    },
+    {
+      "action": "uiState",
+      "id": "fmt-border-style",
+      "store": "ui_fmt_border_style"
+    },
+    {
+      "action": "uiState",
+      "id": "fmt-blend-mode",
+      "store": "ui_fmt_blend_mode"
+    },
+    {
+      "action": "uiState",
+      "id": "fmt-arrow-start",
+      "store": "ui_fmt_arrow_start"
+    },
+    {
+      "action": "uiState",
+      "id": "fmt-arrow-end",
+      "store": "ui_fmt_arrow_end"
+    },
+    {
+      "action": "uiState",
+      "id": "fmt-layer",
+      "store": "ui_fmt_layer"
+    },
+    {
+      "action": "uiState",
+      "id": "fmt-fill-icon-rect",
+      "store": "ui_fmt_fill_icon_rect"
+    },
+    {
+      "action": "uiState",
+      "id": "fmt-fill-indicator",
+      "store": "ui_fmt_fill_indicator"
+    },
+    {
+      "action": "uiState",
+      "id": "fmt-stroke-icon-rect",
+      "store": "ui_fmt_stroke_icon_rect"
+    },
+    {
+      "action": "uiState",
+      "id": "fmt-stroke-indicator",
+      "store": "ui_fmt_stroke_indicator"
+    },
+    {
+      "action": "tool",
+      "name": "app_update_annotation",
+      "args": {
+        "id": "={crA.id}",
+        "props": {
+          "rotation": 30
+        }
+      }
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gRt0"
+    },
+    {
+      "action": "clickButton",
+      "id": "fmt-reset-location"
+    },
+    {
+      "action": "wait",
+      "ms": 300
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gRt1"
+    },
+    {
+      "action": "clickButton",
+      "id": "fmt-open"
+    },
+    {
+      "action": "wait",
+      "ms": 400
+    },
+    {
+      "action": "uiState",
+      "selector": "#properties-panel",
+      "searchTabs": false,
+      "store": "uiPropsPanel"
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gHd0"
+    },
+    {
+      "action": "clickButton",
+      "id": "fmt-hide"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gHd1"
+    },
+    {
+      "action": "clickButton",
+      "id": "fmt-hide"
+    },
+    {
+      "action": "wait",
+      "ms": 200
+    },
+    {
+      "action": "tool",
+      "name": "app_get_annotation",
+      "args": {
+        "id": "={crA.id}"
+      },
+      "store": "gHd2"
+    },
+    {
+      "action": "tool",
+      "name": "app_create_annotation",
+      "args": {
+        "type": "stamp",
+        "page": 1,
+        "props": {
+          "x": 320,
+          "y": 320,
+          "width": 60,
+          "height": 60
+        }
+      },
+      "store": "crS"
+    },
+    {
+      "action": "tool",
+      "name": "app_select_annotation",
+      "args": {
+        "id": "={crS.id}"
+      }
+    },
+    {
+      "action": "wait",
+      "ms": 400
+    },
+    {
+      "action": "clickButton",
+      "id": "fmt-edit-type"
+    },
+    {
+      "action": "wait",
+      "ms": 500
+    },
+    {
+      "action": "uiState",
+      "selector": ".ste-window",
+      "searchTabs": false,
+      "store": "dlgEditType"
+    },
+    {
+      "action": "clickButton",
+      "selector": ".ste-close",
+      "searchTabs": false
+    },
+    {
+      "action": "wait",
+      "ms": 400
+    },
+    {
+      "action": "uiState",
+      "selector": ".ste-window",
+      "searchTabs": false,
+      "store": "dlgEditTypeClosed"
+    },
+    {
+      "action": "tool",
+      "name": "app_clear_selection"
+    },
+    {
+      "action": "tool",
+      "name": "app_list_tabs",
+      "store": "tabsEnd"
+    },
+    {
+      "action": "tool",
+      "name": "app_close_tab",
+      "args": {
+        "index": "={tabsEnd.activeIndex}",
+        "force": true
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "type": "elementFound",
+      "probe": "uiTabFormat",
+      "label": "tab-format (contextueel) verschijnt na selectie"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "gSt1",
+      "field": "annotation.color",
+      "value": "#0066cc",
+      "label": "fmt-style-gallery past blauwe stijl toe op selectie"
+    },
+    {
+      "type": "elementFound",
+      "probe": "ui_fmt_style_more",
+      "label": "fmt-style-more aanwezig (geen handler — zie eindrapport)"
+    },
+    {
+      "type": "elementFound",
+      "probe": "ui_fmt_style_tools",
+      "label": "fmt-style-tools aanwezig (geen handler — zie eindrapport)"
+    },
+    {
+      "type": "elementFound",
+      "probe": "uiFillDd",
+      "label": "fmt-fill-color opent kleurenpalet"
+    },
+    {
+      "type": "stateChanged",
+      "preProbe": "gFc0",
+      "postProbe": "gFc1",
+      "field": "annotation.fillColor",
+      "label": "kleurstaal wijzigt vulkleur van selectie"
+    },
+    {
+      "type": "elementFound",
+      "probe": "uiFillDdClosed",
+      "found": false,
+      "label": "palet sluit na staalkeuze"
+    },
+    {
+      "type": "elementFound",
+      "probe": "uiStrokeDd",
+      "label": "fmt-stroke-color opent kleurenpalet"
+    },
+    {
+      "type": "stateChanged",
+      "preProbe": "gSc0",
+      "postProbe": "gSc1",
+      "field": "annotation.strokeColor",
+      "label": "kleurstaal wijzigt lijnkleur van selectie"
+    },
+    {
+      "type": "elementFound",
+      "probe": "ui_fmt_line_width",
+      "label": "fmt-line-width aanwezig op Opmaak-tab"
+    },
+    {
+      "type": "elementFound",
+      "probe": "ui_fmt_opacity",
+      "label": "fmt-opacity aanwezig op Opmaak-tab"
+    },
+    {
+      "type": "elementFound",
+      "probe": "ui_fmt_border_style",
+      "label": "fmt-border-style aanwezig op Opmaak-tab"
+    },
+    {
+      "type": "elementFound",
+      "probe": "ui_fmt_blend_mode",
+      "label": "fmt-blend-mode aanwezig op Opmaak-tab"
+    },
+    {
+      "type": "elementFound",
+      "probe": "ui_fmt_arrow_start",
+      "label": "fmt-arrow-start aanwezig op Opmaak-tab"
+    },
+    {
+      "type": "elementFound",
+      "probe": "ui_fmt_arrow_end",
+      "label": "fmt-arrow-end aanwezig op Opmaak-tab"
+    },
+    {
+      "type": "elementFound",
+      "probe": "ui_fmt_layer",
+      "label": "fmt-layer aanwezig op Opmaak-tab"
+    },
+    {
+      "type": "elementFound",
+      "probe": "ui_fmt_fill_icon_rect",
+      "label": "fmt-fill-icon-rect aanwezig (kleurindicator)"
+    },
+    {
+      "type": "elementFound",
+      "probe": "ui_fmt_fill_indicator",
+      "label": "fmt-fill-indicator aanwezig (kleurindicator)"
+    },
+    {
+      "type": "elementFound",
+      "probe": "ui_fmt_stroke_icon_rect",
+      "label": "fmt-stroke-icon-rect aanwezig (kleurindicator)"
+    },
+    {
+      "type": "elementFound",
+      "probe": "ui_fmt_stroke_indicator",
+      "label": "fmt-stroke-indicator aanwezig (kleurindicator)"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "gRt0",
+      "field": "annotation.rotation",
+      "value": 30,
+      "label": "voorbereiding: rotation 30 gezet"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "gRt1",
+      "field": "annotation.rotation",
+      "value": 0,
+      "label": "fmt-reset-location zet rotatie terug naar 0"
+    },
+    {
+      "type": "elementFound",
+      "probe": "uiPropsPanel",
+      "label": "fmt-open toont eigenschappen-paneel"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "gHd1",
+      "field": "annotation.hidden",
+      "value": true,
+      "label": "fmt-hide verbergt annotatie (hidden=true)"
+    },
+    {
+      "type": "stateEquals",
+      "probe": "gHd2",
+      "field": "annotation.hidden",
+      "value": false,
+      "label": "fmt-hide tweede klik toont annotatie weer"
+    },
+    {
+      "type": "elementFound",
+      "probe": "dlgEditType",
+      "label": "fmt-edit-type opent type-editor voor symbool-stempel"
+    },
+    {
+      "type": "elementFound",
+      "probe": "dlgEditTypeClosed",
+      "found": false,
+      "label": "sluitknop sluit type-editor"
+    }
+  ]
+}

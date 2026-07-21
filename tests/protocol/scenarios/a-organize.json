@@ -1,0 +1,111 @@
+{
+  "name": "a-organize",
+  "description": "Fase A rooktest — PDF bewerken & samenvoegen-tab (OrganizeTab): tekstbewerking-tools, alle pagina- en watermerkdialogen, paginarotatie en echte pagina-verwijdering (op blanco document, nooit opgeslagen).",
+  "skippedButtons": [],
+  "steps": [
+    { "action": "tool", "name": "app_new_blank_pdf", "args": { "widthPt": 595, "heightPt": 842, "pages": 3 }, "store": "newdoc" },
+    { "action": "wait", "ms": 800 },
+    { "action": "tool", "name": "app_set_view_mode", "args": { "mode": "single" } },
+    { "action": "wait", "ms": 500 },
+    { "action": "uiState", "id": "tab-organize", "store": "uiTabOrganize" },
+
+    { "action": "clickButton", "id": "ep-edit-text" },
+    { "action": "probe", "store": "pEditText" },
+    { "action": "clickButton", "id": "ep-add-text" },
+    { "action": "probe", "store": "pAddText" },
+    { "action": "escape", "ms": 200 },
+    { "action": "tool", "name": "app_set_tool", "args": { "tool": "select" } },
+
+    { "action": "clickButton", "id": "ep-crop-margins" },
+    { "action": "wait", "ms": 400 },
+    { "action": "uiState", "selector": ".modal-overlay .modal-dialog", "searchTabs": false, "store": "dlgCrop" },
+    { "action": "escape", "ms": 400 },
+    { "action": "uiState", "selector": ".modal-overlay .modal-dialog", "searchTabs": false, "store": "dlgCropClosed" },
+
+    { "action": "clickButton", "id": "ep-resize-pages" },
+    { "action": "wait", "ms": 400 },
+    { "action": "uiState", "selector": ".modal-overlay .modal-dialog", "searchTabs": false, "store": "dlgResize" },
+    { "action": "escape", "ms": 400 },
+
+    { "action": "clickButton", "id": "ep-compress-pdf" },
+    { "action": "wait", "ms": 400 },
+    { "action": "uiState", "selector": ".modal-overlay .modal-dialog", "searchTabs": false, "store": "dlgCompress" },
+    { "action": "escape", "ms": 400 },
+
+    { "action": "probe", "store": "r0" },
+    { "action": "clickButton", "id": "rotate-left" },
+    { "action": "wait", "ms": 800 },
+    { "action": "probe", "store": "r1" },
+    { "action": "clickButton", "id": "rotate-right" },
+    { "action": "wait", "ms": 800 },
+    { "action": "probe", "store": "r2" },
+
+    { "action": "clickButton", "id": "insert-page" },
+    { "action": "wait", "ms": 400 },
+    { "action": "uiState", "selector": ".modal-overlay .modal-dialog", "searchTabs": false, "store": "dlgInsert" },
+    { "action": "escape", "ms": 400 },
+
+    { "action": "probe", "store": "pDel0" },
+    { "action": "clickButton", "id": "delete-page" },
+    { "action": "wait", "ms": 400 },
+    { "action": "uiState", "selector": ".modal-overlay .modal-dialog", "searchTabs": false, "store": "dlgDelete" },
+    { "action": "clickButton", "selector": ".modal-footer .pref-btn-primary", "searchTabs": false },
+    { "action": "wait", "ms": 1500 },
+    { "action": "probe", "store": "pDel1" },
+
+    { "action": "clickButton", "id": "extract-pages" },
+    { "action": "wait", "ms": 400 },
+    { "action": "uiState", "selector": ".modal-overlay .modal-dialog", "searchTabs": false, "store": "dlgExtract" },
+    { "action": "escape", "ms": 400 },
+
+    { "action": "clickButton", "id": "reorder-pages" },
+    { "action": "wait", "ms": 400 },
+    { "action": "uiState", "selector": "#left-panel:not(.collapsed)", "searchTabs": false, "store": "uiReorderPanel" },
+
+    { "action": "clickButton", "id": "merge-pdfs" },
+    { "action": "wait", "ms": 400 },
+    { "action": "uiState", "selector": ".modal-overlay .modal-dialog", "searchTabs": false, "store": "dlgMerge" },
+    { "action": "escape", "ms": 400 },
+
+    { "action": "clickButton", "id": "add-watermark" },
+    { "action": "wait", "ms": 400 },
+    { "action": "uiState", "selector": ".modal-overlay .modal-dialog", "searchTabs": false, "store": "dlgWatermark" },
+    { "action": "escape", "ms": 400 },
+
+    { "action": "clickButton", "id": "add-header-footer" },
+    { "action": "wait", "ms": 400 },
+    { "action": "uiState", "selector": ".modal-overlay .modal-dialog", "searchTabs": false, "store": "dlgHeaderFooter" },
+    { "action": "escape", "ms": 400 },
+
+    { "action": "clickButton", "id": "manage-watermarks" },
+    { "action": "wait", "ms": 400 },
+    { "action": "uiState", "selector": ".modal-overlay .modal-dialog", "searchTabs": false, "store": "dlgManageWm" },
+    { "action": "escape", "ms": 400 },
+    { "action": "uiState", "selector": ".modal-overlay .modal-dialog", "searchTabs": false, "store": "dlgAllClosed" },
+
+    { "action": "tool", "name": "app_list_tabs", "store": "tabsEnd" },
+    { "action": "tool", "name": "app_close_tab", "args": { "index": "={tabsEnd.activeIndex}", "force": true } }
+  ],
+  "assertions": [
+    { "type": "elementFound", "probe": "uiTabOrganize", "label": "tab-organize content aanwezig" },
+    { "type": "stateEquals", "probe": "pEditText", "field": "currentTool", "value": "editText", "label": "ep-edit-text activeert tekstbewerkmodus" },
+    { "type": "stateEquals", "probe": "pAddText", "field": "currentTool", "value": "text", "label": "ep-add-text activeert tekst-toevoegen" },
+    { "type": "dialogOpen", "probe": "dlgCrop", "label": "ep-crop-margins opent dialoog" },
+    { "type": "dialogOpen", "probe": "dlgCropClosed", "open": false, "label": "Escape sluit marges-dialoog" },
+    { "type": "dialogOpen", "probe": "dlgResize", "label": "ep-resize-pages opent dialoog" },
+    { "type": "dialogOpen", "probe": "dlgCompress", "label": "ep-compress-pdf opent dialoog" },
+    { "type": "stateChanged", "preProbe": "r0", "postProbe": "r1", "field": "doc.scale", "label": "rotate-left draait pagina (fit-schaal wisselt)" },
+    { "type": "stateEqualField", "preProbe": "r0", "postProbe": "r2", "field": "doc.scale", "tolerance": 0.001, "label": "rotate-right draait terug" },
+    { "type": "dialogOpen", "probe": "dlgInsert", "label": "insert-page opent dialoog" },
+    { "type": "dialogOpen", "probe": "dlgDelete", "label": "delete-page opent dialoog" },
+    { "type": "stateEquals", "probe": "pDel0", "field": "pageCount", "value": 3, "label": "documentbegin: 3 pagina's" },
+    { "type": "stateEquals", "probe": "pDel1", "field": "pageCount", "value": 2, "label": "delete-page verwijdert pagina (3 → 2, op kopie)" },
+    { "type": "dialogOpen", "probe": "dlgExtract", "label": "extract-pages opent dialoog" },
+    { "type": "elementFound", "probe": "uiReorderPanel", "label": "reorder-pages opent miniaturen-paneel" },
+    { "type": "dialogOpen", "probe": "dlgMerge", "label": "merge-pdfs opent dialoog" },
+    { "type": "dialogOpen", "probe": "dlgWatermark", "label": "add-watermark opent dialoog" },
+    { "type": "dialogOpen", "probe": "dlgHeaderFooter", "label": "add-header-footer opent dialoog" },
+    { "type": "dialogOpen", "probe": "dlgManageWm", "label": "manage-watermarks opent dialoog" },
+    { "type": "dialogOpen", "probe": "dlgAllClosed", "open": false, "label": "alle dialogen gesloten aan het einde" }
+  ]
+}
