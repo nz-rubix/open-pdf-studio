@@ -105,6 +105,11 @@ function _buildEscapeToolContext() {
 // Map of command → action. Two-letter codes win over one-letter codes; if a
 // one-letter prefix is also a valid command, the timeout fires it after CHORD_MS.
 const CAD_CHORDS = {
+  // 't' alleen = tekstvak (bestaande enkel-toets-sneltoets). Moet als
+  // chord-commando geregistreerd staan: de buffer consumeert 't' als prefix
+  // van 'tr'/'tx'/'tl', en alleen geregistreerde commando's vuren bij de
+  // time-out — zonder deze regel deed een losse T dus helemaal niets.
+  't': () => setTool('textbox'),
   'tr': () => setTool('trim'),
   'ex': () => setTool('extend'),
   'tx': () => setTool('textbox'),
@@ -184,15 +189,19 @@ function _cadChordTry(letter) {
 
   const next = _chordBuffer + letter;
 
-  // Exact match (multi-letter): fire and clear.
-  if (CAD_CHORDS[next]) {
+  // Langere chords winnen van korte: een exacte match vuurt alleen direct
+  // als hij GEEN prefix van een langere chord is ('t' wacht dus op de
+  // time-out zodat 'tr'/'tx'/'tl' bereikbaar blijven).
+  const isPrefix = Object.keys(CAD_CHORDS).some(k => k.startsWith(next) && k !== next);
+
+  // Exact match zonder langere kandidaat: fire and clear.
+  if (CAD_CHORDS[next] && !isPrefix) {
     _resetChord();
     try { CAD_CHORDS[next](); } catch (_) {}
     return true;
   }
 
   // Prefix of some longer chord? Buffer and wait.
-  const isPrefix = Object.keys(CAD_CHORDS).some(k => k.startsWith(next) && k !== next);
   if (isPrefix) {
     _chordBuffer = next;
     if (_chordTimer) clearTimeout(_chordTimer);
