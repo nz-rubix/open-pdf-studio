@@ -248,6 +248,7 @@
     "bottom": "Dolů",
     "alignTo": "Zarovnat k",
     "alignToSelection": "Zarovnat k výběru",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Rozložit",
     "spaceHorizontally": "Rozložit vodorovně",
     "spaceH": "Vodorovně",

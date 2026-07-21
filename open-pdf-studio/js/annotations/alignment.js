@@ -1,7 +1,15 @@
+import { createSignal } from 'solid-js';
 import { state, getActiveDocument, getAnnotationBounds } from '../core/state.js';
 import { recordBulkModify } from '../core/undo-manager.js';
 import { cloneAnnotation } from './factory.js';
 import { redrawAnnotations, redrawContinuous } from './rendering.js';
+import { matchAnnotationSizes } from './size-matching.js';
+
+// Uitlijn-referentie (arr-align-to dropdown, issue #313):
+//  - 'selection' (default): uitlijnen op de collectieve bounding box
+//  - 'last': uitlijnen op de laatst geselecteerde annotatie
+const [alignTarget, setAlignTarget] = createSignal('selection');
+export { alignTarget, setAlignTarget };
 
 function redraw() {
   if (getActiveDocument()?.viewMode === 'continuous') {
@@ -66,6 +74,15 @@ function withUndo(selected, applyFn) {
   redraw();
 }
 
+// Bounds van de laatst geselecteerde annotatie wanneer de uitlijn-referentie
+// op 'last' staat; anders null (= collectieve bounding box gebruiken).
+function getRefBounds(selected, bounds) {
+  if (alignTarget() !== 'last') return null;
+  const ref = selected[selected.length - 1];
+  const entry = bounds.find(e => e.ann === ref);
+  return entry ? entry.b : null;
+}
+
 // --- Alignment ---
 
 export function alignLeft() {
@@ -73,7 +90,8 @@ export function alignLeft() {
   if (selected.length < 2) return;
   withUndo(selected, () => {
     const bounds = selected.map(a => ({ ann: a, b: getAnnotationBounds(a) })).filter(e => e.b);
-    const minX = Math.min(...bounds.map(e => e.b.x));
+    const refB = getRefBounds(selected, bounds);
+    const minX = refB ? refB.x : Math.min(...bounds.map(e => e.b.x));
     for (const { ann, b } of bounds) moveAnnotation(ann, minX - b.x, 0);
   });
 }
@@ -83,9 +101,10 @@ export function alignCenter() {
   if (selected.length < 2) return;
   withUndo(selected, () => {
     const bounds = selected.map(a => ({ ann: a, b: getAnnotationBounds(a) })).filter(e => e.b);
+    const refB = getRefBounds(selected, bounds);
     const allMinX = Math.min(...bounds.map(e => e.b.x));
     const allMaxX = Math.max(...bounds.map(e => e.b.x + e.b.width));
-    const centerX = (allMinX + allMaxX) / 2;
+    const centerX = refB ? refB.x + refB.width / 2 : (allMinX + allMaxX) / 2;
     for (const { ann, b } of bounds) {
       moveAnnotation(ann, centerX - (b.x + b.width / 2), 0);
     }
@@ -97,7 +116,8 @@ export function alignRight() {
   if (selected.length < 2) return;
   withUndo(selected, () => {
     const bounds = selected.map(a => ({ ann: a, b: getAnnotationBounds(a) })).filter(e => e.b);
-    const maxX = Math.max(...bounds.map(e => e.b.x + e.b.width));
+    const refB = getRefBounds(selected, bounds);
+    const maxX = refB ? refB.x + refB.width : Math.max(...bounds.map(e => e.b.x + e.b.width));
     for (const { ann, b } of bounds) moveAnnotation(ann, maxX - (b.x + b.width), 0);
   });
 }
@@ -107,7 +127,8 @@ export function alignTop() {
   if (selected.length < 2) return;
   withUndo(selected, () => {
     const bounds = selected.map(a => ({ ann: a, b: getAnnotationBounds(a) })).filter(e => e.b);
-    const minY = Math.min(...bounds.map(e => e.b.y));
+    const refB = getRefBounds(selected, bounds);
+    const minY = refB ? refB.y : Math.min(...bounds.map(e => e.b.y));
     for (const { ann, b } of bounds) moveAnnotation(ann, 0, minY - b.y);
   });
 }
@@ -117,9 +138,10 @@ export function alignMiddle() {
   if (selected.length < 2) return;
   withUndo(selected, () => {
     const bounds = selected.map(a => ({ ann: a, b: getAnnotationBounds(a) })).filter(e => e.b);
+    const refB = getRefBounds(selected, bounds);
     const allMinY = Math.min(...bounds.map(e => e.b.y));
     const allMaxY = Math.max(...bounds.map(e => e.b.y + e.b.height));
-    const centerY = (allMinY + allMaxY) / 2;
+    const centerY = refB ? refB.y + refB.height / 2 : (allMinY + allMaxY) / 2;
     for (const { ann, b } of bounds) {
       moveAnnotation(ann, 0, centerY - (b.y + b.height / 2));
     }
@@ -131,7 +153,8 @@ export function alignBottom() {
   if (selected.length < 2) return;
   withUndo(selected, () => {
     const bounds = selected.map(a => ({ ann: a, b: getAnnotationBounds(a) })).filter(e => e.b);
-    const maxY = Math.max(...bounds.map(e => e.b.y + e.b.height));
+    const refB = getRefBounds(selected, bounds);
+    const maxY = refB ? refB.y + refB.height : Math.max(...bounds.map(e => e.b.y + e.b.height));
     for (const { ann, b } of bounds) moveAnnotation(ann, 0, maxY - (b.y + b.height));
   });
 }
@@ -265,3 +288,22 @@ export function distributeBottom() {
     }
   });
 }
+
+// --- Grootte gelijkmaken (issue #313) ---
+// Referentie = de laatst geselecteerde annotatie; die blijft zelf ongewijzigd.
+
+function matchDimensions(opts) {
+  const selected = getSelected();
+  if (selected.length < 2) return;
+  const reference = selected[selected.length - 1];
+  withUndo(selected, () => {
+    const entries = selected.map(a => ({ ann: a, b: getAnnotationBounds(a) })).filter(e => e.b);
+    const changed = matchAnnotationSizes(entries, reference, opts);
+    const now = new Date().toISOString();
+    for (const ann of changed) ann.modifiedAt = now;
+  });
+}
+
+export function sameSize() { matchDimensions({ width: true, height: true }); }
+export function sameWidth() { matchDimensions({ width: true }); }
+export function sameHeight() { matchDimensions({ height: true }); }

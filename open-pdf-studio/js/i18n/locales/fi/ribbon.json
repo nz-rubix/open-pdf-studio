@@ -248,6 +248,7 @@
     "bottom": "Ala",
     "alignTo": "Tasaa kohteeseen",
     "alignToSelection": "Tasaa valintaan",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Jaa tasaisesti",
     "spaceHorizontally": "Välistä vaakasuunnassa",
     "spaceH": "Väli vaaka",

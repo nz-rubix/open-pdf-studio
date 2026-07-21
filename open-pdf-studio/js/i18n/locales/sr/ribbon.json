@@ -248,6 +248,7 @@
     "bottom": "Дно",
     "alignTo": "Поравнај према",
     "alignToSelection": "Поравнај према избору",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Расподели",
     "spaceHorizontally": "Хоризонтални размак",
     "spaceH": "Размак Х.",

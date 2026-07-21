@@ -248,6 +248,7 @@
     "bottom": "Jos",
     "alignTo": "Aliniere la",
     "alignToSelection": "Aliniere la selectie",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Distribuire",
     "spaceHorizontally": "Spatiere orizontala",
     "spaceH": "Spatiere O.",

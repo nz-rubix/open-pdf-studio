@@ -248,6 +248,7 @@
     "bottom": "Dno",
     "alignTo": "Poravnaj prema",
     "alignToSelection": "Poravnaj prema odabiru",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Rasporedi",
     "spaceHorizontally": "Rasporedi vodoravno",
     "spaceH": "Razmak V.",

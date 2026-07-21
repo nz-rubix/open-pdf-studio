@@ -248,6 +248,7 @@
     "bottom": "Alt",
     "alignTo": "Hizala",
     "alignToSelection": "Seçime Hizala",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Dağıt",
     "spaceHorizontally": "Yatay Boşluk",
     "spaceH": "Yatay B.",

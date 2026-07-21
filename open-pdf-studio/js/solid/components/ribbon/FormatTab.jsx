@@ -1,12 +1,17 @@
-import { For, Show } from 'solid-js';
+import { For, Show, createSignal, onMount, onCleanup } from 'solid-js';
 import RibbonGroup from './RibbonGroup.jsx';
 import AdaptiveGroups from './AdaptiveGroups.jsx';
 import ColorPickerButton from './ColorPickerButton.jsx';
+import Dialog from '../Dialog.jsx';
 import {
   fillColor, strokeColor, fmtLineWidth, opacity, borderStyle, blendMode,
   arrowStart, arrowEnd, isLocked, isSingleSymbolStamp,
   STYLE_DEFS, applyToSelected, syncFormatStore
 } from '../../stores/formatStore.js';
+import {
+  getStylePresets, createStylePreset, deleteStylePreset, renameStylePreset,
+  applyStylePresetById, copyStyleFromSelection, pasteStyleToSelection, copiedStyle,
+} from '../../stores/stylePresetsStore.js';
 import { openSymbolTypeEditor } from '../../stores/symbolEditStore.js';
 import { state, getActiveDocument } from '../../../core/state.js';
 import { showProperties, showMultiSelectionProperties, closePropertiesPanel } from '../../../ui/panels/properties-panel.js';
@@ -54,6 +59,39 @@ function strokeIconSvg() {
 export default function FormatTab() {
   const { t } = useTranslation('ribbon');
   const { t: tc } = useTranslation('common');
+  const { t: tp } = useTranslation('properties');
+
+  // Uitklap-status: stijlgalerij-popup (fmt-style-more) en
+  // stijl-gereedschappen-menu (fmt-style-tools), issue #313.
+  const [moreOpen, setMoreOpen] = createSignal(false);
+  const [toolsOpen, setToolsOpen] = createSignal(false);
+  const [createOpen, setCreateOpen] = createSignal(false);
+  const [manageOpen, setManageOpen] = createSignal(false);
+  const [presetName, setPresetName] = createSignal('');
+  let moreRef;
+  let toolsRef;
+  let nameInputRef;
+
+  onMount(() => {
+    const handler = (e) => {
+      if (moreRef && !moreRef.contains(e.target)) setMoreOpen(false);
+      if (toolsRef && !toolsRef.contains(e.target)) setToolsOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    onCleanup(() => document.removeEventListener('mousedown', handler));
+  });
+
+  const presets = () => getStylePresets();
+
+  const openCreateDialog = () => {
+    setToolsOpen(false);
+    setPresetName(`${tp('stylePresets.defaultName')} ${presets().length + 1}`);
+    setCreateOpen(true);
+    requestAnimationFrame(() => { nameInputRef?.focus(); nameInputRef?.select(); });
+  };
+  const confirmCreate = () => {
+    if (createStylePreset(presetName())) setCreateOpen(false);
+  };
 
   return (
     <div class="ribbon-content active" id="tab-format">
@@ -74,33 +112,75 @@ export default function FormatTab() {
         </Show>
 
         <RibbonGroup label="" wide={true}>
-          <div class="ribbon-style-gallery" id="fmt-style-gallery">
-            <For each={STYLE_GALLERY}>
-              {(item) => (
-                <div
-                  class="ribbon-style-item"
-                  data-style={item.name}
-                  title={t(item.labelKey)}
-                  onClick={() => applyStyle(item.name)}
-                >
+          <div class="ribbon-style-gallery-wrap" ref={moreRef}>
+            <div class="ribbon-style-gallery" id="fmt-style-gallery">
+              <For each={STYLE_GALLERY}>
+                {(item) => (
                   <div
-                    class={`ribbon-style-preview${item.cloudy ? ' ribbon-style-cloudy' : ''}`}
-                    style={{
-                      'border-color': item.color,
-                      color: item.color,
-                      ...(item.bg ? { background: item.bg } : {})
-                    }}
+                    class="ribbon-style-item"
+                    data-style={item.name}
+                    title={t(item.labelKey)}
+                    onClick={() => applyStyle(item.name)}
                   >
-                    <span>T</span>
+                    <div
+                      class={`ribbon-style-preview${item.cloudy ? ' ribbon-style-cloudy' : ''}`}
+                      style={{
+                        'border-color': item.color,
+                        color: item.color,
+                        ...(item.bg ? { background: item.bg } : {})
+                      }}
+                    >
+                      <span>T</span>
+                    </div>
+                    <span class="ribbon-style-label">{t(item.labelKey)}</span>
                   </div>
-                  <span class="ribbon-style-label">{t(item.labelKey)}</span>
+                )}
+              </For>
+            </div>
+            <button class="ribbon-gallery-more" id="fmt-style-more" title={t('format.moreStyles')}
+              onClick={() => setMoreOpen(!moreOpen())}>
+              <svg viewBox="0 0 8 14"><path d="M1 1l5 6-5 6" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            {/* Galerij-popup: alle stijl-presets in een raster + opgeslagen lijnstijlen */}
+            <div class={`ribbon-style-more-popup${moreOpen() ? ' show' : ''}`} id="fmt-style-more-popup">
+              <div class="ribbon-style-more-grid">
+                <For each={STYLE_GALLERY}>
+                  {(item) => (
+                    <div
+                      class="ribbon-style-item"
+                      title={t(item.labelKey)}
+                      onClick={() => { applyStyle(item.name); setMoreOpen(false); }}
+                    >
+                      <div
+                        class={`ribbon-style-preview${item.cloudy ? ' ribbon-style-cloudy' : ''}`}
+                        style={{
+                          'border-color': item.color,
+                          color: item.color,
+                          ...(item.bg ? { background: item.bg } : {})
+                        }}
+                      >
+                        <span>T</span>
+                      </div>
+                      <span class="ribbon-style-label">{t(item.labelKey)}</span>
+                    </div>
+                  )}
+                </For>
+              </div>
+              <Show when={presets().length > 0}>
+                <div class="ribbon-menu-sep"></div>
+                <div class="ribbon-style-more-presets">
+                  <For each={presets()}>
+                    {(p) => (
+                      <button class="ribbon-menu-item"
+                        onClick={() => { applyStylePresetById(p.id); setMoreOpen(false); }}>
+                        {p.name}
+                      </button>
+                    )}
+                  </For>
                 </div>
-              )}
-            </For>
+              </Show>
+            </div>
           </div>
-          <button class="ribbon-gallery-more" id="fmt-style-more" title={t('format.moreStyles')}>
-            <svg viewBox="0 0 8 14"><path d="M1 1l5 6-5 6" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-          </button>
         </RibbonGroup>
 
         <RibbonGroup label="">
@@ -250,11 +330,44 @@ export default function FormatTab() {
 
         <RibbonGroup label="">
           <div class="ribbon-grid-col">
-            <button class="ribbon-row-btn ribbon-dropdown-btn" id="fmt-style-tools" title={t('format.styleTools')}>
-              <span ref={el => { el.innerHTML = styleToolsIcon; }} />
-              <span>{t('format.styleTools')}</span>
-              <svg class="dropdown-arrow" viewBox="0 0 8 5"><path d="M0 0l4 4 4-4z" fill="currentColor"/></svg>
-            </button>
+            <div class="ribbon-menu-wrapper" ref={toolsRef}>
+              <button class="ribbon-row-btn ribbon-dropdown-btn" id="fmt-style-tools" title={t('format.styleTools')}
+                onClick={() => setToolsOpen(!toolsOpen())}>
+                <span ref={el => { el.innerHTML = styleToolsIcon; }} />
+                <span>{t('format.styleTools')}</span>
+                <svg class="dropdown-arrow" viewBox="0 0 8 5"><path d="M0 0l4 4 4-4z" fill="currentColor"/></svg>
+              </button>
+              <div class={`ribbon-menu-dropdown${toolsOpen() ? ' show' : ''}`} id="fmt-style-tools-menu">
+                <button class="ribbon-menu-item"
+                  onClick={() => { copyStyleFromSelection(); setToolsOpen(false); }}>
+                  {tp('stylePresets.copyStyle')}
+                </button>
+                <button class="ribbon-menu-item" disabled={!copiedStyle() || isLocked()}
+                  onClick={() => { pasteStyleToSelection(); setToolsOpen(false); }}>
+                  {tp('stylePresets.pasteStyle')}
+                </button>
+                <div class="ribbon-menu-sep"></div>
+                <button class="ribbon-menu-item" disabled={isLocked()} onClick={openCreateDialog}>
+                  {tp('stylePresets.create')}…
+                </button>
+                <button class="ribbon-menu-item" disabled={presets().length === 0}
+                  onClick={() => { setToolsOpen(false); setManageOpen(true); }}>
+                  {tp('stylePresets.manage')}…
+                </button>
+                <Show when={presets().length > 0}>
+                  <div class="ribbon-menu-sep"></div>
+                  <For each={presets()}>
+                    {(p) => (
+                      <button class="ribbon-menu-item" disabled={isLocked()}
+                        title={tp('stylePresets.applyPlaceholder')}
+                        onClick={() => { applyStylePresetById(p.id); setToolsOpen(false); }}>
+                        {p.name}
+                      </button>
+                    )}
+                  </For>
+                </Show>
+              </div>
+            </div>
             <button class="ribbon-row-btn" id="fmt-reset-location" title={t('format.resetLocation')}
               onClick={() => {
                 applyToSelected(ann => {
@@ -314,6 +427,72 @@ export default function FormatTab() {
           </div>
         </RibbonGroup>
       </AdaptiveGroups>
+
+      {/* Naam-dialoog voor "Lijnstijl maken" — zelfde gedrag als in het
+          Eigenschappen-paneel (Windows-stijl, verplaatsbaar, Dialog.jsx). */}
+      <Show when={createOpen()}>
+        <Dialog
+          title={tp('stylePresets.createTitle')}
+          dialogClass="style-preset-dialog"
+          onClose={() => setCreateOpen(false)}
+          footer={
+            <>
+              <button class="pref-btn pref-btn-secondary" onClick={() => setCreateOpen(false)}>
+                {tc('cancel')}
+              </button>
+              <button class="pref-btn pref-btn-primary" disabled={!presetName().trim()} onClick={confirmCreate}>
+                {tc('ok')}
+              </button>
+            </>
+          }
+        >
+          <div class="style-preset-name-row">
+            <label for="fmt-style-preset-name-input">{tp('stylePresets.nameLabel')}</label>
+            <input
+              id="fmt-style-preset-name-input"
+              ref={nameInputRef}
+              type="text"
+              value={presetName()}
+              onInput={(e) => setPresetName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && presetName().trim()) confirmCreate(); }}
+            />
+          </div>
+        </Dialog>
+      </Show>
+
+      {/* Beheer-dialoog: hernoemen (inline) en verwijderen. */}
+      <Show when={manageOpen()}>
+        <Dialog
+          title={tp('stylePresets.manageTitle')}
+          dialogClass="style-preset-dialog"
+          onClose={() => setManageOpen(false)}
+          footer={
+            <button class="pref-btn pref-btn-primary" onClick={() => setManageOpen(false)}>
+              {tc('close')}
+            </button>
+          }
+        >
+          <div class="style-preset-list">
+            <For each={presets()}>
+              {(p) => (
+                <div class="style-preset-list-row">
+                  <input
+                    type="text"
+                    value={p.name}
+                    onChange={(e) => renameStylePreset(p.id, e.target.value)}
+                  />
+                  <button class="pref-btn" onClick={() => deleteStylePreset(p.id)}>
+                    {tc('delete')}
+                  </button>
+                </div>
+              )}
+            </For>
+            <Show when={presets().length === 0}>
+              <div class="style-preset-empty">{tp('stylePresets.noPresets')}</div>
+            </Show>
+          </div>
+        </Dialog>
+      </Show>
     </div>
   );
 }

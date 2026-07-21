@@ -248,6 +248,7 @@
     "bottom": "Abaixo",
     "alignTo": "Alinhar a",
     "alignToSelection": "Alinhar à seleção",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Distribuir",
     "spaceHorizontally": "Espaçar horizontalmente",
     "spaceH": "Espaço H.",

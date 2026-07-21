@@ -248,6 +248,7 @@
     "bottom": "Низ",
     "alignTo": "Выровнять по",
     "alignToSelection": "Выровнять по выделению",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Распределить",
     "spaceHorizontally": "Распределить по горизонтали",
     "spaceH": "Гориз.",

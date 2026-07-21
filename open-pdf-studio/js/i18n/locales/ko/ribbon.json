@@ -248,6 +248,7 @@
     "bottom": "아래",
     "alignTo": "맞춤 대상",
     "alignToSelection": "선택 영역에 맞춤",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "배분",
     "spaceHorizontally": "가로 균등 배치",
     "spaceH": "가로 균등",

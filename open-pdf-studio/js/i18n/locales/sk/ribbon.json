@@ -248,6 +248,7 @@
     "bottom": "Nadol",
     "alignTo": "Zarovnať podľa",
     "alignToSelection": "Zarovnať podľa výberu",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Rozmiestniť",
     "spaceHorizontally": "Rozmiestniť vodorovne",
     "spaceH": "Vodorovne",

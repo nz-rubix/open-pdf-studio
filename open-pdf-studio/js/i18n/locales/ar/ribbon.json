@@ -248,6 +248,7 @@
     "bottom": "أسفل",
     "alignTo": "محاذاة إلى",
     "alignToSelection": "محاذاة إلى التحديد",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "توزيع",
     "spaceHorizontally": "توزيع أفقي",
     "spaceH": "أفقي",

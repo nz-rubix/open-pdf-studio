@@ -1,3 +1,4 @@
+import { createSignal, onMount, onCleanup } from 'solid-js';
 import RibbonGroup from './RibbonGroup.jsx';
 import AdaptiveGroups from './AdaptiveGroups.jsx';
 import RibbonButton from './RibbonButton.jsx';
@@ -10,7 +11,8 @@ import { recordBulkModify } from '../../../core/undo-manager.js';
 import {
   alignLeft, alignCenter, alignRight, alignTop, alignMiddle, alignBottom,
   distributeSpaceH, distributeSpaceV, distributeLeft, distributeCenter,
-  distributeRight, distributeTop, distributeMiddle, distributeBottom
+  distributeRight, distributeTop, distributeMiddle, distributeBottom,
+  sameSize, sameWidth, sameHeight, alignTarget, setAlignTarget
 } from '../../../annotations/alignment.js';
 import {
   alignLeftIcon, alignCenterIcon, alignRightIcon, alignTopIcon, alignMiddleIcon, alignBottomIcon,
@@ -22,6 +24,17 @@ import { useTranslation } from '../../../i18n/useTranslation.js';
 
 export default function ArrangeTab() {
   const { t } = useTranslation('ribbon');
+
+  // Dropdown-status voor "Uitlijnen op" (arr-align-to)
+  const [alignMenuOpen, setAlignMenuOpen] = createSignal(false);
+  let alignMenuRef;
+  onMount(() => {
+    const handler = (e) => {
+      if (alignMenuRef && !alignMenuRef.contains(e.target)) setAlignMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    onCleanup(() => document.removeEventListener('mousedown', handler));
+  });
 
   return (
     <div class="ribbon-content active" id="tab-arrange">
@@ -58,10 +71,23 @@ export default function ArrangeTab() {
           <div class="ribbon-grid-col">
             <div class="ribbon-grid-spacer"></div>
             <div class="ribbon-grid-spacer"></div>
-            <button class="ribbon-row-btn ribbon-dropdown-btn" id="arr-align-to" title={t('arrange.alignTo')} disabled={isPdfAReadOnly()}>
-              <span>{t('arrange.alignToSelection')}</span>
-              <svg class="dropdown-arrow" viewBox="0 0 8 5"><path d="M0 0l4 4 4-4z" fill="currentColor"/></svg>
-            </button>
+            <div class="ribbon-menu-wrapper" ref={alignMenuRef}>
+              <button class="ribbon-row-btn ribbon-dropdown-btn" id="arr-align-to" title={t('arrange.alignTo')} disabled={isPdfAReadOnly()}
+                onClick={() => setAlignMenuOpen(!alignMenuOpen())}>
+                <span>{alignTarget() === 'last' ? t('arrange.alignToLastSelected') : t('arrange.alignToSelection')}</span>
+                <svg class="dropdown-arrow" viewBox="0 0 8 5"><path d="M0 0l4 4 4-4z" fill="currentColor"/></svg>
+              </button>
+              <div class={`ribbon-menu-dropdown${alignMenuOpen() ? ' show' : ''}`} id="arr-align-to-menu">
+                <button class="ribbon-menu-item" onClick={() => { setAlignTarget('selection'); setAlignMenuOpen(false); }}>
+                  <span class="ribbon-menu-check">{alignTarget() === 'selection' ? '✓' : ''}</span>
+                  <span>{t('arrange.alignToSelection')}</span>
+                </button>
+                <button class="ribbon-menu-item" onClick={() => { setAlignTarget('last'); setAlignMenuOpen(false); }}>
+                  <span class="ribbon-menu-check">{alignTarget() === 'last' ? '✓' : ''}</span>
+                  <span>{t('arrange.alignToLastSelected')}</span>
+                </button>
+              </div>
+            </div>
           </div>
         </RibbonGroup>
 
@@ -95,9 +121,9 @@ export default function ArrangeTab() {
         <RibbonGroup label={t('arrange.size')}>
           <div class="ribbon-big-icon" ref={el => { el.innerHTML = sameSize16Icon; }}></div>
           <div class="ribbon-grid-col">
-            <button class="ribbon-row-btn" id="arr-same-size" title={t('arrange.sameSize')} disabled={isPdfAReadOnly()}><span>{t('arrange.sameSize')}</span></button>
-            <button class="ribbon-row-btn" id="arr-same-width" title={t('arrange.sameWidth')} disabled={isPdfAReadOnly()}><span>{t('arrange.sameWidth')}</span></button>
-            <button class="ribbon-row-btn" id="arr-same-height" title={t('arrange.sameHeight')} disabled={isPdfAReadOnly()}><span>{t('arrange.sameHeight')}</span></button>
+            <button class="ribbon-row-btn" id="arr-same-size" title={t('arrange.sameSize')} disabled={isPdfAReadOnly()} onClick={sameSize}><span>{t('arrange.sameSize')}</span></button>
+            <button class="ribbon-row-btn" id="arr-same-width" title={t('arrange.sameWidth')} disabled={isPdfAReadOnly()} onClick={sameWidth}><span>{t('arrange.sameWidth')}</span></button>
+            <button class="ribbon-row-btn" id="arr-same-height" title={t('arrange.sameHeight')} disabled={isPdfAReadOnly()} onClick={sameHeight}><span>{t('arrange.sameHeight')}</span></button>
           </div>
         </RibbonGroup>
 

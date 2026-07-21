@@ -248,6 +248,7 @@
     "bottom": "Dưới",
     "alignTo": "Căn theo",
     "alignToSelection": "Căn theo Vùng chọn",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Phân bố",
     "spaceHorizontally": "Khoảng cách Ngang",
     "spaceH": "KC Ngang",

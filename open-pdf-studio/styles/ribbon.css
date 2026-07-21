@@ -890,6 +890,106 @@
   background: var(--theme-ribbon-btn-hover, #e8e8e8);
 }
 
+/* Generic ribbon dropdown menu (arr-align-to, fmt-style-tools) */
+.ribbon-menu-wrapper {
+  position: relative;
+}
+
+.ribbon-grid-col .ribbon-menu-wrapper {
+  display: flex;
+}
+
+.ribbon-menu-wrapper > .ribbon-row-btn {
+  flex: 1;
+  width: 100%;
+}
+
+.ribbon-menu-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1000;
+  background: var(--theme-surface, #fff);
+  border: 1px solid var(--theme-border, #ccc);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  padding: 2px;
+  min-width: 180px;
+}
+
+.ribbon-menu-dropdown.show {
+  display: block;
+}
+
+.ribbon-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px;
+  font-size: 11px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--theme-text, #333);
+  cursor: default;
+  white-space: nowrap;
+}
+
+.ribbon-menu-item:hover:not(:disabled) {
+  background: var(--theme-ribbon-btn-hover, #e8e8e8);
+}
+
+.ribbon-menu-item:disabled {
+  color: #999;
+}
+
+.ribbon-menu-sep {
+  height: 1px;
+  background: var(--theme-border, #ddd);
+  margin: 2px 0;
+}
+
+.ribbon-menu-check {
+  width: 12px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+/* Style-gallery "more" popup (fmt-style-more) */
+.ribbon-style-gallery-wrap {
+  position: relative;
+  display: flex;
+}
+
+.ribbon-style-more-popup {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 1000;
+  background: var(--theme-surface, #fff);
+  border: 1px solid var(--theme-border, #ccc);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  padding: 6px;
+  width: 300px;
+}
+
+.ribbon-style-more-popup.show {
+  display: block;
+}
+
+.ribbon-style-more-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.ribbon-style-more-presets {
+  display: flex;
+  flex-direction: column;
+}
+
 /* Input controls */
 .ribbon-input-group {
   display: flex;

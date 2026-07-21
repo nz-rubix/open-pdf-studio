@@ -248,6 +248,7 @@
     "bottom": "Nederkant",
     "alignTo": "Justera mot",
     "alignToSelection": "Justera mot markering",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Fördela",
     "spaceHorizontally": "Fördela horisontellt",
     "spaceH": "Horis.",

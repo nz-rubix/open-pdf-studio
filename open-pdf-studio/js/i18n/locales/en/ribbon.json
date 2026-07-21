@@ -347,6 +347,7 @@
     "bottom": "Bottom",
     "alignTo": "Align To",
     "alignToSelection": "Align to Selection",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Distribute",
     "spaceHorizontally": "Space Horizontally",
     "spaceH": "Space H.",

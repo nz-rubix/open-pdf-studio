@@ -248,6 +248,7 @@
     "bottom": "Baix",
     "alignTo": "Alinea a",
     "alignToSelection": "Alinea a la selecció",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Distribueix",
     "spaceHorizontally": "Espaia horitzontalment",
     "spaceH": "Espai H.",

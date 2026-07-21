@@ -248,6 +248,7 @@
     "bottom": "Внизу",
     "alignTo": "Вирівняти за",
     "alignToSelection": "Вирівняти за виділенням",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Розподілити",
     "spaceHorizontally": "Розподілити горизонтально",
     "spaceH": "Гориз.",

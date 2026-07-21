@@ -248,6 +248,7 @@
     "bottom": "கீழ்",
     "alignTo": "சீரமைப்புக்கு",
     "alignToSelection": "தேர்வுக்குச் சீரமை",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "பரவலாக்கு",
     "spaceHorizontally": "கிடையாக இடமிடு",
     "spaceH": "கிடை இடம்",

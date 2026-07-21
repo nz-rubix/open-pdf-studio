@@ -248,6 +248,7 @@
     "bottom": "下",
     "alignTo": "对齐方式",
     "alignToSelection": "对齐到选区",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "分布",
     "spaceHorizontally": "水平分布",
     "spaceH": "水平分布",

@@ -248,6 +248,7 @@
     "bottom": "Bund",
     "alignTo": "Juster til",
     "alignToSelection": "Juster til markering",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Fordel",
     "spaceHorizontally": "Fordel vandret",
     "spaceH": "Fordel V.",

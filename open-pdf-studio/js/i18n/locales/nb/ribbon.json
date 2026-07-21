@@ -248,6 +248,7 @@
     "bottom": "Bunn",
     "alignTo": "Juster til",
     "alignToSelection": "Juster til utvalg",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Fordel",
     "spaceHorizontally": "Fordel horisontalt",
     "spaceH": "Fordel H.",

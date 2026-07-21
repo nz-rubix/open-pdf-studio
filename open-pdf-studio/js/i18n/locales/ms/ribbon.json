@@ -248,6 +248,7 @@
     "bottom": "Bawah",
     "alignTo": "Jajar Kepada",
     "alignToSelection": "Jajar kepada Pilihan",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Agih",
     "spaceHorizontally": "Jarak Mendatar",
     "spaceH": "Jarak M.",

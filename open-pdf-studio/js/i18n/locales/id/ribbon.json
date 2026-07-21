@@ -248,6 +248,7 @@
     "bottom": "Bawah",
     "alignTo": "Ratakan Ke",
     "alignToSelection": "Ratakan ke Pilihan",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Distribusi",
     "spaceHorizontally": "Jarak Horizontal",
     "spaceH": "Jarak H.",

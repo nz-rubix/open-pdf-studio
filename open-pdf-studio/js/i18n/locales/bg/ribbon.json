@@ -248,6 +248,7 @@
     "bottom": "Отдолу",
     "alignTo": "Подравняване към",
     "alignToSelection": "Подравняване към избраното",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Разпределяне",
     "spaceHorizontally": "Хоризонтално разстояние",
     "spaceH": "Хориз. разст.",

@@ -248,6 +248,7 @@
     "bottom": "Unten",
     "alignTo": "Ausrichten an",
     "alignToSelection": "An Auswahl ausrichten",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Verteilen",
     "spaceHorizontally": "Horizontal verteilen",
     "spaceH": "Horiz. vert.",

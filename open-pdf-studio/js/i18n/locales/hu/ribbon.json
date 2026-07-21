@@ -248,6 +248,7 @@
     "bottom": "Alsó",
     "alignTo": "Igazítás",
     "alignToSelection": "Igazítás kijelöléshez",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Elosztás",
     "spaceHorizontally": "Vízszintes elosztás",
     "spaceH": "Vízszintes",

@@ -248,6 +248,7 @@
     "bottom": "Dół",
     "alignTo": "Wyrównaj do",
     "alignToSelection": "Wyrównaj do zaznaczenia",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Rozprosz",
     "spaceHorizontally": "Odstęp poziomy",
     "spaceH": "Odst. poz.",

@@ -347,6 +347,7 @@
     "bottom": "Onder",
     "alignTo": "Uitlijnen op",
     "alignToSelection": "Uitlijnen op selectie",
+    "alignToLastSelected": "Uitlijnen op laatst geselecteerde",
     "distribute": "Verdelen",
     "spaceHorizontally": "Horizontaal verdelen",
     "spaceH": "Horiz. verd.",

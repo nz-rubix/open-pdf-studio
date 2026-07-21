@@ -248,6 +248,7 @@
     "bottom": "Chini",
     "alignTo": "Pangilia Kwa",
     "alignToSelection": "Pangilia kwa Chaguo",
+    "alignToLastSelected": "Align to Last Selected",
     "distribute": "Sambaza",
     "spaceHorizontally": "Nafasi Mlalo",
     "spaceH": "Nafasi M.",
