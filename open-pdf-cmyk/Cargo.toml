@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 # Zelfde lopdf-lijn als de app-crate en open-pdf-render: één versie in de lock.
-lopdf = "0.34"
+lopdf = "0.47"
 flate2 = "1"
 # Alleen de JPEG-decoder, voor afbeeldingen met DCTDecode.
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
