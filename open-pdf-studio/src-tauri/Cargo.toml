@@ -34,7 +34,7 @@ dunce = "1"
 whoami = "1"
 base64 = "0.22"
 open = "5"
-zip = "2"
+zip = "8"
 
 tauri-plugin-deep-link = "2"
 tauri-plugin-single-instance = "2"
@@ -81,7 +81,7 @@ rsa = "0.9"
 p256 = { version = "0.13", default-features = false, features = ["ecdsa", "pkcs8"] }
 p384 = { version = "0.13", default-features = false, features = ["ecdsa", "pkcs8"] }
 zeroize = "1"
-rand = "0.8"
+rand = "0.9"
 aes = "0.8"
 stringprep = "0.1"
 unicode-normalization = "0.1"
@@ -100,7 +100,7 @@ axum = "0.8"
 # Direct dep for MCP tool handlers that need to inspect PDF structure (page
 # count, etc). Pinned to match `open-pdf-render`'s transitive version so the
 # resolver picks a single lopdf in Cargo.lock.
-lopdf = "0.34"
+lopdf = "0.42"
 # Begrensd uitpakken van objectstromen bij het lezen van handtekeningen; zelfde
 # versie als die lopdf al gebruikt.
 flate2 = "1"
